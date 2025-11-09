@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Limpar Dados</title>
+</head>
+<body>
+    <h1>Limpeza de Dados do Aplicativo</h1>
+    <button onclick="limparDados()" style="padding: 15px 30px; font-size: 16px; background: red; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Limpar Todos os Dados Salvos
+    </button>
+    
+    <p id="resultado"></p>
+    
+    <script>
+        function limparDados() {
+            // Remove todos os dados persistidos pelo app
+            try {
+                localStorage.removeItem('ordensTrabalho');
+                localStorage.removeItem('registrosLogistica');
+                localStorage.removeItem('registroDiaAtual');
+                document.getElementById('resultado').innerHTML = '<strong style="color: green;">Dados limpos com sucesso! Pode fechar esta página e abrir o index.html novamente.</strong>';
+                alert('Dados limpos! Agora abra o index.html novamente.');
+            } catch (e) {
+                document.getElementById('resultado').innerHTML = '<strong style="color: red;">Erro ao limpar dados: ' + (e && e.message ? e.message : e) + '</strong>';
+            }
+        }
+    </script>
+</body>
+</html>
