@@ -423,6 +423,34 @@ button {
     flex-wrap: wrap;
 }
 
+/* Linha de ações dentro do cabeçalho da tabela (PDF/Backup/Importar) */
+.filter-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.filter-actions > * {
+    flex: 0 0 auto;
+}
+
+/* Ajuste específico para o seletor de mês da logística e botão ao lado */
+#filtroMesLogistica {
+    width: auto;
+    max-width: 200px;
+}
+
+@media (max-width: 420px) {
+    #filtroMesLogistica {
+        max-width: 150px;
+    }
+    .table-header .filter-group .btn-pdf {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+}
+
 .filter-group input,
 .filter-group select {
     padding: 10px 12px;

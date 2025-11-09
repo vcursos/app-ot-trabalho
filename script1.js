@@ -708,6 +708,20 @@ let registroDiaAtual = JSON.parse(localStorage.getItem('registroDiaAtual')) || n
 // Inicializar campos de logística ao carregar
 document.addEventListener('DOMContentLoaded', function() {
     inicializarLogisticaDiaria();
+    // Definir mês atual no filtro de logística (por padrão)
+    const mesInput = document.getElementById('filtroMesLogistica');
+    if (mesInput) {
+        const agora = new Date();
+        const mesAtual = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+        // Predefinir valor apenas se vazio
+        if (!mesInput.value) {
+            mesInput.value = mesAtual;
+        }
+        // Limitar seleção futura: permitir retroativa, bloquear meses futuros
+        mesInput.max = mesAtual;
+        // Atualizar tabela conforme mês atual se ainda não filtrado
+        atualizarTabelaLogistica(mesInput.value);
+    }
 });
 
 function inicializarLogisticaDiaria() {
@@ -1067,6 +1081,79 @@ function gerarPDFLogistica() {
     doc.text(`(Motor 1.5 dCi: ${consumoMedio.toFixed(2)} L/100km médio)`, 14, finalY + 38);
     
     doc.save(`logistica-${mesAtual}.pdf`);
+}
+
+// Gerar PDF apenas do dia selecionado em Logística Diária
+function gerarPDFLogisticaDia() {
+    const { jsPDF } = window.jspdf;
+    const dataSelecionada = document.getElementById('dataLogistica').value;
+    
+    if (!dataSelecionada) {
+        alert('Selecione a data da logística.');
+        return;
+    }
+    
+    const registrosDia = registrosLogistica.filter(reg => reg.data === dataSelecionada);
+    if (registrosDia.length === 0) {
+        alert('Nenhum registro encontrado para a data selecionada.');
+        return;
+    }
+    
+    const doc = new jsPDF();
+    const dataBR = new Date(dataSelecionada + 'T00:00:00').toLocaleDateString('pt-BR');
+    
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.text('Logística Diária - Relatório do Dia', 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Data: ${dataBR}`, 14, 28);
+    
+    // Tabela (pode haver mais de um registro no mesmo dia)
+    const tableData = registrosDia.map(reg => {
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        return [
+            `${reg.horaInicio}-${reg.horaFim}`,
+            reg.kmInicial.toFixed(1),
+            reg.kmFinal.toFixed(1),
+            reg.kmRodados.toFixed(1) + ' km',
+            reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-',
+            reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-',
+            litrosGastos.toFixed(2) + 'L'
+        ];
+    });
+    
+    doc.autoTable({
+        startY: 35,
+        head: [['Horário', 'KM Ini', 'KM Fim', 'KM Rodados', 'Abastec.', 'L.Abast.', 'L.Consumidos']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [102, 126, 234] }
+    });
+    
+    // Resumo
+    const totalKM = registrosDia.reduce((sum, reg) => sum + reg.kmRodados, 0);
+    const totalAbastecimento = registrosDia.reduce((sum, reg) => sum + reg.valorAbastecimento, 0);
+    const totalLitrosAbastecidos = registrosDia.reduce((sum, reg) => sum + reg.litrosAbastecidos, 0);
+    const totalLitrosGastos = registrosDia.reduce((sum, reg) => {
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        return sum + litrosGastos;
+    }, 0);
+    const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : 5.15;
+    
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text(`Registros no dia: ${registrosDia.length}`, 14, finalY);
+    doc.text(`KM Rodados: ${totalKM.toFixed(1)} km`, 14, finalY + 7);
+    doc.text(`Abastecimento: € ${totalAbastecimento.toFixed(2)}`, 14, finalY + 14);
+    doc.text(`Litros Abastecidos: ${totalLitrosAbastecidos.toFixed(2)} L`, 14, finalY + 21);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Litros Consumidos: ${totalLitrosGastos.toFixed(2)} L`, 14, finalY + 31);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.text(`(Motor 1.5 dCi: ${consumoMedio.toFixed(2)} L/100km médio)`, 14, finalY + 38);
+    
+    doc.save(`logistica-${dataSelecionada}.pdf`);
 }
 
 // ==================== SCANNER DE CÓDIGO DE BARRAS ====================

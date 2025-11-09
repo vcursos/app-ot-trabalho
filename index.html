@@ -153,9 +153,11 @@
                         <option value="MOVISTAR">MOVISTAR</option>
                         <option value="AMBAS">AMBAS</option>
                     </select>
-                    <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
-                    <button class="btn-secondary" onclick="exportarBackup()">💾 Backup JSON</button>
-                    <button class="btn-secondary" onclick="importarBackup()">📥 Importar Backup</button>
+                    <div class="filter-actions">
+                        <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
+                        <button class="btn-secondary" onclick="exportarBackup()">💾 Backup JSON</button>
+                        <button class="btn-secondary" onclick="importarBackup()">📥 Importar Backup</button>
+                    </div>
                 </div>
             </div>
 
@@ -256,9 +258,9 @@
             <section class="table-section">
                 <div class="table-header">
                     <h2>Histórico de Logística</h2>
-                    <div class="filter-group">
-                        <input type="month" id="filtroMesLogistica" onchange="filtrarLogisticaPorMes()">
-                        <button class="btn-pdf" onclick="gerarPDFLogistica()">📄 Gerar PDF</button>
+                    <div class="filter-group" style="flex-wrap:nowrap;">
+                        <input type="month" id="filtroMesLogistica" onchange="filtrarLogisticaPorMes()" style="max-width:160px;">
+                        <button class="btn-pdf" onclick="gerarPDFLogistica()" title="Gerar PDF do mês selecionado" style="flex:0 0 auto;">📄 Gerar PDF</button>
                     </div>
                 </div>
 
