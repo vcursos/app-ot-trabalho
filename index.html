@@ -297,9 +297,18 @@
                 <h3 style="margin:0;">📷 Escanear Código</h3>
                 <button type="button" class="btn-close-scanner" onclick="fecharScanner()" style="margin:0;">✕ Fechar</button>
             </div>
-            <video id="video" playsinline></video>
+            <div style="position:relative; background:#000; border-radius:10px; overflow:hidden;">
+                <video id="video" playsinline style="width:100%; height:auto; display:block; max-height:400px; object-fit:cover;"></video>
+                <!-- Linha de mira (guia de leitura) -->
+                <div class="scanner-guide">
+                    <div class="scanner-line"></div>
+                </div>
+            </div>
             <canvas id="canvas" style="display: none;"></canvas>
-            <div id="resultado" style="margin-top: 10px; font-weight: bold; color: #27ae60; text-align:center;"></div>
+            <div id="resultado" style="margin-top: 10px; font-weight: bold; color: #27ae60; text-align:center; min-height:24px;"></div>
+            <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
+                <button type="button" class="btn-secondary" onclick="trocarCamera()" style="padding:8px 16px; font-size:14px;">🔄 Trocar Câmera</button>
+            </div>
         </div>
     </div>
 

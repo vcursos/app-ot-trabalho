@@ -1074,6 +1074,8 @@ function gerarPDFLogistica() {
 let codeReader = null;
 let videoStream = null;
 let scannerAtivo = false;
+let camerasDisponiveis = [];
+let cameraAtualIndex = 0;
 
 function abrirScanner() {
     const modal = document.getElementById('scannerModal');
@@ -1090,53 +1092,27 @@ function abrirScanner() {
         codeReader = new ZXing.BrowserMultiFormatReader();
     }
     
-    // Usar método direto do ZXing para mobile (mais confiável)
+    // Listar câmeras disponíveis
     codeReader.listVideoInputDevices()
         .then(videoInputDevices => {
-            console.log('Câmeras encontradas:', videoInputDevices.length);
+            camerasDisponiveis = videoInputDevices;
+            console.log('Câmeras encontradas:', camerasDisponiveis.length);
             
-            // Selecionar câmera traseira preferencialmente
-            let selectedDeviceId;
-            if (videoInputDevices.length > 1) {
-                // Procurar câmera traseira
-                const backCamera = videoInputDevices.find(device => 
-                    /back|rear|environment/i.test(device.label)
-                );
-                selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
-            } else if (videoInputDevices.length === 1) {
-                selectedDeviceId = videoInputDevices[0].deviceId;
-            } else {
+            if (camerasDisponiveis.length === 0) {
                 throw new Error('Nenhuma câmera encontrada');
             }
             
-            resultado.textContent = 'Aponte para o código de barras...';
+            // Selecionar câmera traseira preferencialmente na primeira vez
+            if (cameraAtualIndex === 0 && camerasDisponiveis.length > 1) {
+                const backCameraIndex = camerasDisponiveis.findIndex(device => 
+                    /back|rear|environment/i.test(device.label)
+                );
+                if (backCameraIndex !== -1) {
+                    cameraAtualIndex = backCameraIndex;
+                }
+            }
             
-            // Iniciar decodificação contínua
-            codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
-                if (result && scannerAtivo) {
-                    // Código detectado!
-                    const codigoDetectado = result.text;
-                    console.log('Código detectado:', codigoDetectado);
-                    
-                    atualizarMACScanner(codigoDetectado);
-                    resultado.textContent = `✅ Código: ${codigoDetectado}`;
-                    resultado.style.color = '#27ae60';
-                    
-                    // Vibrar se disponível (feedback tátil)
-                    if (navigator.vibrate) {
-                        navigator.vibrate(200);
-                    }
-                    
-                    // Fechar após 1.5 segundos
-                    setTimeout(() => {
-                        fecharScanner();
-                    }, 1500);
-                }
-                
-                if (err && !(err instanceof ZXing.NotFoundException)) {
-                    console.warn('Erro no scanner:', err);
-                }
-            });
+            iniciarScanner();
         })
         .catch(err => {
             console.error('Erro ao acessar câmera:', err);
@@ -1146,9 +1122,85 @@ function abrirScanner() {
         });
 }
 
+function iniciarScanner() {
+    const resultado = document.getElementById('resultado');
+    const selectedDeviceId = camerasDisponiveis[cameraAtualIndex].deviceId;
+    
+    resultado.textContent = 'Aponte para o código de barras...';
+    resultado.style.color = '#667eea';
+    
+    // Configurar hints para melhor detecção
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.QR_CODE
+    ]);
+    
+    codeReader.hints = hints;
+    
+    // Iniciar decodificação contínua com a câmera selecionada
+    codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+        if (result && scannerAtivo) {
+            // Código detectado!
+            const codigoDetectado = result.text;
+            console.log('Código detectado:', codigoDetectado);
+            
+            atualizarMACScanner(codigoDetectado);
+            resultado.textContent = `✅ Código: ${codigoDetectado}`;
+            resultado.style.color = '#27ae60';
+            
+            // Vibrar se disponível (feedback tátil)
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+            
+            // Fechar após 1.5 segundos
+            setTimeout(() => {
+                fecharScanner();
+            }, 1500);
+        }
+        
+        if (err && !(err instanceof ZXing.NotFoundException)) {
+            console.warn('Erro no scanner:', err);
+        }
+    });
+}
+
+function trocarCamera() {
+    if (camerasDisponiveis.length <= 1) {
+        alert('Apenas uma câmera disponível.');
+        return;
+    }
+    
+    // Parar scanner atual
+    if (codeReader) {
+        codeReader.reset();
+    }
+    
+    // Trocar para próxima câmera
+    cameraAtualIndex = (cameraAtualIndex + 1) % camerasDisponiveis.length;
+    
+    const resultado = document.getElementById('resultado');
+    const cameraLabel = camerasDisponiveis[cameraAtualIndex].label || `Câmera ${cameraAtualIndex + 1}`;
+    resultado.textContent = `Trocando para: ${cameraLabel}...`;
+    resultado.style.color = '#667eea';
+    
+    // Reiniciar scanner com nova câmera
+    setTimeout(() => {
+        iniciarScanner();
+    }, 300);
+}
+
 function fecharScanner() {
     const modal = document.getElementById('scannerModal');
     scannerAtivo = false;
+    cameraAtualIndex = 0; // resetar para câmera padrão
     
     // Parar scanner ZXing
     if (codeReader) {
