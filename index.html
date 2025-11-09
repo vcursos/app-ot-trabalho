@@ -20,6 +20,8 @@
                 <img src="logo.png" alt="Logo" class="brand-logo">
                 <h1>Controle de Ordens de Trabalho</h1>
                 <button id="btnInstallApp" type="button" class="btn-secondary" style="margin-left:auto; display:none;" onclick="instalarApp()">⬇️ Instalar</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="exportarBackup()">💾 Backup</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="importarBackup()">📥 Importar</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
             </div>
             <div class="resumo">
@@ -155,8 +157,6 @@
                     </select>
                     <div class="filter-actions">
                         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
-                        <button class="btn-secondary" onclick="exportarBackup()">💾 Backup JSON</button>
-                        <button class="btn-secondary" onclick="importarBackup()">📥 Importar Backup</button>
                     </div>
                 </div>
             </div>
