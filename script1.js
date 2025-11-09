@@ -851,12 +851,21 @@ document.getElementById('kmFinal')?.addEventListener('input', calcularKMRodados)
 document.getElementById('kmInicial')?.addEventListener('input', calcularKMRodados);
 
 function calcularKMRodados() {
-    const kmInicial = parseFloat(document.getElementById('kmInicial').value) || 0;
-    const kmFinal = parseFloat(document.getElementById('kmFinal').value) || 0;
-    
+    function parseKmValue(val) {
+        if (!val) return 0;
+        // Troca vírgula por ponto, remove espaços e ignora separadores de milhar
+        val = val.replace(/\./g, '').replace(/,/g, '.').replace(/\s/g, '');
+        return parseFloat(val) || 0;
+    }
+    const kmInicial = parseKmValue(document.getElementById('kmInicial').value);
+    const kmFinal = parseKmValue(document.getElementById('kmFinal').value);
     if (kmFinal > kmInicial) {
         const kmRodados = kmFinal - kmInicial;
-        document.getElementById('kmRodadosDia').value = `${kmRodados.toFixed(1)} km`;
+        // Formata com ponto como separador de milhar
+        function formatMilhar(n) {
+            return n.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+        document.getElementById('kmRodadosDia').value = `${formatMilhar(kmRodados)} km`;
         calcularConsumo();
     } else {
         document.getElementById('kmRodadosDia').value = '';
@@ -869,8 +878,13 @@ document.getElementById('litrosAbastecidos')?.addEventListener('input', calcular
 function calcularConsumo() {
     const CONSUMO_MEDIO_PADRAO = 5.15; // L/100km (motor 1.5 dCi: 4.9-5.4 L/100km, média 5.15)
     
-    const kmInicial = parseFloat(document.getElementById('kmInicial').value) || 0;
-    const kmFinal = parseFloat(document.getElementById('kmFinal').value) || 0;
+    function parseKmValue(val) {
+        if (!val) return 0;
+        // Troca vírgula por ponto e remove espaços
+        return parseFloat(val.replace(',', '.').replace(/\s/g, '')) || 0;
+    }
+    const kmInicial = parseKmValue(document.getElementById('kmInicial').value);
+    const kmFinal = parseKmValue(document.getElementById('kmFinal').value);
     const litrosAbastecidos = parseFloat(document.getElementById('litrosAbastecidos').value) || 0;
     
     if (kmFinal > kmInicial) {
@@ -990,9 +1004,9 @@ function atualizarTabelaLogistica(filtrarMes = null) {
             <td>${reg.kmInicial.toFixed(1)}</td>
             <td>${reg.kmFinal.toFixed(1)}</td>
             <td><strong>${reg.kmRodados.toFixed(1)} km</strong></td>
-            <td>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-'}</td>
+            <td><strong style='color:#27ae60;'>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) + ' <span style="font-weight:bold">(Total abastecido)</span>' : '-'}</strong></td>
             <td>${reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-'}</td>
-            <td><strong>${litrosGastos.toFixed(2)}L consumidos</strong></td>
+            <td>${litrosGastos.toFixed(2)}L consumidos</td>
             <td><button class="btn-delete" onclick="deletarLogistica(${reg.id})">🗑️</button></td>
         `;
         
@@ -1071,11 +1085,15 @@ function gerarPDFLogistica() {
     doc.setFontSize(12);
     doc.text(`Total de Registros: ${registrosMes.length}`, 14, finalY);
     doc.text(`Total KM Rodados: ${totalKM.toFixed(1)} km`, 14, finalY + 7);
-    doc.text(`Total Abastecimento: € ${totalAbastecimento.toFixed(2)}`, 14, finalY + 14);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Total Litros Consumidos: ${totalLitrosGastos.toFixed(2)} L`, 14, finalY + 14);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
     doc.text(`Total Litros Abastecidos: ${totalLitrosAbastecidos.toFixed(2)} L`, 14, finalY + 21);
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`Total Litros Consumidos: ${totalLitrosGastos.toFixed(2)} L`, 14, finalY + 31);
+    doc.text(`Total Abastecimento: € ${totalAbastecimento.toFixed(2)}`, 14, finalY + 31);
     doc.setFontSize(11);
     doc.setFont(undefined, 'normal');
     doc.text(`(Motor 1.5 dCi: ${consumoMedio.toFixed(2)} L/100km médio)`, 14, finalY + 38);
