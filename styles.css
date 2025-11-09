@@ -215,10 +215,10 @@ header h1 {
 }
 
 button {
-    padding: 12px 30px;
+    padding: 12px 24px;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
@@ -431,23 +431,36 @@ button {
     flex-wrap: nowrap;
 }
 
+/* Permitir quebra dos botões em telas menores para evitar overflow */
+@media (max-width: 768px) {
+    .filter-actions { flex-wrap: wrap; }
+}
+
 .filter-actions > * {
     flex: 0 0 auto;
 }
 
-/* Ajuste específico para o seletor de mês da logística e botão ao lado */
-#filtroMesLogistica {
+/* Ajustes específicos para os seletores de mês */
+#filtroMesLogistica,
+#filtroMes {
     width: auto;
     max-width: 200px;
 }
 
 @media (max-width: 420px) {
-    #filtroMesLogistica {
+    #filtroMesLogistica,
+    #filtroMes {
         max-width: 150px;
     }
-    .table-header .filter-group .btn-pdf {
+    .table-header .filter-group .btn-pdf,
+    .table-header .filter-actions .btn-pdf {
         padding: 8px 10px;
         font-size: 13px;
+    }
+    /* Deixar os botões de Backup/Importar menores no mobile */
+    .table-header .filter-actions .btn-secondary {
+        padding: 6px 8px;
+        font-size: 12px;
     }
 }
 

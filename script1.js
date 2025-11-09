@@ -1360,4 +1360,60 @@ function fecharBannerIOS() {
     localStorage.setItem('iosA2HSBannerDismissed', '1');
 }
 
+// ==================== SWIPE ENTRE ABAS ====================
+let touchStartX = 0;
+let touchEndX = 0;
+let touchStartY = 0;
+let touchEndY = 0;
+const swipeThreshold = 80; // pixels mínimos para considerar swipe
+
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.querySelector('.container');
+    if (!container) return;
+    
+    container.addEventListener('touchstart', function(e) {
+        // Ignorar se estiver dentro de tabela (para permitir scroll horizontal)
+        if (e.target.closest('.table-responsive')) return;
+        // Ignorar se estiver em input/textarea/select
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+    
+    container.addEventListener('touchend', function(e) {
+        // Ignorar se estiver dentro de tabela
+        if (e.target.closest('.table-responsive')) return;
+        // Ignorar se estiver em input/textarea/select
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        
+        touchEndX = e.changedTouches[0].screenX;
+        touchEndY = e.changedTouches[0].screenY;
+        
+        handleSwipe();
+    }, { passive: true });
+});
+
+function handleSwipe() {
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+    
+    // Verificar se é swipe horizontal (e não vertical)
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > swipeThreshold) {
+        const abaAtual = document.querySelector('.tab-content.active').id;
+        
+        if (diffX > 0) {
+            // Swipe para direita - voltar para aba anterior
+            if (abaAtual === 'aba-logistica') {
+                mostrarAba('ordens');
+            }
+        } else {
+            // Swipe para esquerda - ir para próxima aba
+            if (abaAtual === 'aba-ordens') {
+                mostrarAba('logistica');
+            }
+        }
+    }
+}
+
 
