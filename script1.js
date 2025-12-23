@@ -586,6 +586,92 @@ function gerarPDF() {
     doc.save(`relatorio-ot-${mesAtual}.pdf`);
 }
 
+// Gerar PDF com Equipamentos
+function gerarPDFComEquipamentos() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
+    
+    const mesAtual = document.getElementById('filtroMes').value || 
+                     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    
+    const categoriaFiltro = document.getElementById('filtroCategoria').value;
+    const redeFiltro = document.getElementById('filtroRede').value;
+    
+    let otsMes = ordensTrabalho.filter(ot => {
+        const dataOT = new Date(ot.data);
+        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
+        return mesAno === mesAtual;
+    });
+    
+    // Aplicar filtros adicionais
+    if (categoriaFiltro) {
+        otsMes = otsMes.filter(ot => ot.categoria === categoriaFiltro);
+    }
+    if (redeFiltro) {
+        otsMes = otsMes.filter(ot => ot.rede === redeFiltro);
+    }
+    
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.text('Relatório de OTs com Equipamentos', 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Período: ${new Date(mesAtual + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`, 14, 28);
+    
+    if (categoriaFiltro || redeFiltro) {
+        let filtros = 'Filtros: ';
+        if (categoriaFiltro) filtros += `Categoria: ${categoriaFiltro} `;
+        if (redeFiltro) filtros += `Rede: ${redeFiltro}`;
+        doc.text(filtros, 14, 34);
+    }
+    
+    // Tabela com equipamentos
+    const tableData = otsMes.map(ot => {
+        const equipamentos = ot.equipamentos && ot.equipamentos.length > 0
+            ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : `${eq.tipo}: ${eq.mac}`).join(', ')
+            : (ot.macEquipamento || '-');
+        
+        return [
+            new Date(ot.data).toLocaleDateString('pt-BR'),
+            ot.numeroOT,
+            ot.tipoServico,
+            ot.rede || '-',
+            equipamentos,
+            ot.observacoes || '-',
+            `€ ${ot.valorServico.toFixed(2)}`
+        ];
+    });
+    
+    doc.autoTable({
+        startY: categoriaFiltro || redeFiltro ? 40 : 35,
+        head: [['Data', 'OT', 'Serviço', 'Rede', 'Equipamentos', 'Observações', 'Valor']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [39, 174, 96] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            0: { cellWidth: 22 },
+            1: { cellWidth: 20 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 20 },
+            4: { cellWidth: 55 },
+            5: { cellWidth: 50 },
+            6: { cellWidth: 25, fontStyle: 'bold' }
+        }
+    });
+    
+    // Resumo
+    const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
+    
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 10);
+    
+    doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);
+}
+
 // ==================== BACKUP LOCAL (JSON) ====================
 function exportarBackup() {
     try {
