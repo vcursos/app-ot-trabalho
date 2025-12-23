@@ -319,7 +319,17 @@ function abrirModal(categoria, index) {
     
     // Preencher campos do modal
     document.getElementById('modal-codigo').value = item.codigo;
-    document.getElementById('modal-rede').value = item.rede;
+    
+    // Verificar se é "Outra" rede
+    if (['AMBAS', 'Propia', 'MOVISTAR'].includes(item.rede)) {
+        document.getElementById('modal-rede').value = item.rede;
+        document.getElementById('campo-outra-rede-modal').style.display = 'none';
+    } else {
+        document.getElementById('modal-rede').value = 'Outra';
+        document.getElementById('modal-outra-rede').value = item.rede;
+        document.getElementById('campo-outra-rede-modal').style.display = 'block';
+    }
+    
     document.getElementById('modal-descricao').value = item.descricao;
     document.getElementById('modal-valor').value = item.valor;
     
@@ -366,6 +376,22 @@ function fecharModal() {
     document.getElementById('modalEdit').classList.remove('active');
     modalCategoriaAtual = '';
     modalIndexAtual = -1;
+    // Esconder campo "Outra rede" ao fechar
+    document.getElementById('campo-outra-rede-modal').style.display = 'none';
+    document.getElementById('modal-outra-rede').value = '';
+}
+
+// Mostrar/ocultar campo "Outra Rede" no modal
+function verificarRedeOutraModal() {
+    const selectRede = document.getElementById('modal-rede');
+    const campoOutra = document.getElementById('campo-outra-rede-modal');
+    
+    if (selectRede.value === 'Outra') {
+        campoOutra.style.display = 'block';
+    } else {
+        campoOutra.style.display = 'none';
+        document.getElementById('modal-outra-rede').value = '';
+    }
 }
 
 // Aplicar edição do modal
@@ -374,9 +400,15 @@ function aplicarEdicao() {
     
     const tabelas = carregarTabelas();
     
+    // Obter valor da rede (se for "Outra", pegar do campo de texto)
+    const redeSelect = document.getElementById('modal-rede').value;
+    const redeValue = redeSelect === 'Outra' 
+        ? (document.getElementById('modal-outra-rede').value || 'Outra') 
+        : redeSelect;
+    
     const novoItem = {
         codigo: document.getElementById('modal-codigo').value,
-        rede: document.getElementById('modal-rede').value,
+        rede: redeValue,
         descricao: document.getElementById('modal-descricao').value,
         valor: parseFloat(document.getElementById('modal-valor').value) || 0
     };

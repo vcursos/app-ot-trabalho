@@ -103,13 +103,13 @@ function inicializarTabelasPadrao() {
 function popularSelectsServicos() {
     const servicos = carregarServicosCustomizados();
     
-    // Popular select principal de serviços
+    // Popular select principal de serviços (SEM adicionales)
     const selectTipoServico = document.getElementById('tipoServico');
     if (selectTipoServico) {
         selectTipoServico.innerHTML = '<option value="">Selecione o serviço...</option>';
         
-        // Agrupar por categoria
-        const categorias = [...new Set(servicos.map(s => s.categoria))];
+        // Agrupar por categoria, excluindo ADICIONALES
+        const categorias = [...new Set(servicos.map(s => s.categoria))].filter(cat => cat !== 'ADICIONALES');
         
         categorias.forEach(categoria => {
             const optgroup = document.createElement('optgroup');

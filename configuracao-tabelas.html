@@ -457,12 +457,17 @@
             
             <div class="modal-field">
                 <label>Rede</label>
-                <select id="modal-rede">
+                <select id="modal-rede" onchange="verificarRedeOutraModal()">
                     <option value="AMBAS">AMBAS</option>
                     <option value="Propia">Propia</option>
                     <option value="MOVISTAR">MOVISTAR</option>
                     <option value="Outra">Outra</option>
                 </select>
+            </div>
+            
+            <div class="modal-field" id="campo-outra-rede-modal" style="display: none;">
+                <label>Especifique a Rede</label>
+                <input type="text" id="modal-outra-rede" placeholder="Digite o nome da rede">
             </div>
             
             <div class="modal-field">

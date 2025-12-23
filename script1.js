@@ -158,17 +158,13 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     // Valor total com multiplicador
     const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
     
-    // Obter rede selecionada (se for "Outra", pegar do campo de texto)
-    const redeSelect = document.getElementById('redeServico').value;
-    const redeValue = redeSelect === 'Outra' ? (document.getElementById('outraRedeTexto').value || 'Outra') : (redeSelect || (servicoInfo ? servicoInfo.red : ''));
-    
     const ot = {
         id: Date.now(),
         data: new Date().toISOString(),
         numeroOT: numeroOT || '-',
         tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
         categoria: categoriaSelecionada,
-        rede: redeValue,
+        rede: servicoInfo ? servicoInfo.red : '',
         tipologia: servicoInfo ? servicoInfo.tipologia : '',
         adicional: adicionalInfo ? adicionalInfo.item : (adicionalSelecionado || ''),
         adicionalDesc: adicionalInfo ? adicionalInfo.tipologia : '',
@@ -315,19 +311,9 @@ function atualizarValorServico() {
             const rede = servico.red || '';
             const categoria = servico.categoria || '';
             
-            // Atualizar campos
+            // Atualizar campos readonly
             document.getElementById('valorServico').value = valor.toFixed(2);
-            
-            // Atualizar select de rede se tiver valor
-            const selectRede = document.getElementById('redeServico');
-            if (rede && ['Propia', 'MOVISTAR', 'AMBAS'].includes(rede)) {
-                selectRede.value = rede;
-            } else if (rede) {
-                selectRede.value = 'Outra';
-                document.getElementById('outraRedeTexto').value = rede;
-                document.getElementById('campoOutraRede').style.display = 'block';
-            }
-            
+            document.getElementById('redeServico').value = rede;
             document.getElementById('categoriaServico').value = categoria;
             
             // Calcular total com multiplicador
@@ -338,19 +324,6 @@ function atualizarValorServico() {
         }
     } else {
         limparCamposServico();
-    }
-}
-
-// Mostrar/ocultar campo "Outra Rede"
-function verificarRedeOutra() {
-    const selectRede = document.getElementById('redeServico');
-    const campoOutra = document.getElementById('campoOutraRede');
-    
-    if (selectRede.value === 'Outra') {
-        campoOutra.style.display = 'block';
-    } else {
-        campoOutra.style.display = 'none';
-        document.getElementById('outraRedeTexto').value = '';
     }
 }
 
