@@ -76,7 +76,18 @@
 
                     <div class="form-group">
                         <label>Rede</label>
-                        <input type="text" id="redeServico" readonly placeholder="Tipo de rede">
+                        <select id="redeServico" onchange="verificarRedeOutra()">
+                            <option value="">Selecione...</option>
+                            <option value="Propia">Própria</option>
+                            <option value="MOVISTAR">MOVISTAR</option>
+                            <option value="AMBAS">AMBAS</option>
+                            <option value="Outra">Outra</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="campoOutraRede" style="display: none;">
+                        <label>Especifique a Rede</label>
+                        <input type="text" id="outraRedeTexto" placeholder="Digite o nome da rede">
                     </div>
 
                     <div class="form-group">
@@ -203,6 +214,23 @@
         <div id="aba-logistica" class="tab-content">
             <section class="form-section">
                 <h2>📊 Registro de Logística Diária</h2>
+                
+                <!-- Configuração de Consumo do Carro -->
+                <div class="config-consumo" style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1976d2;">⚙️ Configuração do Veículo</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label>Modelo do Carro</label>
+                            <input type="text" id="modeloCarro" placeholder="Ex: Ford Focus 1.5" oninput="salvarConfiguracaoVeiculo()">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label>Consumo (L/100km)</label>
+                            <input type="number" id="consumoCarro" step="0.1" min="0" placeholder="Ex: 5.15" oninput="salvarConfiguracaoVeiculo()">
+                        </div>
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">💡 Configure o consumo do seu carro para cálculos precisos de combustível</p>
+                </div>
+                
                 <form id="formLogistica">
                     <div class="form-grid">
                         <div class="form-group">

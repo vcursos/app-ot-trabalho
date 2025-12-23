@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     atualizarResumos();
     definirDataAtual();
     atualizarListaEquipamentos();
+    carregarConfiguracaoVeiculo();
     
     // Listener para atualizar valor quando serviço for selecionado
     document.getElementById('tipoServico').addEventListener('change', atualizarValorServico);
@@ -16,6 +17,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listener para adicional
     document.getElementById('adicionalServico').addEventListener('change', atualizarValorAdicional);
 });
+
+// ==================== CONFIGURAÇÃO DO VEÍCULO ====================
+function salvarConfiguracaoVeiculo() {
+    const config = {
+        modelo: document.getElementById('modeloCarro').value || '',
+        consumo: parseFloat(document.getElementById('consumoCarro').value) || 5.15
+    };
+    localStorage.setItem('configuracaoVeiculo', JSON.stringify(config));
+}
+
+function carregarConfiguracaoVeiculo() {
+    const config = localStorage.getItem('configuracaoVeiculo');
+    if (config) {
+        const dados = JSON.parse(config);
+        if (document.getElementById('modeloCarro')) {
+            document.getElementById('modeloCarro').value = dados.modelo || '';
+        }
+        if (document.getElementById('consumoCarro')) {
+            document.getElementById('consumoCarro').value = dados.consumo || 5.15;
+        }
+    } else {
+        // Valor padrão
+        if (document.getElementById('consumoCarro')) {
+            document.getElementById('consumoCarro').value = 5.15;
+        }
+    }
+}
+
+function obterConsumoConfigurado() {
+    const config = localStorage.getItem('configuracaoVeiculo');
+    if (config) {
+        const dados = JSON.parse(config);
+        return dados.consumo || 5.15;
+    }
+    return 5.15;
+}
 
 // Adicionar equipamento à lista temporária
 function adicionarEquipamento() {
@@ -121,13 +158,17 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     // Valor total com multiplicador
     const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
     
+    // Obter rede selecionada (se for "Outra", pegar do campo de texto)
+    const redeSelect = document.getElementById('redeServico').value;
+    const redeValue = redeSelect === 'Outra' ? (document.getElementById('outraRedeTexto').value || 'Outra') : (redeSelect || (servicoInfo ? servicoInfo.red : ''));
+    
     const ot = {
         id: Date.now(),
         data: new Date().toISOString(),
         numeroOT: numeroOT || '-',
         tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
         categoria: categoriaSelecionada,
-        rede: servicoInfo ? servicoInfo.red : '',
+        rede: redeValue,
         tipologia: servicoInfo ? servicoInfo.tipologia : '',
         adicional: adicionalInfo ? adicionalInfo.item : (adicionalSelecionado || ''),
         adicionalDesc: adicionalInfo ? adicionalInfo.tipologia : '',
@@ -274,9 +315,19 @@ function atualizarValorServico() {
             const rede = servico.red || '';
             const categoria = servico.categoria || '';
             
-            // Atualizar campos readonly
+            // Atualizar campos
             document.getElementById('valorServico').value = valor.toFixed(2);
-            document.getElementById('redeServico').value = rede;
+            
+            // Atualizar select de rede se tiver valor
+            const selectRede = document.getElementById('redeServico');
+            if (rede && ['Propia', 'MOVISTAR', 'AMBAS'].includes(rede)) {
+                selectRede.value = rede;
+            } else if (rede) {
+                selectRede.value = 'Outra';
+                document.getElementById('outraRedeTexto').value = rede;
+                document.getElementById('campoOutraRede').style.display = 'block';
+            }
+            
             document.getElementById('categoriaServico').value = categoria;
             
             // Calcular total com multiplicador
@@ -287,6 +338,19 @@ function atualizarValorServico() {
         }
     } else {
         limparCamposServico();
+    }
+}
+
+// Mostrar/ocultar campo "Outra Rede"
+function verificarRedeOutra() {
+    const selectRede = document.getElementById('redeServico');
+    const campoOutra = document.getElementById('campoOutraRede');
+    
+    if (selectRede.value === 'Outra') {
+        campoOutra.style.display = 'block';
+    } else {
+        campoOutra.style.display = 'none';
+        document.getElementById('outraRedeTexto').value = '';
     }
 }
 
@@ -956,7 +1020,7 @@ function calcularKMRodados() {
 document.getElementById('litrosAbastecidos')?.addEventListener('input', calcularConsumo);
 
 function calcularConsumo() {
-    const CONSUMO_MEDIO_PADRAO = 5.15; // L/100km (motor 1.5 dCi: 4.9-5.4 L/100km, média 5.15)
+    const CONSUMO_MEDIO_PADRAO = obterConsumoConfigurado(); // Usa configuração do usuário
     
     function parseKmValue(val) {
         if (!val) return 0;
@@ -990,7 +1054,7 @@ function calcularConsumo() {
 document.getElementById('formLogistica')?.addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const CONSUMO_MEDIO_PADRAO = 5.15; // L/100km (motor 1.5 dCi: 4.9-5.4 L/100km)
+    const CONSUMO_MEDIO_PADRAO = obterConsumoConfigurado(); // Usa configuração do usuário
     
     const kmInicial = parseFloat(document.getElementById('kmInicial').value) || 0;
     const kmFinal = parseFloat(document.getElementById('kmFinal').value) || 0;
@@ -1076,7 +1140,7 @@ function atualizarTabelaLogistica(filtrarMes = null) {
     registrosFiltrados.reverse().forEach(reg => {
         const tr = document.createElement('tr');
         const dataFormatada = new Date(reg.data + 'T00:00:00').toLocaleDateString('pt-BR');
-        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         
         tr.innerHTML = `
             <td>${dataFormatada}</td>
@@ -1130,7 +1194,7 @@ function gerarPDFLogistica() {
     
     // Tabela
     const tableData = registrosMes.map(reg => {
-        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return [
             new Date(reg.data + 'T00:00:00').toLocaleDateString('pt-BR'),
             `${reg.horaInicio}-${reg.horaFim}`,
@@ -1156,10 +1220,10 @@ function gerarPDFLogistica() {
     const totalAbastecimento = registrosMes.reduce((sum, reg) => sum + reg.valorAbastecimento, 0);
     const totalLitrosAbastecidos = registrosMes.reduce((sum, reg) => sum + reg.litrosAbastecidos, 0);
     const totalLitrosGastos = registrosMes.reduce((sum, reg) => {
-        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return sum + litrosGastos;
     }, 0);
-    const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : 5.15;
+    const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : obterConsumoConfigurado();
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
@@ -1208,7 +1272,7 @@ function gerarPDFLogisticaDia() {
     
     // Tabela (pode haver mais de um registro no mesmo dia)
     const tableData = registrosDia.map(reg => {
-        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return [
             `${reg.horaInicio}-${reg.horaFim}`,
             reg.kmInicial.toFixed(1),
@@ -1233,10 +1297,10 @@ function gerarPDFLogisticaDia() {
     const totalAbastecimento = registrosDia.reduce((sum, reg) => sum + reg.valorAbastecimento, 0);
     const totalLitrosAbastecidos = registrosDia.reduce((sum, reg) => sum + reg.litrosAbastecidos, 0);
     const totalLitrosGastos = registrosDia.reduce((sum, reg) => {
-        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * 5.15) / 100);
+        const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return sum + litrosGastos;
     }, 0);
-    const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : 5.15;
+    const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : obterConsumoConfigurado();
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
@@ -1335,6 +1399,9 @@ function iniciarScanner() {
             // Código detectado!
             const codigoDetectado = result.text;
             console.log('Código detectado:', codigoDetectado);
+            
+            // Tocar som de beep
+            tocarSomBeep();
             
             atualizarMACScanner(codigoDetectado);
             resultado.textContent = `✅ Código: ${codigoDetectado}`;
@@ -1523,5 +1590,33 @@ function handleSwipe() {
         }
     }
 }
+
+// ==================== SOM DE BEEP ====================
+function tocarSomBeep() {
+    try {
+        // Criar contexto de áudio
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        // Configurar som
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Frequência 800Hz
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Volume e duração
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+        
+        // Tocar beep
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (error) {
+        console.log('Não foi possível tocar o som:', error);
+    }
+}
+
+
 
 
