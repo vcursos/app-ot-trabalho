@@ -1,21 +1,40 @@
-# Controle de Ordens de Trabalho - PWA Instalável
+# 📱 Sistema de Gestão de Ordens de Trabalho - Telecom
 
-Aplicativo web progressivo (PWA) para registro de Ordens de Trabalho e Logística Diária de técnicos de telecomunicações.
+> **PWA + Capacitor** | Sistema completo para gestão de OTs com **tabelas customizáveis** e **multiplicadores configuráveis**
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PWA](https://img.shields.io/badge/PWA-Ready-green.svg)](https://developers.google.com/web/progressive-web-apps/)
+[![Android](https://img.shields.io/badge/Android-APK-success.svg)](ANDROID-BUILD.md)
 
 ## ✨ Funcionalidades
 
-- ✅ Registro de OTs com serviços MOI, adicionais e equipamentos
+### 🆕 Novidades - Sistema de Tabelas Customizáveis
+
+- ✅ **Configuração de Tabelas de Preços**
+  - Instalações, Avarias e Adicionais totalmente editáveis
+  - Interface visual para adicionar/editar/remover serviços
+  - Exportar/Importar tabelas em JSON
+  
+- ✅ **Multiplicadores Configuráveis**
+  - Normal (1x)
+  - Domingo/Feriado (1.5x configurável)
+  - Dobrado (2x configurável)
+  - Aplicação automática ao valor total
+
+### Core Features
+
+- ✅ Registro de OTs com serviços personalizados
 - ✅ Scanner de código de barras via câmera
 - ✅ Logística diária: KM rodados, abastecimento, consumo
 - ✅ Geração de PDF mensal (OT + Logística)
 - ✅ Backup/Importação JSON (sem servidor)
 - ✅ Funciona 100% offline após instalação
-- ✅ Responsivo: funciona em desktop, tablet, celular
-- ✅ Instalável como app nativo (Android/iOS)
+- ✅ Responsivo: desktop, tablet, celular
+- ✅ **Instalável como app Android nativo (APK)**
 
-## 📱 Instalação
+## � Instalação Rápida
 
-### Como app no celular (PWA)
+### Opção 1: Como PWA (Web App)
 
 **Android (Chrome/Edge/Brave):**
 1. Abra o app em um servidor HTTP/HTTPS
@@ -24,30 +43,46 @@ Aplicativo web progressivo (PWA) para registro de Ordens de Trabalho e Logístic
 
 **iPhone (Safari):**
 1. Abra o app no Safari
-2. Toque no botão Compartilhar (🔼 na barra inferior)
-3. Role para baixo e escolha "Adicionar à Tela de Início"
-4. Um banner de ajuda aparece automaticamente no app
+2. Toque no botão Compartilhar (🔼)
+3. "Adicionar à Tela de Início"
 
-### Como rodar localmente (desenvolvimento)
+### Opção 2: Como App Android (APK)
 
-Precisa servir via HTTP (não pode ser file://):
+Veja instruções completas em: **[ANDROID-BUILD.md](ANDROID-BUILD.md)**
 
 ```powershell
-# Opção 1: Python (se tiver instalado)
-python -m http.server 5173
+npm install
+npm run android
+# Abre Android Studio para gerar APK
+```
 
-# Opção 2: Node.js http-server (após npm install)
-npx http-server -p 5173 .
+## 📖 Documentação Completa
 
-# Opção 3: PHP
-php -S localhost:5173
+- **[🎯 GUIA DE TABELAS CUSTOMIZADAS](www/GUIA-TABELAS-CUSTOMIZADAS.md)** - Como configurar serviços e multiplicadores
+- **[📱 ANDROID BUILD](ANDROID-BUILD.md)** - Gerar APK passo a passo
+- **[🚀 PRONTO PARA APK](PRONTO-PARA-APK.md)** - Checklist rápido
+- **[🐙 PUSH GITHUB](PUSH-GITHUB.md)** - Como fazer deploy no GitHub
+
+## 🛠️ Desenvolvimento Local
+
+```powershell
+# Instalar dependências
+npm install
+
+# Servir PWA (desenvolvimento web)
+npm run serve
+
+# Sincronizar com Android
+npm run cap:sync:android
+
+# Abrir no Android Studio
+npm run cap:open:android
+
+# Atalho: sync + open
+npm run android
 ```
 
 Abra: `http://localhost:5173`
-
-## 🎨 Ícones PWA
-
-Para gerar os ícones otimizados (192x192 e 512x512):
 
 1. Abra `gerar-icones-auto.html` no navegador
 2. Os arquivos `icon-192.png` e `icon-512.png` serão baixados automaticamente
