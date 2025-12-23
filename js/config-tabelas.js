@@ -128,27 +128,8 @@ function renderizarTabela(categoria, dados) {
 
 // Adicionar nova linha
 function adicionarLinha(categoria) {
-    const tabelas = carregarTabelas();
-    const proximoCodigo = gerarProximoCodigo(categoria, tabelas[categoria]);
-    
-    const novoIndex = tabelas[categoria].length;
-    
-    tabelas[categoria].push({
-        codigo: proximoCodigo,
-        rede: 'AMBAS',
-        descricao: 'Novo serviço',
-        valor: 0.00
-    });
-    
-    // Salva no localStorage antes de renderizar
-    salvarTabelasNoStorage(tabelas);
-    
-    renderizarTabela(categoria, tabelas[categoria]);
-    
-    // Abre modal automaticamente para editar o novo serviço
-    setTimeout(() => {
-        abrirModal(categoria, novoIndex);
-    }, 200);
+    // Abre modal em modo "novo serviço"
+    abrirModalNovoServico(categoria);
 }
 
 // Gerar próximo código disponível
@@ -342,12 +323,41 @@ function abrirModal(categoria, index) {
     document.getElementById('modal-descricao').value = item.descricao;
     document.getElementById('modal-valor').value = item.valor;
     
+    // Alterar texto do botão para "Salvar Alterações"
+    document.getElementById('btn-aplicar-modal').textContent = '✅ Salvar Alterações';
+    
     // Mostrar modal
     document.getElementById('modalEdit').classList.add('active');
     
     // Focar no primeiro campo
     setTimeout(() => {
-        document.getElementById('modal-codigo').focus();
+        document.getElementById('modal-descricao').focus();
+    }, 100);
+}
+
+// Abrir modal para novo serviço
+function abrirModalNovoServico(categoria) {
+    modalCategoriaAtual = categoria;
+    modalIndexAtual = -1; // -1 indica que é um novo serviço
+    
+    const tabelas = carregarTabelas();
+    const proximoCodigo = gerarProximoCodigo(categoria, tabelas[categoria]);
+    
+    // Limpar e preencher campos do modal
+    document.getElementById('modal-codigo').value = proximoCodigo;
+    document.getElementById('modal-rede').value = 'AMBAS';
+    document.getElementById('modal-descricao').value = '';
+    document.getElementById('modal-valor').value = '0.00';
+    
+    // Alterar texto do botão para "Adicionar Serviço"
+    document.getElementById('btn-aplicar-modal').textContent = '➕ Adicionar Serviço';
+    
+    // Mostrar modal
+    document.getElementById('modalEdit').classList.add('active');
+    
+    // Focar no campo descrição
+    setTimeout(() => {
+        document.getElementById('modal-descricao').focus();
     }, 100);
 }
 
@@ -360,17 +370,24 @@ function fecharModal() {
 
 // Aplicar edição do modal
 function aplicarEdicao() {
-    if (modalCategoriaAtual === '' || modalIndexAtual === -1) return;
+    if (modalCategoriaAtual === '') return;
     
     const tabelas = carregarTabelas();
     
-    // Atualizar dados
-    tabelas[modalCategoriaAtual][modalIndexAtual] = {
+    const novoItem = {
         codigo: document.getElementById('modal-codigo').value,
         rede: document.getElementById('modal-rede').value,
         descricao: document.getElementById('modal-descricao').value,
         valor: parseFloat(document.getElementById('modal-valor').value) || 0
     };
+    
+    if (modalIndexAtual === -1) {
+        // Novo serviço - adicionar ao array
+        tabelas[modalCategoriaAtual].push(novoItem);
+    } else {
+        // Editar serviço existente
+        tabelas[modalCategoriaAtual][modalIndexAtual] = novoItem;
+    }
     
     // Salvar
     salvarTabelasNoStorage(tabelas);
@@ -381,7 +398,7 @@ function aplicarEdicao() {
     // Fechar modal
     fecharModal();
     
-    alert('Serviço atualizado! ✅ Não esqueça de clicar em "💾 Salvar Tabela" para manter as alterações.');
+    alert(modalIndexAtual === -1 ? 'Serviço adicionado com sucesso! ✅' : 'Alterações salvas com sucesso! ✅');
 }
 
 // Fechar modal ao clicar fora
