@@ -161,6 +161,140 @@
             margin-bottom: 20px;
             border-radius: 4px;
         }
+        
+        /* Modal de Edição */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .modal-header h3 {
+            margin: 0;
+            color: #667eea;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-close:hover {
+            color: #e74c3c;
+        }
+        .modal-field {
+            margin-bottom: 20px;
+        }
+        .modal-field label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        .modal-field input,
+        .modal-field select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .modal-field input:focus,
+        .modal-field select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .modal-actions button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-aplicar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-aplicar:hover {
+            opacity: 0.9;
+        }
+        .btn-cancelar {
+            background: #e0e0e0;
+            color: #555;
+        }
+        .btn-cancelar:hover {
+            background: #d0d0d0;
+        }
+        
+        /* Botão de editar na tabela (mobile) */
+        .btn-edit-mobile {
+            display: none;
+            background: #3498db;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .servicos-table input,
+            .servicos-table select {
+                display: none;
+            }
+            .btn-edit-mobile {
+                display: inline-block;
+            }
+            .modal-content {
+                max-width: 95%;
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -282,6 +416,46 @@
                         <!-- Linhas serão inseridas aqui -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edição (Mobile) -->
+    <div class="modal-overlay" id="modalEdit">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Editar Serviço</h3>
+                <button class="modal-close" onclick="fecharModal()">×</button>
+            </div>
+            
+            <div class="modal-field">
+                <label>Código</label>
+                <input type="text" id="modal-codigo" placeholder="Ex: INST01">
+            </div>
+            
+            <div class="modal-field">
+                <label>Rede</label>
+                <select id="modal-rede">
+                    <option value="AMBAS">AMBAS</option>
+                    <option value="Propia">Propia</option>
+                    <option value="MOVISTAR">MOVISTAR</option>
+                    <option value="Outra">Outra</option>
+                </select>
+            </div>
+            
+            <div class="modal-field">
+                <label>Descrição do Serviço</label>
+                <input type="text" id="modal-descricao" placeholder="Descrição completa do serviço">
+            </div>
+            
+            <div class="modal-field">
+                <label>Valor (€)</label>
+                <input type="number" id="modal-valor" step="0.01" placeholder="0.00">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+                <button class="btn-aplicar" onclick="aplicarEdicao()">✓ Aplicar</button>
             </div>
         </div>
     </div>

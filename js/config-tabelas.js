@@ -97,7 +97,10 @@ function renderizarTabela(categoria, dados) {
     dados.forEach((item, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}"></td>
+            <td>
+                <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
+                <button class="btn-edit-mobile" onclick="abrirModal('${categoria}', ${index})">✏️ Editar</button>
+            </td>
             <td>
                 <select data-field="rede" data-index="${index}">
                     <option value="AMBAS" ${item.rede === 'AMBAS' ? 'selected' : ''}>AMBAS</option>
@@ -301,3 +304,71 @@ function aplicarMultiplicador(valor, tipoMultiplicador) {
     const multiplicador = mult[tipoMultiplicador] || 1.0;
     return valor * multiplicador;
 }
+
+// Variáveis globais para o modal
+let modalCategoriaAtual = '';
+let modalIndexAtual = -1;
+
+// Abrir modal de edição (mobile)
+function abrirModal(categoria, index) {
+    modalCategoriaAtual = categoria;
+    modalIndexAtual = index;
+    
+    const tabelas = carregarTabelas();
+    const item = tabelas[categoria][index];
+    
+    // Preencher campos do modal
+    document.getElementById('modal-codigo').value = item.codigo;
+    document.getElementById('modal-rede').value = item.rede;
+    document.getElementById('modal-descricao').value = item.descricao;
+    document.getElementById('modal-valor').value = item.valor;
+    
+    // Mostrar modal
+    document.getElementById('modalEdit').classList.add('active');
+    
+    // Focar no primeiro campo
+    setTimeout(() => {
+        document.getElementById('modal-codigo').focus();
+    }, 100);
+}
+
+// Fechar modal
+function fecharModal() {
+    document.getElementById('modalEdit').classList.remove('active');
+    modalCategoriaAtual = '';
+    modalIndexAtual = -1;
+}
+
+// Aplicar edição do modal
+function aplicarEdicao() {
+    if (modalCategoriaAtual === '' || modalIndexAtual === -1) return;
+    
+    const tabelas = carregarTabelas();
+    
+    // Atualizar dados
+    tabelas[modalCategoriaAtual][modalIndexAtual] = {
+        codigo: document.getElementById('modal-codigo').value,
+        rede: document.getElementById('modal-rede').value,
+        descricao: document.getElementById('modal-descricao').value,
+        valor: parseFloat(document.getElementById('modal-valor').value) || 0
+    };
+    
+    // Salvar
+    salvarTabelasNoStorage(tabelas);
+    
+    // Re-renderizar tabela
+    renderizarTabela(modalCategoriaAtual, tabelas[modalCategoriaAtual]);
+    
+    // Fechar modal
+    fecharModal();
+    
+    alert('Serviço atualizado! ✅ Não esqueça de clicar em "💾 Salvar Tabela" para manter as alterações.');
+}
+
+// Fechar modal ao clicar fora
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('modalEdit');
+    if (e.target === modal) {
+        fecharModal();
+    }
+});
