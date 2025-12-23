@@ -87,26 +87,53 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         return;
     }
     
-    const servicoInfo = getServicoInfo(tipoServico);
+    let servicoInfo = null;
+    if (tipoServico) {
+        try {
+            servicoInfo = JSON.parse(tipoServico);
+        } catch (e) {
+            servicoInfo = getServicoInfo(tipoServico);
+        }
+    }
+    
     const categoriaSelecionada = document.getElementById('categoriaServico').value;
     const adicionalSelecionado = document.getElementById('adicionalServico').value;
-    const adicionalInfo = adicionalSelecionado ? getServicoInfo(adicionalSelecionado) : null;
     
-    const valorServicoBase = obterValorServico(tipoServico);
+    let adicionalInfo = null;
+    if (adicionalSelecionado) {
+        try {
+            adicionalInfo = JSON.parse(adicionalSelecionado);
+        } catch (e) {
+            adicionalInfo = getServicoInfo(adicionalSelecionado);
+        }
+    }
+    
+    // Obter multiplicador selecionado
+    const multiplicadorEl = document.getElementById('multiplicadorServico');
+    const tipoMultiplicador = multiplicadorEl ? multiplicadorEl.value : 'normal';
+    const mult = obterMultiplicadores();
+    const valorMultiplicador = mult[tipoMultiplicador] || 1.0;
+    
+    // Valores base sem multiplicador
+    const valorServicoBase = servicoInfo ? servicoInfo.valor : 0;
     const valorAdicionalBase = adicionalInfo ? adicionalInfo.valor : 0;
-    const valorTotalFinal = valorServicoBase + valorAdicionalBase;
+    
+    // Valor total com multiplicador
+    const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
     
     const ot = {
         id: Date.now(),
         data: new Date().toISOString(),
         numeroOT: numeroOT || '-',
-        tipoServico: tipoServico || '-',
+        tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
         categoria: categoriaSelecionada,
         rede: servicoInfo ? servicoInfo.red : '',
         tipologia: servicoInfo ? servicoInfo.tipologia : '',
-        adicional: adicionalSelecionado || '',
+        adicional: adicionalInfo ? adicionalInfo.item : (adicionalSelecionado || ''),
         adicionalDesc: adicionalInfo ? adicionalInfo.tipologia : '',
         valorAdicional: valorAdicionalBase,
+        multiplicador: tipoMultiplicador,
+        valorMultiplicador: valorMultiplicador,
         equipamentos: [...equipamentosTemp], // Copiar array de equipamentos
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
         observacoes: document.getElementById('observacoes').value || '',
@@ -125,6 +152,13 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
 function limparFormulario() {
     document.getElementById('formOT').reset();
     limparCamposServico();
+    
+    // Resetar multiplicador para normal
+    const multiplicadorEl = document.getElementById('multiplicadorServico');
+    if (multiplicadorEl) {
+        multiplicadorEl.value = 'normal';
+    }
+    
     equipamentosTemp = [];
     atualizarListaEquipamentos();
 }
@@ -135,85 +169,49 @@ function obterValorServico(itemMOI) {
 }
 
 function popularTodosServicos() {
-    const select = document.getElementById('tipoServico');
-    
-    if (typeof servicosMOI === 'undefined') {
-        console.error('servicosMOI não está definido!');
-        select.innerHTML = '<option value="">Erro ao carregar serviços</option>';
-        return;
+    // Usa o novo sistema de servicos-custom.js
+    if (typeof popularSelectsServicos === 'function') {
+        popularSelectsServicos();
+    } else {
+        console.error('Sistema de serviços customizados não carregado!');
     }
-    
-    select.innerHTML = '<option value="">Selecione o serviço...</option>';
-    
-    // Filtrar serviços excluindo ADICIONALES (que vão para select separado)
-    const servicosPrincipais = servicosMOI.filter(s => s.categoria !== 'ADICIONALES HOGAR FTTH');
-    
-    // Agrupar por categoria
-    const categorias = [...new Set(servicosPrincipais.map(s => s.categoria))];
-    
-    categorias.forEach(categoria => {
-        const optgroup = document.createElement('optgroup');
-        optgroup.label = categoria;
-        
-        const servicosDaCategoria = servicosPrincipais.filter(s => s.categoria === categoria);
-        
-        servicosDaCategoria.forEach(servico => {
-            const option = document.createElement('option');
-            option.value = servico.item;
-            option.textContent = `${servico.item} - ${servico.tipologia}`;
-            option.dataset.valor = servico.valor;
-            option.dataset.red = servico.red;
-            option.dataset.categoria = servico.categoria;
-            option.dataset.tipologia = servico.tipologia;
-            optgroup.appendChild(option);
-        });
-        
-        select.appendChild(optgroup);
-    });
 }
 
 function popularAdicionais() {
-    const select = document.getElementById('adicionalServico');
-    
-    if (typeof servicosMOI === 'undefined') {
-        return;
-    }
-    
-    select.innerHTML = '<option value="">Nenhum adicional</option>';
-    
-    // Filtrar apenas ADICIONALES HOGAR FTTH
-    const adicionais = servicosMOI.filter(s => s.categoria === 'ADICIONALES HOGAR FTTH');
-    
-    adicionais.forEach(servico => {
-        const option = document.createElement('option');
-        option.value = servico.item;
-        option.textContent = `${servico.item} - ${servico.tipologia}`;
-        option.dataset.valor = servico.valor;
-        option.dataset.tipologia = servico.tipologia;
-        select.appendChild(option);
-    });
+    // Já é populado pelo servicos-custom.js automaticamente
+    // Esta função mantida apenas para compatibilidade
 }
 
 function atualizarValorAdicional() {
     const select = document.getElementById('adicionalServico');
-    const selectedOption = select.options[select.selectedIndex];
     
-    if (selectedOption && selectedOption.dataset.valor) {
-        const valorAdicional = parseFloat(selectedOption.dataset.valor);
-        document.getElementById('valorAdicional').value = ` ${valorAdicional.toFixed(2)}`;
+    if (select.value) {
+        try {
+            const adicional = JSON.parse(select.value);
+            const valorAdicional = adicional.valor || 0;
+            document.getElementById('valorAdicional').value = valorAdicional.toFixed(2);
+        } catch (e) {
+            console.error('Erro ao processar adicional:', e);
+            document.getElementById('valorAdicional').value = '0.00';
+        }
     } else {
-        document.getElementById('valorAdicional').value = '';
+        document.getElementById('valorAdicional').value = '0.00';
     }
     
     calcularValorTotal();
 }
 
 function calcularValorTotal() {
-    const valorServico = parseFloat(document.getElementById('valorServico').value.replace(' ', '').replace(',', '.')) || 0;
-    const valorAdicional = parseFloat(document.getElementById('valorAdicional').value.replace(' ', '').replace(',', '.')) || 0;
-    const total = valorServico + valorAdicional;
-    
-    document.getElementById('valorTotal').value = ` ${total.toFixed(2)}`;
+    // Usa função do servicos-custom.js que suporta multiplicadores
+    if (typeof calcularValorTotalComMultiplicador === 'function') {
+        calcularValorTotalComMultiplicador();
+    } else {
+        // Fallback para cálculo simples
+        const valorServico = parseFloat(document.getElementById('valorServico').value.replace(' ', '').replace(',', '.')) || 0;
+        const valorAdicional = parseFloat(document.getElementById('valorAdicional').value.replace(' ', '').replace(',', '.')) || 0;
+        const total = valorServico + valorAdicional;
+        document.getElementById('valorTotal').value = ` ${total.toFixed(2)}`;
+    }
 }
 
 function popularServicosPorCategoria(categoria) {
@@ -268,24 +266,26 @@ function limparCamposServico() {
 
 function atualizarValorServico() {
     const select = document.getElementById('tipoServico');
-    const selectedOption = select.options[select.selectedIndex];
     
-    if (selectedOption && selectedOption.dataset.valor) {
-        const valor = parseFloat(selectedOption.dataset.valor);
-        const rede = selectedOption.dataset.red || '';
-        const categoria = selectedOption.dataset.categoria || '';
-        
-        // Atualizar campos readonly
-        document.getElementById('valorServico').value = ` ${valor.toFixed(2)}`;
-        document.getElementById('redeServico').value = rede;
-        document.getElementById('categoriaServico').value = categoria;
-        
-        console.log(`Serviço selecionado: ${select.value} - Valor:  ${valor.toFixed(2)}`);
-        
-        // Calcular total
-        calcularValorTotal();
+    if (select.value) {
+        try {
+            const servico = JSON.parse(select.value);
+            const valor = servico.valor || 0;
+            const rede = servico.red || '';
+            const categoria = servico.categoria || '';
+            
+            // Atualizar campos readonly
+            document.getElementById('valorServico').value = valor.toFixed(2);
+            document.getElementById('redeServico').value = rede;
+            document.getElementById('categoriaServico').value = categoria;
+            
+            // Calcular total com multiplicador
+            calcularValorTotal();
+        } catch (e) {
+            console.error('Erro ao processar serviço:', e);
+            limparCamposServico();
+        }
     } else {
-        // Limpar campos se nenhum serviço selecionado
         limparCamposServico();
     }
 }

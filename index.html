@@ -20,6 +20,7 @@
                 <img src="logo.png" alt="Logo" class="brand-logo">
                 <h1>Controle de Ordens de Trabalho</h1>
                 <button id="btnInstallApp" type="button" class="btn-secondary" style="margin-left:auto; display:none;" onclick="instalarApp()">⬇️ Instalar</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="window.location.href='configuracao-tabelas.html'">⚙️ Tabelas</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="exportarBackup()">💾 Backup</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="importarBackup()">📥 Importar</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
@@ -93,6 +94,15 @@
                     <div class="form-group">
                         <label>Valor Adicional (€)</label>
                         <input type="text" id="valorAdicional" readonly placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Multiplicador</label>
+                        <select id="multiplicadorServico" onchange="calcularValorTotal()">
+                            <option value="normal">Normal (1x)</option>
+                            <option value="domingoFeriado">Domingo/Feriado (1.5x)</option>
+                            <option value="dobrado">Dobrado (2x)</option>
+                        </select>
                     </div>
 
                     <div class="form-group">
@@ -361,7 +371,8 @@
             </div>
         </div>
     </div>
-    <script src="js/servicosMOI.js"></script>
+    <script src="js/config-tabelas.js"></script>
+    <script src="js/servicos-custom.js"></script>
     <script src="script1.js"></script>
     <script>
         // Registrar Service Worker para PWA (se suportado)
