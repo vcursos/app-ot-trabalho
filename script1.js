@@ -402,8 +402,7 @@ function formatarTipoTrabalho(tipo) {
         'instalacao': '🔧 Instalação',
         'avaria': '⚙️ Avaria',
         'manutencao': '⚙️ Avaria', // Manter compatibilidade com registros antigos
-        'migracao': '🔄 Migração',
-        'remocao': '📦 Remoção' // Manter compatibilidade com registros antigos
+        'migracao': '🔄 Migração'
     };
     return tipos[tipo] || tipo;
 }
