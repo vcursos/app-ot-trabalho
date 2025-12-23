@@ -98,11 +98,17 @@ function renderizarTabela(categoria, dados) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile"><strong>${item.codigo}</strong></span>
+                <span class="texto-mobile">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Código:</div>
+                    <strong>${item.codigo}</strong>
+                </span>
                 <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">${item.rede}</span>
+                <span class="texto-mobile">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Rede:</div>
+                    ${item.rede}
+                </span>
                 <select data-field="rede" data-index="${index}">
                     <option value="AMBAS" ${item.rede === 'AMBAS' ? 'selected' : ''}>AMBAS</option>
                     <option value="Propia" ${item.rede === 'Propia' ? 'selected' : ''}>Propia</option>
@@ -111,11 +117,17 @@ function renderizarTabela(categoria, dados) {
                 </select>
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile"><strong>${item.descricao}</strong></span>
+                <span class="texto-mobile">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Descrição:</div>
+                    <strong style="font-size: 14px;">${item.descricao}</strong>
+                </span>
                 <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">€${parseFloat(item.valor).toFixed(2)}</span>
+                <span class="texto-mobile">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Valor:</div>
+                    <strong>€${parseFloat(item.valor).toFixed(2)}</strong>
+                </span>
                 <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
             </td>
             <td style="white-space: nowrap;">
