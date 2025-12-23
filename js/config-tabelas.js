@@ -268,6 +268,12 @@ function importarTabela(categoria, inputElement) {
 
 // Exportar tabela para Excel
 function exportarTabelaExcel(categoria) {
+    // Verificar se XLSX está disponível
+    if (typeof XLSX === 'undefined') {
+        alert('❌ Biblioteca Excel não carregada. Recarregue a página.');
+        return;
+    }
+    
     const tabelas = carregarTabelas();
     const dados = tabelas[categoria];
     
@@ -276,21 +282,27 @@ function exportarTabelaExcel(categoria) {
         return;
     }
     
-    // Criar worksheet
-    const ws = XLSX.utils.json_to_sheet(dados);
-    
-    // Criar workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, categoria);
-    
-    // Salvar arquivo
-    const nomeCategoria = {
-        'instalacoes': 'Instalacoes',
-        'avarias': 'Avarias',
-        'adicionais': 'Adicionais'
-    }[categoria] || categoria;
-    
-    XLSX.writeFile(wb, `tabela-${nomeCategoria}.xlsx`);
+    try {
+        // Criar worksheet
+        const ws = XLSX.utils.json_to_sheet(dados);
+        
+        // Criar workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, categoria);
+        
+        // Salvar arquivo
+        const nomeCategoria = {
+            'instalacoes': 'Instalacoes',
+            'avarias': 'Avarias',
+            'adicionais': 'Adicionais'
+        }[categoria] || categoria;
+        
+        XLSX.writeFile(wb, `tabela-${nomeCategoria}.xlsx`);
+        alert(`✅ Tabela exportada: tabela-${nomeCategoria}.xlsx`);
+    } catch (error) {
+        alert('❌ Erro ao exportar Excel: ' + error.message);
+        console.error('Erro detalhado:', error);
+    }
 }
 
 // Importar tabela de Excel
