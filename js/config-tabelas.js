@@ -111,14 +111,15 @@ function renderizarTabela(categoria, dados) {
                 </select>
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">${item.descricao}</span>
+                <span class="texto-mobile"><strong>${item.descricao}</strong></span>
                 <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
                 <span class="texto-mobile">€${parseFloat(item.valor).toFixed(2)}</span>
                 <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
             </td>
-            <td>
+            <td style="white-space: nowrap;">
+                <button class="btn-small btn-edit-mobile" onclick="event.stopPropagation(); abrirModal('${categoria}', ${index})" style="margin-right: 5px;">✏️</button>
                 <button class="btn-small btn-remove" onclick="event.stopPropagation(); removerLinha('${categoria}', ${index})">🗑️</button>
             </td>
         `;
