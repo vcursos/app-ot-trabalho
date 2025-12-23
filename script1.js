@@ -332,7 +332,7 @@ function atualizarValorServico() {
                         selectTipoTrabalho.value = 'instalacao';
                     }
                 } else if (codigo.startsWith('AVAR') || categoria.includes('AVERIAS') || categoria.includes('POSTVENTAS')) {
-                    selectTipoTrabalho.value = 'manutencao';
+                    selectTipoTrabalho.value = 'avaria';
                 }
             }
             
@@ -400,9 +400,10 @@ function atualizarTabela(filtrarMes = null) {
 function formatarTipoTrabalho(tipo) {
     const tipos = {
         'instalacao': '🔧 Instalação',
-        'manutencao': '⚙️ Manutenção',
+        'avaria': '⚙️ Avaria',
+        'manutencao': '⚙️ Avaria', // Manter compatibilidade com registros antigos
         'migracao': '🔄 Migração',
-        'remocao': '📦 Remoção'
+        'remocao': '📦 Remoção' // Manter compatibilidade com registros antigos
     };
     return tipos[tipo] || tipo;
 }
