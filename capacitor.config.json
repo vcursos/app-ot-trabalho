@@ -1,7 +1,7 @@
 {
   "appId": "com.ot.telecom",
   "appName": "OT Telecom",
-  "webDir": ".",
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   }
