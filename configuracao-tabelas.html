@@ -282,11 +282,30 @@
             font-size: 14px;
         }
         
+        .texto-mobile {
+            display: none;
+        }
+        
         @media (max-width: 768px) {
             .servicos-table input,
             .servicos-table select {
                 display: none;
             }
+            
+            .texto-mobile {
+                display: block;
+                padding: 8px;
+                cursor: pointer;
+            }
+            
+            .servicos-table td {
+                cursor: pointer;
+            }
+            
+            .servicos-table tr:active {
+                background: #e3f2fd;
+            }
+            
             .btn-edit-mobile {
                 display: inline-block;
             }

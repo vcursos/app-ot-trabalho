@@ -97,11 +97,12 @@ function renderizarTabela(categoria, dados) {
     dados.forEach((item, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>
+            <td onclick="abrirModal('${categoria}', ${index})">
+                <span class="texto-mobile"><strong>${item.codigo}</strong></span>
                 <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
-                <button class="btn-edit-mobile" onclick="abrirModal('${categoria}', ${index})">✏️ Editar</button>
             </td>
-            <td>
+            <td onclick="abrirModal('${categoria}', ${index})">
+                <span class="texto-mobile">${item.rede}</span>
                 <select data-field="rede" data-index="${index}">
                     <option value="AMBAS" ${item.rede === 'AMBAS' ? 'selected' : ''}>AMBAS</option>
                     <option value="Propia" ${item.rede === 'Propia' ? 'selected' : ''}>Propia</option>
@@ -109,9 +110,17 @@ function renderizarTabela(categoria, dados) {
                     <option value="Outra" ${item.rede === 'Outra' ? 'selected' : ''}>Outra</option>
                 </select>
             </td>
-            <td><input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}"></td>
-            <td><input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}"></td>
-            <td><button class="btn-small btn-remove" onclick="removerLinha('${categoria}', ${index})">🗑️</button></td>
+            <td onclick="abrirModal('${categoria}', ${index})">
+                <span class="texto-mobile">${item.descricao}</span>
+                <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
+            </td>
+            <td onclick="abrirModal('${categoria}', ${index})">
+                <span class="texto-mobile">€${parseFloat(item.valor).toFixed(2)}</span>
+                <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
+            </td>
+            <td>
+                <button class="btn-small btn-remove" onclick="event.stopPropagation(); removerLinha('${categoria}', ${index})">🗑️</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -122,6 +131,8 @@ function adicionarLinha(categoria) {
     const tabelas = carregarTabelas();
     const proximoCodigo = gerarProximoCodigo(categoria, tabelas[categoria]);
     
+    const novoIndex = tabelas[categoria].length;
+    
     tabelas[categoria].push({
         codigo: proximoCodigo,
         rede: 'AMBAS',
@@ -130,6 +141,13 @@ function adicionarLinha(categoria) {
     });
     
     renderizarTabela(categoria, tabelas[categoria]);
+    
+    // Se for mobile (largura < 768px), abre modal automaticamente
+    if (window.innerWidth < 768) {
+        setTimeout(() => {
+            abrirModal(categoria, novoIndex);
+        }, 100);
+    }
 }
 
 // Gerar próximo código disponível
