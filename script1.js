@@ -544,25 +544,20 @@ function gerarPDF() {
     
     // Tabela
     const tableData = otsMes.map(ot => {
-        const equipamentos = ot.equipamentos && ot.equipamentos.length > 0
-            ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : `${eq.tipo}: ${eq.mac}`).join(', ')
-            : (ot.macEquipamento || '-');
-        
         return [
             new Date(ot.data).toLocaleDateString('pt-BR'),
             ot.numeroOT,
             ot.tipoServico,
             ot.categoria || '-',
-            ot.rede || '-',
             formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦]/g, ''),
-            equipamentos,
+            ot.observacoes || '-',
             `€ ${ot.valorServico.toFixed(2)}`
         ];
     });
     
     doc.autoTable({
         startY: categoriaFiltro || redeFiltro ? 40 : 35,
-        head: [['Data', 'OT', 'Serviço', 'Categoria', 'Rede', 'Tipo', 'Equipamentos', 'Valor']],
+        head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Observações', 'Valor']],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [102, 126, 234] },
@@ -570,12 +565,11 @@ function gerarPDF() {
         columnStyles: {
             0: { cellWidth: 22 },
             1: { cellWidth: 20 },
-            2: { cellWidth: 30 },
+            2: { cellWidth: 50 },
             3: { cellWidth: 40 },
-            4: { cellWidth: 20 },
-            5: { cellWidth: 25 },
-            6: { cellWidth: 45 },
-            7: { cellWidth: 25, fontStyle: 'bold' }
+            4: { cellWidth: 25 },
+            5: { cellWidth: 60 },
+            6: { cellWidth: 25, fontStyle: 'bold' }
         }
     });
     

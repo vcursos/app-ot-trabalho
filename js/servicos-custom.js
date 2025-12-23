@@ -120,7 +120,7 @@ function popularSelectsServicos() {
                 .forEach(servico => {
                     const option = document.createElement('option');
                     option.value = JSON.stringify(servico);
-                    option.textContent = `${servico.item} - ${servico.tipologia} (€${servico.valor.toFixed(2)})`;
+                    option.textContent = `${servico.item} - ${servico.tipologia}`;
                     optgroup.appendChild(option);
                 });
             
@@ -138,7 +138,7 @@ function popularSelectsServicos() {
             .forEach(servico => {
                 const option = document.createElement('option');
                 option.value = JSON.stringify(servico);
-                option.textContent = `${servico.item} - ${servico.tipologia} (€${servico.valor.toFixed(2)})`;
+                option.textContent = `${servico.item} - ${servico.tipologia}`;
                 selectAdicional.appendChild(option);
             });
     }
