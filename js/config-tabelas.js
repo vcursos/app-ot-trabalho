@@ -266,6 +266,79 @@ function importarTabela(categoria, inputElement) {
     inputElement.value = ''; // Limpar input
 }
 
+// Exportar tabela para Excel
+function exportarTabelaExcel(categoria) {
+    const tabelas = carregarTabelas();
+    const dados = tabelas[categoria];
+    
+    if (!dados || dados.length === 0) {
+        alert('Nenhum dado para exportar!');
+        return;
+    }
+    
+    // Criar worksheet
+    const ws = XLSX.utils.json_to_sheet(dados);
+    
+    // Criar workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, categoria);
+    
+    // Salvar arquivo
+    const nomeCategoria = {
+        'instalacoes': 'Instalacoes',
+        'avarias': 'Avarias',
+        'adicionais': 'Adicionais'
+    }[categoria] || categoria;
+    
+    XLSX.writeFile(wb, `tabela-${nomeCategoria}.xlsx`);
+}
+
+// Importar tabela de Excel
+function importarTabelaExcel(categoria, inputElement) {
+    const file = inputElement.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Pegar primeira planilha
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const dados = XLSX.utils.sheet_to_json(firstSheet);
+            
+            if (!Array.isArray(dados) || dados.length === 0) {
+                throw new Error('Arquivo vazio ou formato inválido');
+            }
+            
+            // Validar campos obrigatórios
+            const camposObrigatorios = ['codigo', 'rede', 'descricao', 'valor'];
+            const valido = dados.every(item => 
+                camposObrigatorios.every(campo => campo in item)
+            );
+            
+            if (!valido) {
+                throw new Error('Formato inválido: campos obrigatórios (codigo, rede, descricao, valor) estão faltando');
+            }
+            
+            // Salvar
+            const tabelas = carregarTabelas();
+            tabelas[categoria] = dados;
+            salvarTabelasNoStorage(tabelas);
+            renderizarTabela(categoria, dados);
+            
+            alert(`✅ Tabela importada com sucesso! ${dados.length} serviços carregados.`);
+        } catch (error) {
+            alert('❌ Erro ao importar Excel: ' + error.message);
+        }
+    };
+    
+    reader.readAsArrayBuffer(file);
+    inputElement.value = ''; // Limpar input
+}
+
 // Exportar TODAS as configurações (tabelas + multiplicadores)
 function exportarTudo() {
     const tabelas = carregarTabelas();

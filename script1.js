@@ -310,11 +310,31 @@ function atualizarValorServico() {
             const valor = servico.valor || 0;
             const rede = servico.red || '';
             const categoria = servico.categoria || '';
+            const codigo = servico.item || '';
+            const descricao = servico.tipologia || '';
             
             // Atualizar campos readonly
             document.getElementById('valorServico').value = valor.toFixed(2);
             document.getElementById('redeServico').value = rede;
             document.getElementById('categoriaServico').value = categoria;
+            
+            // Auto-selecionar tipo de trabalho baseado no código/descrição
+            const selectTipoTrabalho = document.getElementById('tipoTrabalho');
+            if (selectTipoTrabalho) {
+                if (codigo.startsWith('INST') || categoria.includes('INSTALACIONES')) {
+                    // Verificar se é migração (reutilizada)
+                    if (descricao.toLowerCase().includes('reutilizada') || 
+                        descricao.toLowerCase().includes('reutilizado') ||
+                        descricao.toLowerCase().includes('migracion') ||
+                        descricao.toLowerCase().includes('migração')) {
+                        selectTipoTrabalho.value = 'migracao';
+                    } else {
+                        selectTipoTrabalho.value = 'instalacao';
+                    }
+                } else if (codigo.startsWith('AVAR') || categoria.includes('AVERIAS') || categoria.includes('POSTVENTAS')) {
+                    selectTipoTrabalho.value = 'manutencao';
+                }
+            }
             
             // Calcular total com multiplicador
             calcularValorTotal();
@@ -381,6 +401,7 @@ function formatarTipoTrabalho(tipo) {
     const tipos = {
         'instalacao': '🔧 Instalação',
         'manutencao': '⚙️ Manutenção',
+        'migracao': '🔄 Migração',
         'remocao': '📦 Remoção'
     };
     return tipos[tipo] || tipo;

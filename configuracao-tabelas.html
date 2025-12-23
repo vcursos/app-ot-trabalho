@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuração de Tabelas - OT Telecom</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- SheetJS para exportar/importar Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         .config-container {
             max-width: 1200px;
@@ -366,9 +368,10 @@
             <div class="table-controls">
                 <button class="btn-small btn-add" onclick="adicionarLinha('instalacoes')">➕ Adicionar Serviço</button>
                 <button class="btn-small btn-save" onclick="salvarTabela('instalacoes')">💾 Salvar Tabela</button>
-                <button class="btn-small btn-export" onclick="exportarTabela('instalacoes')">📤 Exportar</button>
-                <button class="btn-small btn-import" onclick="document.getElementById('import-instalacoes').click()">📥 Importar</button>
-                <input type="file" id="import-instalacoes" accept=".json" style="display:none" onchange="importarTabela('instalacoes', this)">
+                <button class="btn-small btn-export" onclick="exportarTabelaExcel('instalacoes')">📤 Exportar Excel</button>
+                <button class="btn-small btn-import" onclick="document.getElementById('import-instalacoes').click()">📥 Importar Excel</button>
+                <input type="file" id="import-instalacoes" accept=".xlsx,.xls" style="display:none" onchange="importarTabelaExcel('instalacoes', this)">
+            </div>
             </div>
             <div style="overflow-x: auto;">
                 <table class="servicos-table" id="table-instalacoes">
@@ -393,9 +396,9 @@
             <div class="table-controls">
                 <button class="btn-small btn-add" onclick="adicionarLinha('avarias')">➕ Adicionar Serviço</button>
                 <button class="btn-small btn-save" onclick="salvarTabela('avarias')">💾 Salvar Tabela</button>
-                <button class="btn-small btn-export" onclick="exportarTabela('avarias')">📤 Exportar</button>
-                <button class="btn-small btn-import" onclick="document.getElementById('import-avarias').click()">📥 Importar</button>
-                <input type="file" id="import-avarias" accept=".json" style="display:none" onchange="importarTabela('avarias', this)">
+                <button class="btn-small btn-export" onclick="exportarTabelaExcel('avarias')">📤 Exportar Excel</button>
+                <button class="btn-small btn-import" onclick="document.getElementById('import-avarias').click()">📥 Importar Excel</button>
+                <input type="file" id="import-avarias" accept=".xlsx,.xls" style="display:none" onchange="importarTabelaExcel('avarias', this)">
             </div>
             <div style="overflow-x: auto;">
                 <table class="servicos-table" id="table-avarias">
@@ -420,9 +423,9 @@
             <div class="table-controls">
                 <button class="btn-small btn-add" onclick="adicionarLinha('adicionais')">➕ Adicionar Serviço</button>
                 <button class="btn-small btn-save" onclick="salvarTabela('adicionais')">💾 Salvar Tabela</button>
-                <button class="btn-small btn-export" onclick="exportarTabela('adicionais')">📤 Exportar</button>
-                <button class="btn-small btn-import" onclick="document.getElementById('import-adicionais').click()">📥 Importar</button>
-                <input type="file" id="import-adicionais" accept=".json" style="display:none" onchange="importarTabela('adicionais', this)">
+                <button class="btn-small btn-export" onclick="exportarTabelaExcel('adicionais')">📤 Exportar Excel</button>
+                <button class="btn-small btn-import" onclick="document.getElementById('import-adicionais').click()">📥 Importar Excel</button>
+                <input type="file" id="import-adicionais" accept=".xlsx,.xls" style="display:none" onchange="importarTabelaExcel('adicionais', this)">
             </div>
             <div style="overflow-x: auto;">
                 <table class="servicos-table" id="table-adicionais">
