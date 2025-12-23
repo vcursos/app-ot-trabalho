@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Ordens de Trabalho - Telecom</title>
+    <meta name="theme-color" content="#667eea">
+    <!-- iOS Progressive Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <img src="logo.png" alt="Logo" class="brand-logo">
+                <h1>Controle de Ordens de Trabalho</h1>
+                <button id="btnInstallApp" type="button" class="btn-secondary" style="margin-left:auto; display:none;" onclick="instalarApp()">⬇️ Instalar</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="exportarBackup()">💾 Backup</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="importarBackup()">📥 Importar</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
+            </div>
+            <div class="resumo">
+                <div class="card">
+                    <span>OTs Hoje</span>
+                    <strong id="qtdDia">0</strong>
+                </div>
+                <div class="card">
+                    <span>Valor Hoje</span>
+                    <strong id="valorDia">€ 0,00</strong>
+                </div>
+                <div class="card">
+                    <span>OTs Mês</span>
+                    <strong id="qtdMes">0</strong>
+                </div>
+                <div class="card">
+                    <span>Valor Mês</span>
+                    <strong id="valorMes">€ 0,00</strong>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navegação por Abas -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="mostrarAba('ordens')">📋 Ordens de Trabalho</button>
+            <button class="tab-button" onclick="mostrarAba('logistica')">🚗 Logística Diária</button>
+        </div>
+
+        <!-- ABA: Ordens de Trabalho -->
+        <div id="aba-ordens" class="tab-content active">
+        <section class="form-section">
+            <h2>Nova Ordem de Trabalho</h2>
+            <form id="formOT">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Número da OT</label>
+                        <input type="text" id="numeroOT" placeholder="Ex: OT-001">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tipo de Serviço</label>
+                        <select id="tipoServico">
+                            <option value="">Selecione o serviço...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <input type="text" id="categoriaServico" readonly placeholder="Categoria">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Rede</label>
+                        <input type="text" id="redeServico" readonly placeholder="Tipo de rede">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Valor do Serviço (€)</label>
+                        <input type="text" id="valorServico" readonly placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Adicional (Opcional)</label>
+                        <select id="adicionalServico">
+                            <option value="">Nenhum adicional</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Valor Adicional (€)</label>
+                        <input type="text" id="valorAdicional" readonly placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Valor Total (€)</label>
+                        <input type="text" id="valorTotal" readonly placeholder="0.00" style="font-weight: bold; color: #27ae60;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tipo de Trabalho</label>
+                        <select id="tipoTrabalho">
+                            <option value="">Selecione...</option>
+                            <option value="instalacao">Instalação</option>
+                            <option value="manutencao">Manutenção</option>
+                            <option value="remocao">Remoção</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Equipamentos (📦 Código de Barras)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="macEquipamento" placeholder="Código de barras" style="flex: 1;">
+                            <button type="button" class="btn-scan" onclick="abrirScanner()" title="Escanear código">📷</button>
+                            <button type="button" class="btn-primary" onclick="adicionarEquipamento()" style="padding: 10px 15px;">+</button>
+                        </div>
+                        <div id="msgEquipamentosVazio" class="equipamentos-vazio">Nenhum equipamento adicionado</div>
+                        <div id="listaEquipamentos" style="margin-top: 8px; min-height: 20px;">
+                            <!-- Equipamentos adicionados aparecerão aqui -->
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>Observações</label>
+                        <textarea id="observacoes" rows="3" placeholder="Detalhes adicionais..."></textarea>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Registrar OT</button>
+                    <button type="button" class="btn-secondary" onclick="limparFormulario()">Limpar</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="table-section">
+            <div class="table-header">
+                <h2>Ordens de Trabalho Registradas</h2>
+                <div class="filter-group">
+                    <input type="text" id="pesquisaMAC" placeholder="🔍 Código de barras..." onkeyup="pesquisarPorMAC()" style="min-width: 200px;">
+                    <input type="month" id="filtroMes" onchange="aplicarFiltros()" style="max-width:160px;">
+                    <select id="filtroCategoria" onchange="aplicarFiltros()">
+                        <option value="">Todas Categorias</option>
+                        <option value="INSTALACIONES FTTH B2C">INSTALACIONES FTTH B2C</option>
+                        <option value="ADICIONALES HOGAR FTTH">ADICIONALES HOGAR FTTH</option>
+                        <option value="AVERIAS + POSTVENTAS B2C">AVERIAS + POSTVENTAS B2C</option>
+                        <option value="INSTALACIONES HFC">INSTALACIONES HFC</option>
+                    </select>
+                    <select id="filtroRede" onchange="aplicarFiltros()">
+                        <option value="">Todas Redes</option>
+                        <option value="Propia">Própria</option>
+                        <option value="MOVISTAR">MOVISTAR</option>
+                        <option value="AMBAS">AMBAS</option>
+                    </select>
+                    <div class="filter-actions">
+                        <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table id="tabelaOTs">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>OT</th>
+                            <th>Serviço</th>
+                            <th>Adicional</th>
+                            <th>Categoria</th>
+                            <th>Rede</th>
+                            <th>Tipo</th>
+                            <th>Equipamentos</th>
+                            <th>Valor</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabela">
+                        <tr class="empty-state">
+                            <td colspan="10">Nenhuma ordem de trabalho registrada</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        </div>
+        <!-- FIM ABA: Ordens de Trabalho -->
+
+        <!-- ABA: Logística Diária -->
+        <div id="aba-logistica" class="tab-content">
+            <section class="form-section">
+                <h2>📊 Registro de Logística Diária</h2>
+                <form id="formLogistica">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Data</label>
+                            <input type="date" id="dataLogistica">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Hora Início Jornada</label>
+                            <input type="time" id="horaInicioJornada">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Hora Fim Jornada</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="time" id="horaFimJornada" style="flex: 1;">
+                                <button type="button" class="btn-scan" onclick="atualizarHoraFim()" title="Atualizar com hora atual">🕐</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>KM Inicial</label>
+                            <input type="text" id="kmInicial" maxlength="8" pattern="[0-9.,]+" placeholder="Ex: 298178.0">
+                        </div>
+
+                        <div class="form-group">
+                            <label>KM Final</label>
+                            <input type="text" id="kmFinal" maxlength="8" pattern="[0-9.,]+" placeholder="Ex: 298178.5">
+                        </div>
+
+                        <div class="form-group">
+                            <label>KM Rodados no Dia</label>
+                            <input type="text" id="kmRodadosDia" readonly placeholder="0.0 km">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Abastecimento (€)</label>
+                            <input type="number" id="valorAbastecimento" step="0.01" min="0" placeholder="Ex: 50.00">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Litros Abastecidos</label>
+                            <input type="number" id="litrosAbastecidos" step="0.01" min="0" placeholder="Ex: 30.5">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Litros Consumidos (Motor 1.5 dCi)</label>
+                            <input type="text" id="consumoMedio" readonly placeholder="0.0L consumidos">
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label>Observações da Jornada</label>
+                            <textarea id="observacoesLogistica" rows="3" placeholder="Rotas, ocorrências, etc..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Registrar Jornada</button>
+                        <button type="button" class="btn-secondary" onclick="limparFormularioLogistica()">Limpar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="table-section">
+                <div class="table-header">
+                    <h2>Histórico de Logística</h2>
+                    <div class="filter-group" style="flex-wrap:nowrap;">
+                        <input type="month" id="filtroMesLogistica" onchange="filtrarLogisticaPorMes()" style="max-width:160px;">
+                        <button class="btn-pdf" onclick="gerarPDFLogistica()" title="Gerar PDF do mês selecionado" style="flex:0 0 auto;">📄 Gerar PDF</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table id="tabelaLogistica">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Horário Jornada</th>
+                                <th>KM Inicial</th>
+                                <th>KM Final</th>
+                                <th>KM Rodados</th>
+                                <th>Abastecimento</th>
+                                <th>Litros Abast.</th>
+                                <th>Litros Consumidos</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="corpoTabelaLogistica">
+                            <tr class="empty-state">
+                                <td colspan="9">Nenhum registro de logística</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <!-- FIM ABA: Logística Diária -->
+
+    </div>
+
+    <!-- Modal Scanner -->
+    <div id="scannerModal" class="scanner-modal" onclick="fecharScannerSeClicarFora(event)">
+        <div class="scanner-content" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="margin:0;">📷 Escanear Código</h3>
+                <button type="button" class="btn-close-scanner" onclick="fecharScanner()" style="margin:0;">✕ Fechar</button>
+            </div>
+            <div style="position:relative; background:#000; border-radius:10px; overflow:hidden;">
+                <video id="video" playsinline style="width:100%; height:auto; display:block; max-height:400px; object-fit:cover;"></video>
+                <!-- Linha de mira (guia de leitura) -->
+                <div class="scanner-guide">
+                    <div class="scanner-line"></div>
+                </div>
+            </div>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <div id="resultado" style="margin-top: 10px; font-weight: bold; color: #27ae60; text-align:center; min-height:24px;"></div>
+            <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
+                <button type="button" class="btn-secondary" onclick="trocarCamera()" style="padding:8px 16px; font-size:14px;">🔄 Trocar Câmera</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <!-- Input para importação de backup (oculto) -->
+    <input type="file" id="inputImportBackup" accept="application/json" style="display:none" />
+    <!-- Modal Ajuda -->
+    <div id="ajudaModal" class="scanner-modal" style="background:rgba(0,0,0,0.6);">
+        <div class="scanner-content" style="max-width:700px;">
+            <h3>❓ Guia Rápido do Aplicativo</h3>
+            <div style="text-align:left; font-size:14px; max-height:60vh; overflow:auto;">
+                <p><strong>1. Registrar OT:</strong> Preencha número (opcional), selecione serviço e adicionais, adicione equipamentos (pode escanear), clique em <em>Registrar OT</em>.</p>
+                <p><strong>2. Registrar Logística:</strong> Na aba Logística, a data de hoje já aparece. Preencha KM inicial, ao final do dia KM final, abastecimento (se houve) e clique em <em>Registrar Jornada</em>.</p>
+                <p><strong>3. Resumos:</strong> Cartões no topo mostram quantidade e valor de hoje e do mês.</p>
+                <p><strong>4. Filtros & Busca:</strong> Use mês, categoria, rede ou pesquise por código de barras para localizar rapidamente.</p>
+                <p><strong>5. PDF Mensal:</strong> Selecione o mês e clique em <em>Gerar PDF</em> (OT ou Logística) para criar relatório offline. O arquivo é salvo na pasta de downloads do dispositivo.</p>
+                <p><strong>6. Backup JSON:</strong> Botão <em>Backup JSON</em> gera um arquivo contendo TODOS os dados (OT + Logística). Faça ao fim do mês antes de limpar ou trocar de aparelho.</p>
+                <p><strong>7. Importar Backup:</strong> Botão <em>Importar Backup</em> permite escolher um arquivo JSON exportado anteriormente. Você decide se substitui tudo ou se mescla sem duplicar.</p>
+                <p><strong>8. Limpar Dados:</strong> Abra <code>limpar-dados.html</code> para remover completamente o histórico local (irreversível). Faça somente após garantir o backup.</p>
+                <p><strong>9. Segurança:</strong> Os dados ficam apenas no dispositivo. Se desinstalar ou limpar cache, sem backup você perde o histórico.</p>
+                <p><strong>Fluxo mensal sugerido:</strong> Registrar diariamente → No último dia do mês gerar PDF OT + PDF Logística → Fazer Backup JSON → (Opcional) Limpar para iniciar novo mês mais leve.</p>
+            </div>
+            <div class="scanner-buttons">
+                <button type="button" class="btn-close-scanner" onclick="fecharAjuda()">Fechar</button>
+            </div>
+        </div>
+    </div>
+    <!-- Dica iOS: Adicionar à Tela de Início (com ilustração) -->
+    <div id="iosA2HSBanner" style="display:none; position:fixed; left:0; right:0; bottom:0; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:#fff; padding:16px; box-shadow: 0 -8px 30px rgba(0,0,0,0.25); z-index: 1100; border-top-left-radius:12px; border-top-right-radius:12px;">
+        <div style="max-width:500px; margin:0 auto;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+                <span style="font-size:28px">�</span>
+                <div style="flex:1;">
+                    <div style="font-weight:700; font-size:15px; margin-bottom:4px;">Instale o App no seu iPhone</div>
+                    <div style="font-size:13px; opacity:0.95; line-height:1.4;">
+                        1. Toque no botão <strong>Compartilhar</strong> 
+                        <svg width="16" height="20" viewBox="0 0 16 20" fill="none" style="display:inline-block; vertical-align:middle; margin:0 3px;">
+                            <rect x="6" y="8" width="4" height="10" rx="1" fill="currentColor"/>
+                            <path d="M8 2L4 6h3v4h2V6h3L8 2z" fill="currentColor"/>
+                        </svg>
+                        (na barra inferior do Safari)
+                        <br>2. Role para baixo e escolha <strong>"Adicionar à Tela de Início"</strong>
+                    </div>
+                </div>
+                <button type="button" style="background:rgba(255,255,255,0.25); color:#fff; border:none; padding:8px 14px; border-radius:6px; font-weight:600; font-size:13px; cursor:pointer;" onclick="fecharBannerIOS()">✕ Fechar</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/servicosMOI.js"></script>
+    <script src="script1.js"></script>
+    <script>
+        // Registrar Service Worker para PWA (se suportado)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js').catch(function(err){
+                    console.warn('ServiceWorker não registrado:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

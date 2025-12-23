@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OT Telecom</string>
+    <string name="title_activity_main">OT Telecom</string>
+    <string name="package_name">com.ot.telecom</string>
+    <string name="custom_url_scheme">com.ot.telecom</string>
+</resources>

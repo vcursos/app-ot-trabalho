@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerar Ícones - PWA</title>
+</head>
+<body>
+  <h1>Gerando ícones...</h1>
+  <p id="status">Aguarde...</p>
+  <canvas id="c192" width="192" height="192" style="display:none;"></canvas>
+  <canvas id="c512" width="512" height="512" style="display:none;"></canvas>
+  <script>
+    function gerarIcone(canvas, tamanho) {
+      const ctx = canvas.getContext('2d');
+      
+      // Gradiente de fundo
+      const grad = ctx.createLinearGradient(0, 0, tamanho, tamanho);
+      grad.addColorStop(0, '#667eea');
+      grad.addColorStop(1, '#764ba2');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, tamanho, tamanho);
+      
+      // Símbolo OT (texto centralizado)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${Math.round(tamanho * 0.35)}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = Math.round(tamanho * 0.02);
+      ctx.fillText('OT', tamanho / 2, tamanho / 2);
+      
+      // Subtítulo
+      ctx.shadowBlur = 0;
+      ctx.font = `${Math.round(tamanho * 0.08)}px Arial, sans-serif`;
+      ctx.fillText('Telecom', tamanho / 2, tamanho * 0.72);
+    }
+
+    function baixarIcone(canvas, nome) {
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nome;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
+
+    const c192 = document.getElementById('c192');
+    const c512 = document.getElementById('c512');
+    const status = document.getElementById('status');
+
+    gerarIcone(c192, 192);
+    gerarIcone(c512, 512);
+
+    setTimeout(() => {
+      baixarIcone(c192, 'icon-192.png');
+      baixarIcone(c512, 'icon-512.png');
+      status.innerHTML = '<strong style="color:green;">✅ Ícones gerados! Verifique a pasta Downloads e mova-os para a raiz do projeto.</strong>';
+    }, 500);
+  </script>
+</body>
+</html>

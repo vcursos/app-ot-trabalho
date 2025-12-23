@@ -1,0 +1,28 @@
+{
+  "name": "ot-telecom",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Controle de OTs e Logística Diária - PWA + Capacitor",
+  "scripts": {
+    "serve": "npx http-server -p 5173 .",
+    "build": "echo 'Projeto estático - usar como está'",
+    "cap:init": "npx cap init ot-telecom com.ot.telecom -y",
+    "cap:sync": "npx cap sync",
+    "cap:sync:android": "npx cap sync android",
+    "cap:copy": "npx cap copy",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "android": "npm run cap:sync:android && npm run cap:open:android"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0",
+    "http-server": "^14.1.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.1.0"
+  }
+}
