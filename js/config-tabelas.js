@@ -97,36 +97,23 @@ function renderizarTabela(categoria, dados) {
     dados.forEach((item, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">
-                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Código:</div>
-                    <strong>${item.codigo}</strong>
+            <td onclick="abrirModal('${categoria}', ${index})" style="display: none;">
+                <span class="texto-mobile codigo-oculto">
+                    ${item.codigo}
                 </span>
                 <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
                 <span class="texto-mobile">
-                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Rede:</div>
-                    ${item.rede}
-                </span>
-                <select data-field="rede" data-index="${index}">
-                    <option value="AMBAS" ${item.rede === 'AMBAS' ? 'selected' : ''}>AMBAS</option>
-                    <option value="Propia" ${item.rede === 'Propia' ? 'selected' : ''}>Propia</option>
-                    <option value="MOVISTAR" ${item.rede === 'MOVISTAR' ? 'selected' : ''}>MOVISTAR</option>
-                    <option value="Outra" ${item.rede === 'Outra' ? 'selected' : ''}>Outra</option>
-                </select>
-            </td>
-            <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Descrição:</div>
-                    <strong style="font-size: 14px;">${item.descricao}</strong>
+                    <strong style="font-size: 15px;">${item.descricao}</strong>
                 </span>
                 <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
                 <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Valor:</div>
-                    <strong>€${parseFloat(item.valor).toFixed(2)}</strong>
+                    <strong style="font-size: 15px;">€${parseFloat(item.valor).toFixed(2)}</strong>
                 </span>
                 <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
             </td>
@@ -155,12 +142,10 @@ function adicionarLinha(categoria) {
     
     renderizarTabela(categoria, tabelas[categoria]);
     
-    // Se for mobile (largura < 768px), abre modal automaticamente
-    if (window.innerWidth < 768) {
-        setTimeout(() => {
-            abrirModal(categoria, novoIndex);
-        }, 100);
-    }
+    // Abre modal automaticamente para editar o novo serviço
+    setTimeout(() => {
+        abrirModal(categoria, novoIndex);
+    }, 100);
 }
 
 // Gerar próximo código disponível
