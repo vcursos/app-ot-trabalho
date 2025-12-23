@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerar Ícones PWA</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 20px; }
+    .box { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.1); }
+    h1 { margin: 0 0 10px; }
+    p { color: #444; }
+    .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+    canvas { background: #f6f7fb; border: 1px dashed #ccc; border-radius: 8px; }
+    .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button { padding: 10px 16px; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .btn { background: #667eea; color: #fff; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .hint { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Gerar Ícones PWA</h1>
+    <p>Este utilitário cria <strong>icon-192.png</strong> e <strong>icon-512.png</strong> a partir do arquivo <code>logo.png</code> na raiz do projeto.</p>
+    <div class="actions">
+      <button class="btn" id="btnCarregar">Carregar logo.png</button>
+      <button class="btn" id="btnGerar" disabled>Gerar e baixar ícones</button>
+      <span class="hint">Dica: após baixar, salve como <code>icon-192.png</code> e <code>icon-512.png</code> na mesma pasta do index.html.</span>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <div>
+        <h3>Prévia 192x192</h3>
+        <canvas id="c192" width="192" height="192"></canvas>
+      </div>
+      <div>
+        <h3>Prévia 512x512</h3>
+        <canvas id="c512" width="512" height="512"></canvas>
+      </div>
+    </div>
+  </div>
+  <script>
+    const btnCarregar = document.getElementById('btnCarregar');
+    const btnGerar = document.getElementById('btnGerar');
+    const c192 = document.getElementById('c192');
+    const c512 = document.getElementById('c512');
+
+    let img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    btnCarregar.onclick = async () => {
+      try {
+        const res = await fetch('./logo.png', { cache: 'no-cache' });
+        if (!res.ok) throw new Error('logo.png não encontrado');
+        const blob = await res.blob();
+        img.onload = () => {
+          renderIcon(c192, img);
+          renderIcon(c512, img);
+          btnGerar.disabled = false;
+        };
+        img.src = URL.createObjectURL(blob);
+      } catch (e) {
+        alert('Falha ao carregar logo.png: ' + (e && e.message ? e.message : e));
+      }
+    };
+
+    function renderIcon(canvas, img) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      // Fundo com gradiente
+      const grad = ctx.createLinearGradient(0,0, canvas.width, canvas.height);
+      grad.addColorStop(0, '#667eea');
+      grad.addColorStop(1, '#764ba2');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,canvas.width, canvas.height);
+
+      // Áreas "maskable" com padding
+      const padding = Math.round(canvas.width * 0.12);
+      const targetW = canvas.width - padding*2;
+      const targetH = canvas.height - padding*2;
+
+      // Cover mantendo proporção
+      const ratio = Math.min(img.width / targetW, img.height / targetH);
+      const drawW = Math.round(img.width / ratio);
+      const drawH = Math.round(img.height / ratio);
+      const dx = Math.round((canvas.width - drawW)/2);
+      const dy = Math.round((canvas.height - drawH)/2);
+
+      // Sombra sutil
+      ctx.shadowColor = 'rgba(0,0,0,0.18)';
+      ctx.shadowBlur = Math.round(canvas.width * 0.04);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+      ctx.shadowBlur = 0;
+    }
+
+    btnGerar.onclick = () => {
+      baixarCanvas(c192, 'icon-192.png');
+      baixarCanvas(c512, 'icon-512.png');
+      alert('Arquivos gerados! Mova-os para a pasta raiz do projeto (mesma do index.html).');
+    };
+
+    function baixarCanvas(canvas, nome) {
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nome;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
+  </script>
+</body>
+</html>
