@@ -140,12 +140,15 @@ function adicionarLinha(categoria) {
         valor: 0.00
     });
     
+    // Salva no localStorage antes de renderizar
+    salvarTabelasNoStorage(tabelas);
+    
     renderizarTabela(categoria, tabelas[categoria]);
     
     // Abre modal automaticamente para editar o novo serviço
     setTimeout(() => {
         abrirModal(categoria, novoIndex);
-    }, 100);
+    }, 200);
 }
 
 // Gerar próximo código disponível
