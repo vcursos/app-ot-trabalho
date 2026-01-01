@@ -74,6 +74,20 @@ function getPremioRegistradoNoDia(dataISO) {
     return parseFloat(premiosFestivosPorDia[dataISO].valor) || 0;
 }
 
+function setPremioNoDiaSeMaior(dataISO, valor, aplicadoEm) {
+    if (!dataISO) return;
+    const atual = getPremioRegistradoNoDia(dataISO);
+    const novo = parseFloat(valor) || 0;
+    if (novo <= 0) return;
+    if (!premiosFestivosPorDia[dataISO] || novo > atual) {
+        premiosFestivosPorDia[dataISO] = {
+            valor: novo,
+            aplicadoEm: aplicadoEm || new Date().toISOString()
+        };
+        salvarPremiosFestivosPorDia();
+    }
+}
+
 function atualizarUIFestivoPorDia() {
     const checkboxFestivo = document.getElementById('otFestivo');
     const preview = document.getElementById('previewPremioFestivo');
@@ -146,9 +160,8 @@ function sincronizarDataOTComDispositivo() {
 
     const hoje = getHojeISO();
 
-    // Sempre que abrir, se vazio OU diferente do dia do dispositivo, volta para hoje.
-    // (Mantém a data sincronizada; evita erro de ficar preso em data antiga.)
-    if (!campo.value || campo.value !== hoje) {
+    // Ao abrir: se vazio, preenche com hoje
+    if (!campo.value) {
         campo.value = hoje;
     }
 
@@ -157,20 +170,23 @@ function sincronizarDataOTComDispositivo() {
 
     // Reaplicar estado do festivo quando mudar a data
     campo.addEventListener('change', function() {
+        const hojeAgora = getHojeISO();
         // Se o usuário tentar colocar futuro, corrigir
-        if (campo.value && campo.value > hoje) {
-            campo.value = hoje;
+        if (campo.value && campo.value > hojeAgora) {
+            campo.value = hojeAgora;
         }
+        campo.max = hojeAgora;
         atualizarUIFestivoPorDia();
     });
 
-    // Se virar o dia com o app aberto, atualiza automaticamente
+    // Se virar o dia com o app aberto, atualiza automaticamente (sem sobrescrever se o usuário estiver vendo data antiga)
     setInterval(function() {
         const hojeAgora = getHojeISO();
-        if (campo.max !== hojeAgora) {
-            campo.max = hojeAgora;
-        }
-        if (campo.value !== hojeAgora) {
+        if (campo.max !== hojeAgora) campo.max = hojeAgora;
+
+        // Só ajusta o campo se ele estiver vazio OU ainda estiver no dia anterior
+        // (não força mudança quando o usuário abriu mês/dia antigos para conferir)
+        if (!campo.value || campo.value < hojeAgora) {
             campo.value = hojeAgora;
             atualizarUIFestivoPorDia();
         }
@@ -363,11 +379,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
 
     // Se foi marcado e aplicado hoje, registrar que o prémio do dia já foi usado
     if (premioAplicado > 0) {
-        premiosFestivosPorDia[hojeISO] = {
-            valor: premioAplicado,
-            aplicadoEm: ot.data
-        };
-        salvarPremiosFestivosPorDia();
+        setPremioNoDiaSeMaior(hojeISO, premioAplicado, ot.data);
     }
 
     salvarDados();
