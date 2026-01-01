@@ -23,6 +23,7 @@ function carregarServicosCustomizados() {
                 red: item.rede,
                 tipologia: item.descricao,
                 valor: item.valor,
+                pontos: parseFloat(item.pontos) || 0,
                 categoria: 'INSTALACIONES'
             });
         });
@@ -36,6 +37,7 @@ function carregarServicosCustomizados() {
                 red: item.rede,
                 tipologia: item.descricao,
                 valor: item.valor,
+                pontos: parseFloat(item.pontos) || 0,
                 categoria: 'AVERIAS + POSTVENTAS'
             });
         });
@@ -49,6 +51,7 @@ function carregarServicosCustomizados() {
                 red: item.rede,
                 tipologia: item.descricao,
                 valor: item.valor,
+                pontos: parseFloat(item.pontos) || 0,
                 categoria: 'ADICIONALES'
             });
         });

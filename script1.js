@@ -154,9 +154,18 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     // Valores base sem multiplicador
     const valorServicoBase = servicoInfo ? servicoInfo.valor : 0;
     const valorAdicionalBase = adicionalInfo ? adicionalInfo.valor : 0;
+
+    // Pontos base
+    const pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
+    const pontosAdicionalBase = adicionalInfo ? (parseFloat(adicionalInfo.pontos) || 0) : 0;
     
     // Valor total com multiplicador
     const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
+
+    // Prémio festivo (extra do dia), aplicado apenas se marcado
+    const checkboxFestivo = document.getElementById('otFestivo');
+    const premioConfigurado = parseFloat((obterMultiplicadores()?.premioFestivo)) || 0;
+    const premioAplicado = (checkboxFestivo && checkboxFestivo.checked) ? premioConfigurado : 0;
     
     const ot = {
         id: Date.now(),
@@ -169,8 +178,12 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         adicional: adicionalInfo ? adicionalInfo.item : (adicionalSelecionado || ''),
         adicionalDesc: adicionalInfo ? adicionalInfo.tipologia : '',
         valorAdicional: valorAdicionalBase,
+    pontosServico: pontosServicoBase,
+    pontosAdicional: pontosAdicionalBase,
         multiplicador: tipoMultiplicador,
         valorMultiplicador: valorMultiplicador,
+        otFestivo: !!(checkboxFestivo && checkboxFestivo.checked),
+        premioFestivoAplicado: premioAplicado,
         equipamentos: [...equipamentosTemp], // Copiar array de equipamentos
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
         observacoes: document.getElementById('observacoes').value || '',
@@ -195,6 +208,15 @@ function limparFormulario() {
     if (multiplicadorEl) {
         multiplicadorEl.value = 'normal';
     }
+
+    // Resetar festivo
+    const checkboxFestivo = document.getElementById('otFestivo');
+    if (checkboxFestivo) {
+        checkboxFestivo.checked = false;
+    }
+
+    // Atualizar preview do prémio
+    calcularValorTotal();
     
     equipamentosTemp = [];
     atualizarListaEquipamentos();
@@ -242,11 +264,46 @@ function calcularValorTotal() {
     // Usa função do servicos-custom.js que suporta multiplicadores
     if (typeof calcularValorTotalComMultiplicador === 'function') {
         calcularValorTotalComMultiplicador();
+
+        // Prémio festivo do dia (extra, não multiplicado)
+        const checkboxFestivo = document.getElementById('otFestivo');
+        const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
+        const premioBase = parseFloat(mult.premioFestivo) || 0;
+
+        // Atualiza preview
+        const preview = document.getElementById('previewPremioFestivo');
+        if (preview) {
+            preview.textContent = premioBase > 0
+                ? `Prémio configurado: € ${premioBase.toFixed(2)} (marque a OT como festiva para aplicar)`
+                : 'Prémio configurado: € 0.00';
+        }
+
+        if (checkboxFestivo && checkboxFestivo.checked && premioBase > 0) {
+            const valorTotalEl = document.getElementById('valorTotal');
+            const atual = parseFloat(String(valorTotalEl.value).replace(' ', '').replace(',', '.')) || 0;
+            valorTotalEl.value = (atual + premioBase).toFixed(2);
+        }
     } else {
         // Fallback para cálculo simples
         const valorServico = parseFloat(document.getElementById('valorServico').value.replace(' ', '').replace(',', '.')) || 0;
         const valorAdicional = parseFloat(document.getElementById('valorAdicional').value.replace(' ', '').replace(',', '.')) || 0;
-        const total = valorServico + valorAdicional;
+        let total = valorServico + valorAdicional;
+
+        const checkboxFestivo = document.getElementById('otFestivo');
+        const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
+        const premioBase = parseFloat(mult.premioFestivo) || 0;
+
+        const preview = document.getElementById('previewPremioFestivo');
+        if (preview) {
+            preview.textContent = premioBase > 0
+                ? `Prémio configurado: € ${premioBase.toFixed(2)} (marque a OT como festiva para aplicar)`
+                : 'Prémio configurado: € 0.00';
+        }
+
+        if (checkboxFestivo && checkboxFestivo.checked && premioBase > 0) {
+            total += premioBase;
+        }
+
         document.getElementById('valorTotal').value = ` ${total.toFixed(2)}`;
     }
 }
@@ -633,13 +690,28 @@ function gerarPDF() {
     
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
+    const totalPremiosFestivos = otsMes.reduce((sum, ot) => sum + (parseFloat(ot.premioFestivoAplicado) || 0), 0);
+    const totalPontos = otsMes.reduce((sum, ot) => {
+        const pServ = parseFloat(ot.pontosServico) || 0;
+        const pAdd = parseFloat(ot.pontosAdicional) || 0;
+        return sum + pServ + pAdd;
+    }, 0);
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
+    doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 10);
+    if (totalPremiosFestivos > 0) {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
+    }
+
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 17 + (totalPremiosFestivos > 0 ? 5 : 0));
     
     doc.save(`relatorio-ot-${mesAtual}.pdf`);
 }
@@ -723,9 +795,18 @@ function gerarPDFComEquipamentos() {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
+    doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 10);
+    if (totalPremiosFestivos > 0) {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
+    }
+
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 17 + (totalPremiosFestivos > 0 ? 5 : 0));
     
     doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);
 }

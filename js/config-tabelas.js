@@ -4,23 +4,23 @@
 // Dados padrão das tabelas (MOI - pode ser usado como base inicial)
 const tabelasPadrao = {
     instalacoes: [
-        { codigo: 'INST01', rede: 'AMBAS', descricao: 'Nova exterior até 60m', valor: 44.00 },
-        { codigo: 'INST02', rede: 'AMBAS', descricao: 'Nova exterior desde 80m', valor: 53.00 },
-        { codigo: 'INST03', rede: 'Propia', descricao: 'Nova interior até 60m', valor: 40.00 },
-        { codigo: 'INST04', rede: 'Propia', descricao: 'Nova interior desde 80m', valor: 48.00 },
-        { codigo: 'INST05', rede: 'AMBAS', descricao: 'Reutilizada int/ext', valor: 27.00 },
+        { codigo: 'INST01', rede: 'AMBAS', descricao: 'Nova exterior até 60m', valor: 44.00, pontos: 0 },
+        { codigo: 'INST02', rede: 'AMBAS', descricao: 'Nova exterior desde 80m', valor: 53.00, pontos: 0 },
+        { codigo: 'INST03', rede: 'Propia', descricao: 'Nova interior até 60m', valor: 40.00, pontos: 0 },
+        { codigo: 'INST04', rede: 'Propia', descricao: 'Nova interior desde 80m', valor: 48.00, pontos: 0 },
+        { codigo: 'INST05', rede: 'AMBAS', descricao: 'Reutilizada int/ext', valor: 27.00, pontos: 0 },
     ],
     avarias: [
-        { codigo: 'AVAR01', rede: 'AMBAS', descricao: 'Avería Laborable', valor: 16.00 },
-        { codigo: 'AVAR02', rede: 'AMBAS', descricao: 'Postventa (Visita sem averia)', valor: 16.00 },
-        { codigo: 'AVAR03', rede: 'AMBAS', descricao: 'Manutenção Cliente HFC', valor: 16.00 },
-        { codigo: 'AVAR04', rede: 'AMBAS', descricao: 'Complemento subida Poste Laborable', valor: 16.00 },
-        { codigo: 'AVAR05', rede: 'AMBAS', descricao: 'Complemento subida Poste Festivo', valor: 24.00 },
+        { codigo: 'AVAR01', rede: 'AMBAS', descricao: 'Avería Laborable', valor: 16.00, pontos: 0 },
+        { codigo: 'AVAR02', rede: 'AMBAS', descricao: 'Postventa (Visita sem averia)', valor: 16.00, pontos: 0 },
+        { codigo: 'AVAR03', rede: 'AMBAS', descricao: 'Manutenção Cliente HFC', valor: 16.00, pontos: 0 },
+        { codigo: 'AVAR04', rede: 'AMBAS', descricao: 'Complemento subida Poste Laborable', valor: 16.00, pontos: 0 },
+        { codigo: 'AVAR05', rede: 'AMBAS', descricao: 'Complemento subida Poste Festivo', valor: 24.00, pontos: 0 },
     ],
     adicionais: [
-        { codigo: 'ADIC01', rede: 'AMBAS', descricao: 'Instalação STB', valor: 4.00 },
-        { codigo: 'ADIC02', rede: 'AMBAS', descricao: 'Prescrição + Instalação REPE e MESH', valor: 6.00 },
-        { codigo: 'ADIC03', rede: 'AMBAS', descricao: 'Instalação REPE e MESH provisionado', valor: 3.00 },
+        { codigo: 'ADIC01', rede: 'AMBAS', descricao: 'Instalação STB', valor: 4.00, pontos: 0 },
+        { codigo: 'ADIC02', rede: 'AMBAS', descricao: 'Prescrição + Instalação REPE e MESH', valor: 6.00, pontos: 0 },
+        { codigo: 'ADIC03', rede: 'AMBAS', descricao: 'Instalação REPE e MESH provisionado', valor: 3.00, pontos: 0 },
     ]
 };
 
@@ -40,7 +40,18 @@ function carregarTabelas() {
         localStorage.setItem('tabelasCustomizadas', JSON.stringify(tabelasPadrao));
         return tabelasPadrao;
     }
-    return JSON.parse(tabelas);
+
+    const parsed = JSON.parse(tabelas);
+    // Retrocompatibilidade: garantir campo 'pontos'
+    ['instalacoes', 'avarias', 'adicionais'].forEach(cat => {
+        if (!Array.isArray(parsed[cat])) return;
+        parsed[cat] = parsed[cat].map(item => ({
+            ...item,
+            pontos: (typeof item.pontos === 'undefined') ? 0 : (parseFloat(item.pontos) || 0)
+        }));
+    });
+
+    return parsed;
 }
 
 // Carregar ou inicializar multiplicadores
@@ -111,6 +122,7 @@ function renderizarTabela(categoria, dados) {
     
     dados.forEach((item, index) => {
         const tr = document.createElement('tr');
+        const pontos = parseFloat(item.pontos) || 0;
         tr.innerHTML = `
             <td onclick="abrirModal('${categoria}', ${index})" style="display: none;">
                 <span class="texto-mobile codigo-oculto">
@@ -131,6 +143,13 @@ function renderizarTabela(categoria, dados) {
                     <strong style="font-size: 15px;">€${parseFloat(item.valor).toFixed(2)}</strong>
                 </span>
                 <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
+            </td>
+            <td onclick="abrirModal('${categoria}', ${index})">
+                <span class="texto-mobile">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Pontos:</div>
+                    <strong style="font-size: 15px;">${pontos.toFixed(1)}</strong>
+                </span>
+                <input type="number" step="0.1" min="0" value="${pontos}" data-field="pontos" data-index="${index}">
             </td>
             <td style="white-space: nowrap;">
                 <button class="btn-small btn-edit-mobile" onclick="event.stopPropagation(); abrirModal('${categoria}', ${index})" style="margin-right: 5px;">✏️</button>
@@ -195,6 +214,10 @@ function salvarTabela(categoria) {
             let value = input.value;
             
             if (field === 'valor') {
+                value = parseFloat(value) || 0;
+            }
+
+            if (field === 'pontos') {
                 value = parseFloat(value) || 0;
             }
             
@@ -265,6 +288,13 @@ function importarTabela(categoria, inputElement) {
             if (!valido) {
                 throw new Error('Formato inválido: campos obrigatórios faltando');
             }
+
+            // Garantir campo pontos
+            dados.forEach(item => {
+                if (!('pontos' in item)) item.pontos = 0;
+                item.valor = parseFloat(item.valor) || 0;
+                item.pontos = parseFloat(item.pontos) || 0;
+            });
             
             // Salvar
             const tabelas = carregarTabelas();
@@ -299,8 +329,17 @@ function exportarTabelaExcel(categoria) {
     }
     
     try {
+        // Garantir coluna pontos (retrocompatibilidade)
+        const dadosCompletos = (dados || []).map(item => ({
+            codigo: item.codigo,
+            rede: item.rede,
+            descricao: item.descricao,
+            valor: parseFloat(item.valor) || 0,
+            pontos: parseFloat(item.pontos) || 0
+        }));
+
         // Criar worksheet
-        const ws = XLSX.utils.json_to_sheet(dados);
+        const ws = XLSX.utils.json_to_sheet(dadosCompletos);
         
         // Criar workbook
         const wb = XLSX.utils.book_new();
@@ -350,6 +389,13 @@ function importarTabelaExcel(categoria, inputElement) {
             if (!valido) {
                 throw new Error('Formato inválido: campos obrigatórios (codigo, rede, descricao, valor) estão faltando');
             }
+
+            // Garantir campo pontos
+            dados.forEach(item => {
+                if (!('pontos' in item)) item.pontos = 0;
+                item.valor = parseFloat(item.valor) || 0;
+                item.pontos = parseFloat(item.pontos) || 0;
+            });
             
             // Salvar
             const tabelas = carregarTabelas();
@@ -433,6 +479,8 @@ function abrirModal(categoria, index) {
     
     document.getElementById('modal-descricao').value = item.descricao;
     document.getElementById('modal-valor').value = item.valor;
+    const pontosInput = document.getElementById('modal-pontos');
+    if (pontosInput) pontosInput.value = parseFloat(item.pontos) || 0;
     
     // Alterar texto do botão para "Salvar Alterações"
     document.getElementById('btn-aplicar-modal').textContent = '✅ Salvar Alterações';
@@ -459,6 +507,8 @@ function abrirModalNovoServico(categoria) {
     document.getElementById('modal-rede').value = 'AMBAS';
     document.getElementById('modal-descricao').value = '';
     document.getElementById('modal-valor').value = '0.00';
+    const pontosInput = document.getElementById('modal-pontos');
+    if (pontosInput) pontosInput.value = '0';
     
     // Alterar texto do botão para "Adicionar Serviço"
     document.getElementById('btn-aplicar-modal').textContent = '➕ Adicionar Serviço';
@@ -480,6 +530,7 @@ function fecharModal() {
     // Esconder campo "Outra rede" ao fechar
     document.getElementById('campo-outra-rede-modal').style.display = 'none';
     document.getElementById('modal-outra-rede').value = '';
+    if (document.getElementById('modal-pontos')) document.getElementById('modal-pontos').value = '';
 }
 
 // Mostrar/ocultar campo "Outra Rede" no modal
@@ -511,7 +562,8 @@ function aplicarEdicao() {
         codigo: document.getElementById('modal-codigo').value,
         rede: redeValue,
         descricao: document.getElementById('modal-descricao').value,
-        valor: parseFloat(document.getElementById('modal-valor').value) || 0
+        valor: parseFloat(document.getElementById('modal-valor').value) || 0,
+        pontos: parseFloat(document.getElementById('modal-pontos')?.value) || 0
     };
     
     if (modalIndexAtual === -1) {
