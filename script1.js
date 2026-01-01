@@ -46,8 +46,12 @@ function obterOTsDoMes(mesAno) {
 let premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
 
 function getDataISO(isoStringOrDate) {
+    // Retorna YYYY-MM-DD baseado na data LOCAL do dispositivo (não UTC)
     const d = isoStringOrDate ? new Date(isoStringOrDate) : new Date();
-    return d.toISOString().split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 function formatarDataBRFromISODate(isoDate) {
@@ -63,6 +67,11 @@ function salvarPremiosFestivosPorDia() {
 
 function premioJaAplicadoNoDia(dataISO) {
     return !!(premiosFestivosPorDia && premiosFestivosPorDia[dataISO] && (parseFloat(premiosFestivosPorDia[dataISO].valor) || 0) > 0);
+}
+
+function getPremioRegistradoNoDia(dataISO) {
+    if (!premiosFestivosPorDia || !premiosFestivosPorDia[dataISO]) return 0;
+    return parseFloat(premiosFestivosPorDia[dataISO].valor) || 0;
 }
 
 function atualizarUIFestivoPorDia() {
@@ -128,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function getHojeISO() {
-    return new Date().toISOString().split('T')[0];
+    return getDataISO(new Date());
 }
 
 function sincronizarDataOTComDispositivo() {
@@ -860,6 +869,7 @@ function gerarPDF() {
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
     // Prémios festivos: somar 1x por dia e listar datas
+    // Fonte principal: OTs do mês. Fallback: mapa premiosFestivosPorDia (para não "sumir" valor em casos antigos/importados)
     const premiosPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
@@ -868,6 +878,17 @@ function gerarPDF() {
             premiosPorDia[dataISO] = val;
         }
     });
+    // Fallback: se o mês atual tiver dias registrados no mapa, incluir também
+    if (premiosFestivosPorDia) {
+        Object.keys(premiosFestivosPorDia).forEach(d => {
+            if (!d || typeof d !== 'string') return;
+            if (d.substring(0, 7) !== mesAtual) return;
+            const val = getPremioRegistradoNoDia(d);
+            if (val > 0 && !premiosPorDia[d]) {
+                premiosPorDia[d] = val;
+            }
+        });
+    }
     const diasPremio = Object.keys(premiosPorDia).sort();
     const totalPremiosFestivos = diasPremio.reduce((sum, d) => sum + (parseFloat(premiosPorDia[d]) || 0), 0);
     const totalPontos = otsMes.reduce((sum, ot) => {
@@ -992,6 +1013,7 @@ function gerarPDFComEquipamentos() {
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
     // Prémios festivos: somar 1x por dia e listar datas
+    // Fonte principal: OTs do mês. Fallback: mapa premiosFestivosPorDia (para não "sumir" valor em casos antigos/importados)
     const premiosPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
@@ -1000,6 +1022,17 @@ function gerarPDFComEquipamentos() {
             premiosPorDia[dataISO] = val;
         }
     });
+    // Fallback: se o mês atual tiver dias registrados no mapa, incluir também
+    if (premiosFestivosPorDia) {
+        Object.keys(premiosFestivosPorDia).forEach(d => {
+            if (!d || typeof d !== 'string') return;
+            if (d.substring(0, 7) !== mesAtual) return;
+            const val = getPremioRegistradoNoDia(d);
+            if (val > 0 && !premiosPorDia[d]) {
+                premiosPorDia[d] = val;
+            }
+        });
+    }
     const diasPremio = Object.keys(premiosPorDia).sort();
     const totalPremiosFestivos = diasPremio.reduce((sum, d) => sum + (parseFloat(premiosPorDia[d]) || 0), 0);
     const totalPontos = otsMes.reduce((sum, ot) => {
@@ -1185,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function inicializarLogisticaDiaria() {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = getHojeISO();
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
     
@@ -1243,7 +1276,7 @@ document.getElementById('litrosAbastecidos')?.addEventListener('change', salvarR
 document.getElementById('observacoesLogistica')?.addEventListener('input', salvarRegistroDiaAtual);
 
 function salvarRegistroDiaAtual() {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = getHojeISO();
     const dataForm = document.getElementById('dataLogistica').value;
     
     // Só salva automaticamente se for o dia atual
@@ -1289,7 +1322,7 @@ function mostrarAba(aba) {
 // Atualizar data e hora quando mudar manualmente a data
 document.getElementById('dataLogistica')?.addEventListener('change', function() {
     const dataSelecionada = this.value;
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = getHojeISO();
     
     if (dataSelecionada !== hoje) {
         // Data retroativa - limpar campos
@@ -1388,7 +1421,7 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
     
     const registro = {
         id: Date.now(),
-        data: document.getElementById('dataLogistica').value || new Date().toISOString().split('T')[0],
+        data: document.getElementById('dataLogistica').value || getHojeISO(),
         horaInicio: document.getElementById('horaInicioJornada').value || '-',
         horaFim: document.getElementById('horaFimJornada').value || '-',
         kmInicial: kmInicial,
