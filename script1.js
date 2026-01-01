@@ -267,8 +267,13 @@ function calcularValorTotal() {
 
         // Prémio festivo do dia (extra, não multiplicado)
         const checkboxFestivo = document.getElementById('otFestivo');
+        const badgeFestivo = document.getElementById('badgeFestivo');
         const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
         const premioBase = parseFloat(mult.premioFestivo) || 0;
+
+        if (badgeFestivo) {
+            badgeFestivo.style.display = (checkboxFestivo && checkboxFestivo.checked) ? 'inline-flex' : 'none';
+        }
 
         // Atualiza preview
         const preview = document.getElementById('previewPremioFestivo');
@@ -290,8 +295,13 @@ function calcularValorTotal() {
         let total = valorServico + valorAdicional;
 
         const checkboxFestivo = document.getElementById('otFestivo');
+        const badgeFestivo = document.getElementById('badgeFestivo');
         const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
         const premioBase = parseFloat(mult.premioFestivo) || 0;
+
+        if (badgeFestivo) {
+            badgeFestivo.style.display = (checkboxFestivo && checkboxFestivo.checked) ? 'inline-flex' : 'none';
+        }
 
         const preview = document.getElementById('previewPremioFestivo');
         if (preview) {
@@ -486,11 +496,23 @@ function atualizarResumos() {
     
     const valorDia = otsDia.reduce((sum, ot) => sum + ot.valorServico, 0);
     const valorMes = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
+
+    const pontosDia = otsDia.reduce((sum, ot) => {
+        const pServ = parseFloat(ot.pontosServico) || 0;
+        const pAdd = parseFloat(ot.pontosAdicional) || 0;
+        return sum + pServ + pAdd;
+    }, 0);
+
+    const pontosMes = otsMes.reduce((sum, ot) => {
+        const pServ = parseFloat(ot.pontosServico) || 0;
+        const pAdd = parseFloat(ot.pontosAdicional) || 0;
+        return sum + pServ + pAdd;
+    }, 0);
     
     document.getElementById('qtdDia').textContent = otsDia.length;
-    document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)}`;
+    document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts`;
     document.getElementById('qtdMes').textContent = otsMes.length;
-    document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)}`;
+    document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts`;
 }
 
 function filtrarPorMes() {
@@ -791,6 +813,12 @@ function gerarPDFComEquipamentos() {
     
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
+    const totalPremiosFestivos = otsMes.reduce((sum, ot) => sum + (parseFloat(ot.premioFestivoAplicado) || 0), 0);
+    const totalPontos = otsMes.reduce((sum, ot) => {
+        const pServ = parseFloat(ot.pontosServico) || 0;
+        const pAdd = parseFloat(ot.pontosAdicional) || 0;
+        return sum + pServ + pAdd;
+    }, 0);
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
@@ -966,9 +994,6 @@ function inicializarLogisticaDiaria() {
         if (registroDiaAtual.valorAbastecimento) {
             document.getElementById('valorAbastecimento').value = registroDiaAtual.valorAbastecimento;
         }
-        if (typeof registroDiaAtual.premioFestivoDia !== 'undefined' && document.getElementById('premioFestivoDia')) {
-            document.getElementById('premioFestivoDia').value = registroDiaAtual.premioFestivoDia;
-        }
         if (registroDiaAtual.litrosAbastecidos) {
             document.getElementById('litrosAbastecidos').value = registroDiaAtual.litrosAbastecidos;
         }
@@ -1001,7 +1026,6 @@ function atualizarMACScanner(codigo) {
 document.getElementById('horaInicioJornada')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('kmInicial')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('valorAbastecimento')?.addEventListener('change', salvarRegistroDiaAtual);
-document.getElementById('premioFestivoDia')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('litrosAbastecidos')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('observacoesLogistica')?.addEventListener('input', salvarRegistroDiaAtual);
 
@@ -1016,7 +1040,6 @@ function salvarRegistroDiaAtual() {
             horaInicio: document.getElementById('horaInicioJornada').value,
             kmInicial: parseFloat(document.getElementById('kmInicial').value) || 0,
             valorAbastecimento: parseFloat(document.getElementById('valorAbastecimento').value) || 0,
-            premioFestivoDia: parseFloat(document.getElementById('premioFestivoDia')?.value) || 0,
             litrosAbastecidos: parseFloat(document.getElementById('litrosAbastecidos').value) || 0,
             observacoes: document.getElementById('observacoesLogistica').value || ''
         };
@@ -1062,7 +1085,6 @@ document.getElementById('dataLogistica')?.addEventListener('change', function() 
         document.getElementById('kmInicial').value = '';
         document.getElementById('kmFinal').value = '';
         document.getElementById('valorAbastecimento').value = '';
-        if (document.getElementById('premioFestivoDia')) document.getElementById('premioFestivoDia').value = '';
         document.getElementById('litrosAbastecidos').value = '';
         document.getElementById('observacoesLogistica').value = '';
     } else {
@@ -1160,7 +1182,6 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
         kmFinal: kmFinal,
         kmRodados: kmRodados,
         valorAbastecimento: parseFloat(document.getElementById('valorAbastecimento').value) || 0,
-        premioFestivoDia: parseFloat(document.getElementById('premioFestivoDia')?.value) || 0,
         litrosAbastecidos: litrosAbastecidos,
         litrosGastos: litrosGastos,
         consumoMedio: consumoReal,
@@ -1215,7 +1236,7 @@ function atualizarTabelaLogistica(filtrarMes = null) {
     console.log('Registros filtrados:', registrosFiltrados.length);
     
     if (registrosFiltrados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="10">Nenhum registro de logística encontrado</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhum registro de logística encontrado</td></tr>';
         return;
     }
     
@@ -1231,7 +1252,6 @@ function atualizarTabelaLogistica(filtrarMes = null) {
             <td>${reg.kmFinal.toFixed(1)}</td>
             <td><strong>${reg.kmRodados.toFixed(1)} km</strong></td>
             <td><strong style='color:#27ae60;'>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) + ' <span style="font-weight:bold">(Total abastecido)</span>' : '-'}</strong></td>
-            <td><strong style='color:#8e44ad;'>${(reg.premioFestivoDia || 0) > 0 ? '€ ' + (reg.premioFestivoDia || 0).toFixed(2) : '-'}</strong></td>
             <td>${reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-'}</td>
             <td>${litrosGastos.toFixed(2)}L consumidos</td>
             <td><button class="btn-delete" onclick="deletarLogistica(${reg.id})">🗑️</button></td>
