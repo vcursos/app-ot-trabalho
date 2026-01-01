@@ -144,12 +144,12 @@ function renderizarTabela(categoria, dados) {
                 </span>
                 <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
             </td>
-            <td onclick="abrirModal('${categoria}', ${index})">
+            <td onclick="abrirModal('${categoria}', ${index})" style="min-width: 110px;">
                 <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Pontos:</div>
                     <strong style="font-size: 15px;">${pontos.toFixed(1)}</strong>
                 </span>
-                <input type="number" step="0.1" min="0" value="${pontos}" data-field="pontos" data-index="${index}">
+                <input type="number" step="0.1" min="0" value="${pontos}" data-field="pontos" data-index="${index}" style="width: 100%;">
             </td>
             <td style="white-space: nowrap;">
                 <button class="btn-small btn-edit-mobile" onclick="event.stopPropagation(); abrirModal('${categoria}', ${index})" style="margin-right: 5px;">✏️</button>
