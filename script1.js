@@ -1,6 +1,46 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
 
+// ==================== HISTÓRICO (ARQUIVO MENSAL) ====================
+// Mantém todos os meses armazenados para consulta futura.
+// Estrutura: { 'YYYY-MM': [ots...] }
+let historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
+
+function getMesAnoFromISODate(isoDateOrDateTime) {
+    const d = new Date(isoDateOrDateTime);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function salvarHistoricoOT() {
+    localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes));
+}
+
+function garantirOTNoHistorico(ot) {
+    if (!ot || !ot.data) return;
+    const mesAno = getMesAnoFromISODate(ot.data);
+    if (!historicoOTPorMes[mesAno]) historicoOTPorMes[mesAno] = [];
+    // Evitar duplicar por id
+    if (!historicoOTPorMes[mesAno].some(x => x && x.id === ot.id)) {
+        historicoOTPorMes[mesAno].push(ot);
+    }
+}
+
+function sincronizarHistoricoComOTsAtuais() {
+    try {
+        ordensTrabalho.forEach(garantirOTNoHistorico);
+        salvarHistoricoOT();
+    } catch (e) {
+        console.warn('Falha ao sincronizar histórico:', e);
+    }
+}
+
+function obterOTsDoMes(mesAno) {
+    // Preferir histórico, mas manter compatibilidade com ordensTrabalho antigo
+    const doHistorico = (historicoOTPorMes && historicoOTPorMes[mesAno]) ? historicoOTPorMes[mesAno] : [];
+    if (doHistorico.length > 0) return doHistorico;
+    return ordensTrabalho.filter(ot => getMesAnoFromISODate(ot.data) === mesAno);
+}
+
 // Controle de prémio festivo por dia (aplicar no máximo 1x por data)
 // Estrutura: { 'YYYY-MM-DD': { valor: number, aplicadoEm: ISOString } }
 let premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
@@ -71,6 +111,12 @@ document.addEventListener('DOMContentLoaded', function() {
     atualizarListaEquipamentos();
     carregarConfiguracaoVeiculo();
 
+    // Data da OT: sempre sincronizar com a data do dispositivo
+    sincronizarDataOTComDispositivo();
+
+    // Garantir que meses anteriores seguem armazenados
+    sincronizarHistoricoComOTsAtuais();
+
     // Festivo: atualizar estado (1x por dia)
     atualizarUIFestivoPorDia();
     
@@ -80,6 +126,47 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listener para adicional
     document.getElementById('adicionalServico').addEventListener('change', atualizarValorAdicional);
 });
+
+function getHojeISO() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function sincronizarDataOTComDispositivo() {
+    const campo = document.getElementById('dataOT');
+    if (!campo) return;
+
+    const hoje = getHojeISO();
+
+    // Sempre que abrir, se vazio OU diferente do dia do dispositivo, volta para hoje.
+    // (Mantém a data sincronizada; evita erro de ficar preso em data antiga.)
+    if (!campo.value || campo.value !== hoje) {
+        campo.value = hoje;
+    }
+
+    // Bloquear datas futuras (data do dispositivo é o máximo)
+    campo.max = hoje;
+
+    // Reaplicar estado do festivo quando mudar a data
+    campo.addEventListener('change', function() {
+        // Se o usuário tentar colocar futuro, corrigir
+        if (campo.value && campo.value > hoje) {
+            campo.value = hoje;
+        }
+        atualizarUIFestivoPorDia();
+    });
+
+    // Se virar o dia com o app aberto, atualiza automaticamente
+    setInterval(function() {
+        const hojeAgora = getHojeISO();
+        if (campo.max !== hojeAgora) {
+            campo.max = hojeAgora;
+        }
+        if (campo.value !== hojeAgora) {
+            campo.value = hojeAgora;
+            atualizarUIFestivoPorDia();
+        }
+    }, 60 * 1000);
+}
 
 // ==================== CONFIGURAÇÃO DO VEÍCULO ====================
 function salvarConfiguracaoVeiculo() {
@@ -260,6 +347,10 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     };
     
     ordensTrabalho.push(ot);
+
+    // Arquivar no histórico do mês (não apagar meses antigos)
+    garantirOTNoHistorico(ot);
+    salvarHistoricoOT();
 
     // Se foi marcado e aplicado hoje, registrar que o prémio do dia já foi usado
     if (premioAplicado > 0) {
@@ -712,11 +803,7 @@ function gerarPDF() {
     const categoriaFiltro = document.getElementById('filtroCategoria').value;
     const redeFiltro = document.getElementById('filtroRede').value;
     
-    let otsMes = ordensTrabalho.filter(ot => {
-        const dataOT = new Date(ot.data);
-        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
-        return mesAno === mesAtual;
-    });
+    let otsMes = obterOTsDoMes(mesAtual);
     
     // Aplicar filtros adicionais
     if (categoriaFiltro) {
@@ -844,11 +931,7 @@ function gerarPDFComEquipamentos() {
     const categoriaFiltro = document.getElementById('filtroCategoria').value;
     const redeFiltro = document.getElementById('filtroRede').value;
     
-    let otsMes = ordensTrabalho.filter(ot => {
-        const dataOT = new Date(ot.data);
-        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
-        return mesAno === mesAtual;
-    });
+    let otsMes = obterOTsDoMes(mesAtual);
     
     // Aplicar filtros adicionais
     if (categoriaFiltro) {
