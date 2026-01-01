@@ -28,7 +28,8 @@ const tabelasPadrao = {
 const multiplicadoresPadrao = {
     normal: 1.0,
     domingoFeriado: 1.5,
-    dobrado: 2.0
+    dobrado: 2.0,
+    premioFestivo: 0
 };
 
 // Carregar ou inicializar tabelas
@@ -49,7 +50,12 @@ function carregarMultiplicadores() {
         localStorage.setItem('multiplicadores', JSON.stringify(multiplicadoresPadrao));
         return multiplicadoresPadrao;
     }
-    return JSON.parse(mult);
+    const parsed = JSON.parse(mult);
+    // Retrocompatibilidade: caso o storage antigo não tenha campos novos
+    return {
+        ...multiplicadoresPadrao,
+        ...parsed
+    };
 }
 
 // Salvar tabelas
@@ -71,6 +77,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('multDomingoFeriado').value = mult.domingoFeriado;
     document.getElementById('multDobrado').value = mult.dobrado;
     document.getElementById('multNormal').value = mult.normal;
+    const inputPremio = document.getElementById('premioFestivo');
+    if (inputPremio) inputPremio.value = mult.premioFestivo ?? 0;
     
     // Renderizar todas as tabelas
     renderizarTabela('instalacoes', tabelas.instalacoes);
@@ -79,14 +87,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Mostrar categoria
-function mostrarCategoria(categoria) {
-    // Remover active de todas tabs
+// Obs: não usar o `event` global (pode não existir em alguns WebViews / browsers)
+function mostrarCategoria(categoria, el) {
+    // Remover active de todas tabs e seções
     document.querySelectorAll('.config-tab').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.config-section').forEach(section => section.classList.remove('active'));
-    
-    // Ativar tab e seção clicada
-    event.target.classList.add('active');
-    document.getElementById('cat-' + categoria).classList.add('active');
+
+    // Ativar tab clicada (se tiver referência) e seção selecionada
+    if (el && el.classList) {
+        el.classList.add('active');
+    }
+
+    const sec = document.getElementById('cat-' + categoria);
+    if (sec) {
+        sec.classList.add('active');
+    }
 }
 
 // Renderizar tabela na interface
@@ -201,7 +216,8 @@ function salvarMultiplicadores() {
     const mult = {
         normal: 1.0,
         domingoFeriado: parseFloat(document.getElementById('multDomingoFeriado').value) || 1.5,
-        dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0
+        dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0,
+        premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0
     };
     
     salvarMultiplicadoresNoStorage(mult);

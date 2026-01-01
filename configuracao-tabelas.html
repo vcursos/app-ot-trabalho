@@ -351,15 +351,19 @@
                     <label>Normal (multiplicador)</label>
                     <input type="number" id="multNormal" step="0.1" value="1.0" placeholder="1.0" readonly style="background: #f5f5f5;">
                 </div>
+                <div class="mult-item">
+                    <label>Prémio por Festivo (€)</label>
+                    <input type="number" id="premioFestivo" step="0.01" value="0" placeholder="Ex: 75">
+                </div>
             </div>
             <button class="btn-small btn-save" style="margin-top: 15px;" onclick="salvarMultiplicadores()">💾 Salvar Multiplicadores</button>
         </div>
 
         <!-- Tabs de Categorias -->
         <div class="config-tabs">
-            <button class="config-tab active" onclick="mostrarCategoria('instalacoes')">🔧 Instalações</button>
-            <button class="config-tab" onclick="mostrarCategoria('avarias')">⚠️ Avarias</button>
-            <button class="config-tab" onclick="mostrarCategoria('adicionais')">➕ Adicionais</button>
+            <button class="config-tab active" onclick="mostrarCategoria('instalacoes', this)">🔧 Instalações</button>
+            <button class="config-tab" onclick="mostrarCategoria('avarias', this)">⚠️ Avarias</button>
+            <button class="config-tab" onclick="mostrarCategoria('adicionais', this)">➕ Adicionais</button>
         </div>
 
         <!-- Seção: Instalações -->
@@ -371,7 +375,6 @@
                 <button class="btn-small btn-export" onclick="exportarTabelaExcel('instalacoes')">📤 Exportar Excel</button>
                 <button class="btn-small btn-import" onclick="document.getElementById('import-instalacoes').click()">📥 Importar Excel</button>
                 <input type="file" id="import-instalacoes" accept=".xlsx,.xls" style="display:none" onchange="importarTabelaExcel('instalacoes', this)">
-            </div>
             </div>
             <div style="overflow-x: auto;">
                 <table class="servicos-table" id="table-instalacoes">

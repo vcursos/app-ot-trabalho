@@ -151,10 +151,18 @@ function obterMultiplicadores() {
         return {
             normal: 1.0,
             domingoFeriado: 1.5,
-            dobrado: 2.0
+            dobrado: 2.0,
+            premioFestivo: 0
         };
     }
-    return JSON.parse(mult);
+    const parsed = JSON.parse(mult);
+    return {
+        normal: 1.0,
+        domingoFeriado: 1.5,
+        dobrado: 2.0,
+        premioFestivo: 0,
+        ...parsed
+    };
 }
 
 // Aplicar multiplicador a um valor
