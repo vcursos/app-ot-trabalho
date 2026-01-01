@@ -10,6 +10,13 @@ function getDataISO(isoStringOrDate) {
     return d.toISOString().split('T')[0];
 }
 
+function formatarDataBRFromISODate(isoDate) {
+    // isoDate: 'YYYY-MM-DD'
+    if (!isoDate) return '-';
+    const d = new Date(isoDate + 'T00:00:00');
+    return d.toLocaleDateString('pt-BR');
+}
+
 function salvarPremiosFestivosPorDia() {
     localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia));
 }
@@ -26,7 +33,10 @@ function atualizarUIFestivoPorDia() {
 
     const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
     const premioBase = parseFloat(mult.premioFestivo) || 0;
-    const hojeISO = getDataISO();
+    // Considera a data selecionada no formulário (se existir), para não depender do "hoje"
+    const dataFormEl = document.getElementById('dataOT');
+    const dataBase = (dataFormEl && dataFormEl.value) ? (dataFormEl.value + 'T00:00:00') : null;
+    const hojeISO = getDataISO(dataBase);
     const jaAplicado = premioJaAplicadoNoDia(hojeISO);
 
     if (jaAplicado) {
@@ -36,7 +46,7 @@ function atualizarUIFestivoPorDia() {
         if (preview) {
             const val = parseFloat(premiosFestivosPorDia[hojeISO]?.valor) || 0;
             preview.textContent = val > 0
-                ? `Prémio do dia já aplicado em ${hojeISO}: € ${val.toFixed(2)}`
+                ? `Prémio do dia já aplicado em ${formatarDataBRFromISODate(hojeISO)}: € ${val.toFixed(2)}`
                 : 'Prémio do dia já aplicado hoje.';
         }
         if (badgeFestivo) badgeFestivo.style.display = 'none';
@@ -217,7 +227,9 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
 
     // Prémio festivo (extra do dia), aplicado apenas 1x por dia
     const checkboxFestivo = document.getElementById('otFestivo');
-    const hojeISO = getDataISO();
+    const dataFormEl = document.getElementById('dataOT');
+    const dataOTISO = (dataFormEl && dataFormEl.value) ? dataFormEl.value : getDataISO();
+    const hojeISO = dataOTISO;
     const premioConfigurado = parseFloat((obterMultiplicadores()?.premioFestivo)) || 0;
     const permitirAplicarHoje = !premioJaAplicadoNoDia(hojeISO);
     const marcadoFestivo = !!(checkboxFestivo && checkboxFestivo.checked);
@@ -225,7 +237,8 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     
     const ot = {
         id: Date.now(),
-        data: new Date().toISOString(),
+        // Guardar a data da OT (não a data/hora de cadastro), para o PDF sempre mostrar correto
+        data: dataOTISO + 'T00:00:00',
         numeroOT: numeroOT || '-',
         tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
         categoria: categoriaSelecionada,
@@ -337,24 +350,15 @@ function calcularValorTotal() {
     if (typeof calcularValorTotalComMultiplicador === 'function') {
         calcularValorTotalComMultiplicador();
 
-        // Prémio festivo do dia (extra, não multiplicado)
+        // Festivo: NÃO somar no "valorTotal" (o prémio deve aparecer separado no PDF)
         const checkboxFestivo = document.getElementById('otFestivo');
         const badgeFestivo = document.getElementById('badgeFestivo');
-        const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
-        const premioBase = parseFloat(mult.premioFestivo) || 0;
-
         if (badgeFestivo) {
             badgeFestivo.style.display = (checkboxFestivo && checkboxFestivo.checked) ? 'inline-flex' : 'none';
         }
 
         // Atualiza preview/estado (inclui regra 1x por dia)
         atualizarUIFestivoPorDia();
-
-        if (checkboxFestivo && checkboxFestivo.checked && premioBase > 0) {
-            const valorTotalEl = document.getElementById('valorTotal');
-            const atual = parseFloat(String(valorTotalEl.value).replace(' ', '').replace(',', '.')) || 0;
-            valorTotalEl.value = (atual + premioBase).toFixed(2);
-        }
     } else {
         // Fallback para cálculo simples
         const valorServico = parseFloat(document.getElementById('valorServico').value.replace(' ', '').replace(',', '.')) || 0;
@@ -363,19 +367,12 @@ function calcularValorTotal() {
 
         const checkboxFestivo = document.getElementById('otFestivo');
         const badgeFestivo = document.getElementById('badgeFestivo');
-        const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
-        const premioBase = parseFloat(mult.premioFestivo) || 0;
-
         if (badgeFestivo) {
             badgeFestivo.style.display = (checkboxFestivo && checkboxFestivo.checked) ? 'inline-flex' : 'none';
         }
 
-        // Atualiza preview/estado (inclui regra 1x por dia)
+        // Festivo: NÃO somar no total do serviço
         atualizarUIFestivoPorDia();
-
-        if (checkboxFestivo && checkboxFestivo.checked && premioBase > 0) {
-            total += premioBase;
-        }
 
         document.getElementById('valorTotal').value = ` ${total.toFixed(2)}`;
     }
@@ -792,7 +789,7 @@ function gerarPDF() {
         return sum + pServ + pAdd;
     }, 0);
     
-    const finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
@@ -803,18 +800,35 @@ function gerarPDF() {
         doc.setFont(undefined, 'normal');
         doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
 
-        // Lista de dias festivos (data -> valor)
-        const linhasDias = diasPremio.map(d => `${new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')} - € ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`);
-        const textoDias = linhasDias.join(' | ');
-        doc.setFontSize(9);
-        doc.text(`Dias festivos: ${textoDias}`, 14, finalY + 20);
+        // Tabela separada: Data do Festivo + Valor (1x por dia)
+        const tableFestivos = diasPremio.map(d => ([
+            formatarDataBRFromISODate(d),
+            `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
+        ]));
+
+        doc.autoTable({
+            startY: finalY + 18,
+            head: [['Data (Festivo)', 'Prémio do Dia']],
+            body: tableFestivos,
+            theme: 'striped',
+            headStyles: { fillColor: [102, 126, 234] },
+            styles: { fontSize: 9 },
+            columnStyles: {
+                0: { cellWidth: 35 },
+                1: { cellWidth: 30, fontStyle: 'bold' }
+            }
+        });
+        finalY = doc.lastAutoTable.finalY + 6;
+    } else {
+        finalY = finalY + 14;
     }
 
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 17 + (totalPremiosFestivos > 0 ? 12 : 0));
+    const valorReceber = totalValor + totalPremiosFestivos;
+    doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
     doc.save(`relatorio-ot-${mesAtual}.pdf`);
 }
@@ -911,7 +925,7 @@ function gerarPDFComEquipamentos() {
         return sum + pServ + pAdd;
     }, 0);
     
-    const finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
@@ -922,18 +936,35 @@ function gerarPDFComEquipamentos() {
         doc.setFont(undefined, 'normal');
         doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
 
-        // Lista de dias festivos (data -> valor)
-        const linhasDias = diasPremio.map(d => `${new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')} - € ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`);
-        const textoDias = linhasDias.join(' | ');
-        doc.setFontSize(9);
-        doc.text(`Dias festivos: ${textoDias}`, 14, finalY + 20);
+        // Tabela separada: Data do Festivo + Valor (1x por dia)
+        const tableFestivos = diasPremio.map(d => ([
+            formatarDataBRFromISODate(d),
+            `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
+        ]));
+
+        doc.autoTable({
+            startY: finalY + 18,
+            head: [['Data (Festivo)', 'Prémio do Dia']],
+            body: tableFestivos,
+            theme: 'striped',
+            headStyles: { fillColor: [39, 174, 96] },
+            styles: { fontSize: 9 },
+            columnStyles: {
+                0: { cellWidth: 35 },
+                1: { cellWidth: 30, fontStyle: 'bold' }
+            }
+        });
+        finalY = doc.lastAutoTable.finalY + 6;
+    } else {
+        finalY = finalY + 14;
     }
 
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(`VALOR A RECEBER: € ${totalValor.toFixed(2)}`, 14, finalY + 17 + (totalPremiosFestivos > 0 ? 12 : 0));
+    const valorReceber = totalValor + totalPremiosFestivos;
+    doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
     doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);
 }
