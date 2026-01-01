@@ -208,7 +208,7 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-weight: 500;
+    font-weight: 300;
     user-select: none;
 }
 

@@ -409,7 +409,34 @@
         // Registrar Service Worker para PWA (se suportado)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js').catch(function(err){
+                navigator.serviceWorker.register('./sw.js').then(function(reg) {
+                    // Se já existir uma atualização baixada, pedir para ativar já
+                    if (reg.waiting) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+
+                    // Quando encontrar update, forçar ativação imediata
+                    reg.addEventListener('updatefound', function() {
+                        var newWorker = reg.installing;
+                        if (!newWorker) return;
+                        newWorker.addEventListener('statechange', function() {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Nova versão pronta -> ativar já
+                                if (reg.waiting) {
+                                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            }
+                        });
+                    });
+
+                    // Quando o SW novo assume controle, recarregar para pegar arquivos novos
+                    var refreshing = false;
+                    navigator.serviceWorker.addEventListener('controllerchange', function() {
+                        if (refreshing) return;
+                        refreshing = true;
+                        window.location.reload();
+                    });
+                }).catch(function(err){
                     console.warn('ServiceWorker não registrado:', err);
                 });
             });

@@ -1,4 +1,5 @@
-const CACHE_NAME = 'ot-app-cache-v1';
+// Aumente a versão quando publicar alterações para garantir atualização do PWA instalado
+const CACHE_NAME = 'ot-app-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -12,15 +13,20 @@ const ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)))
-    )
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)))
+      ),
+      self.clients.claim()
+    ])
   );
 });
 
@@ -46,4 +52,11 @@ self.addEventListener('fetch', (event) => {
       return cached || fetchPromise;
     })
   );
+});
+
+// Permite forçar ativação imediata a partir da página
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
