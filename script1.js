@@ -35,10 +35,19 @@ function sincronizarHistoricoComOTsAtuais() {
 }
 
 function obterOTsDoMes(mesAno) {
-    // Preferir histórico, mas manter compatibilidade com ordensTrabalho antigo
+    // Preferir histórico, mas SEMPRE filtrar contra ordensTrabalho atual.
+    // Isso garante que qualquer OT apagada não volte a aparecer no PDF,
+    // mesmo que por algum motivo tenha ficado “presa” no histórico.
     const doHistorico = (historicoOTPorMes && historicoOTPorMes[mesAno]) ? historicoOTPorMes[mesAno] : [];
-    if (doHistorico.length > 0) return doHistorico;
-    return ordensTrabalho.filter(ot => getMesAnoFromISODate(ot.data) === mesAno);
+    const doAtual = ordensTrabalho.filter(ot => getMesAnoFromISODate(ot.data) === mesAno);
+
+    // Se existir histórico, usa ele como base (mantém meses antigos), mas remove ids que não existem mais.
+    if (doHistorico.length > 0) {
+        const idsAtuais = new Set((ordensTrabalho || []).map(ot => ot && ot.id).filter(Boolean));
+        return doHistorico.filter(ot => ot && idsAtuais.has(ot.id));
+    }
+
+    return doAtual;
 }
 
 // Controle de prémio festivo por dia (aplicar no máximo 1x por data)
@@ -646,12 +655,59 @@ function formatarTipoTrabalho(tipo) {
     return tipos[tipo] || tipo;
 }
 
+function removerOTDoHistorico(id) {
+    try {
+        if (!historicoOTPorMes || !id) return;
+        let alterou = false;
+        Object.keys(historicoOTPorMes).forEach(mesAno => {
+            const lista = Array.isArray(historicoOTPorMes[mesAno]) ? historicoOTPorMes[mesAno] : [];
+            const nova = lista.filter(ot => ot && ot.id !== id);
+            if (nova.length !== lista.length) {
+                historicoOTPorMes[mesAno] = nova;
+                alterou = true;
+            }
+        });
+        if (alterou) salvarHistoricoOT();
+    } catch (e) {
+        console.warn('Falha ao remover OT do histórico:', e);
+    }
+}
+
+function limparPremioFestivoDoDiaSeNaoExistirMaisOTFestiva(dataISO) {
+    try {
+        if (!dataISO) return;
+
+        const aindaExiste = ordensTrabalho.some(ot => {
+            if (!ot) return false;
+            const dataOT = getDataISO(ot.data);
+            const temFestivo = (parseFloat(ot.premioFestivoAplicado) || 0) > 0;
+            return dataOT === dataISO && temFestivo;
+        });
+
+        if (!aindaExiste && premiosFestivosPorDia && premiosFestivosPorDia[dataISO]) {
+            delete premiosFestivosPorDia[dataISO];
+            salvarPremiosFestivosPorDia();
+        }
+    } catch (e) {
+        console.warn('Falha ao limpar prémio festivo do dia:', e);
+    }
+}
+
 function deletarOT(id) {
     if (confirm('Deseja realmente excluir esta ordem de trabalho?')) {
+        // Capturar dados antes de remover, para limpar histórico e festivo do dia corretamente
+        const otRemovida = ordensTrabalho.find(ot => ot && ot.id === id);
+        const dataISO = otRemovida ? getDataISO(otRemovida.data) : null;
+
         ordensTrabalho = ordensTrabalho.filter(ot => ot.id !== id);
+        removerOTDoHistorico(id);
+        // Se essa OT era a última festiva do dia, limpar o map diário para não “travar” o checkbox
+        limparPremioFestivoDoDiaSeNaoExistirMaisOTFestiva(dataISO);
+
         salvarDados();
         atualizarTabela();
         atualizarResumos();
+        atualizarUIFestivoPorDia();
     }
 }
 
@@ -814,25 +870,76 @@ function pesquisarPorMAC() {
     });
 }
 
+// Retorna exatamente as OTs visíveis na tabela (mesmo critério de filtros).
+// Isso garante que o PDF "Ordens de Trabalho Registradas" gere somente o que está adicionado/visível,
+// e nunca recupere OTs apagadas que possam ter ficado em cache/histórico.
+function obterOTsVisiveisNaTabela() {
+    // Fonte de verdade: o que está renderizado na TABELA.
+    // Isso evita qualquer divergência entre filtros/estado e garante que:
+    // tabela vazia => PDF vazio.
+    const tbody = document.getElementById('corpoTabela');
+    if (!tbody) return [];
+
+    const linhas = Array.from(tbody.querySelectorAll('tr'));
+    const visiveis = [];
+
+    for (const tr of linhas) {
+        // Ignorar estado vazio
+        if (tr.classList.contains('empty-state')) continue;
+
+        const btn = tr.querySelector('button.btn-delete');
+        const onclick = btn ? (btn.getAttribute('onclick') || '') : '';
+        const match = onclick.match(/deletarOT\((\d+)\)/);
+        const id = match ? parseInt(match[1], 10) : null;
+        if (!id) continue;
+
+        const ot = (ordensTrabalho || []).find(o => o && o.id === id);
+        if (ot) visiveis.push(ot);
+    }
+
+    return visiveis;
+}
+
+function garantirAutoTablePronto(doc) {
+    // Alguns ambientes mobile/PWA falham ao expor o plugin como doc.autoTable.
+    // Este helper tenta resolver e permite fallback para texto simples.
+    try {
+        if (doc && typeof doc.autoTable === 'function') return true;
+        if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF === 'function') {
+            // Tenta pegar o plugin via namespace global (padrão do jspdf-autotable)
+            if (window.jspdf.jsPDF && window.jspdf.jsPDF.API && typeof window.jspdf.jsPDF.API.autoTable === 'function') {
+                doc.autoTable = window.jspdf.jsPDF.API.autoTable;
+                return true;
+            }
+        }
+        if (window.jspdf && typeof window.jspdf.autoTable === 'function') {
+            doc.autoTable = window.jspdf.autoTable;
+            return true;
+        }
+        if (typeof window.autoTable === 'function') {
+            doc.autoTable = (...args) => window.autoTable(doc, ...args);
+            return true;
+        }
+    } catch (e) {
+        console.warn('Falha ao preparar autoTable:', e);
+    }
+    return false;
+}
+
 function gerarPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
+
+    const temAutoTable = garantirAutoTablePronto(doc);
     
-    const mesAtual = document.getElementById('filtroMes').value || 
+    const mesAtual = document.getElementById('filtroMes').value ||
                      `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    
+
+    // IMPORTANTE: este PDF deve refletir exatamente o que está na tabela (após apagar, filtrar, etc)
     const categoriaFiltro = document.getElementById('filtroCategoria').value;
     const redeFiltro = document.getElementById('filtroRede').value;
-    
-    let otsMes = obterOTsDoMes(mesAtual);
-    
-    // Aplicar filtros adicionais
-    if (categoriaFiltro) {
-        otsMes = otsMes.filter(ot => ot.categoria === categoriaFiltro);
-    }
-    if (redeFiltro) {
-        otsMes = otsMes.filter(ot => ot.rede === redeFiltro);
-    }
+
+    let otsMes = obterOTsVisiveisNaTabela();
     
     // Cabeçalho
     doc.setFontSize(18);
@@ -860,23 +967,29 @@ function gerarPDF() {
         ];
     });
     
-    doc.autoTable({
-        startY: categoriaFiltro || redeFiltro ? 40 : 35,
-        head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Observações', 'Valor']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [102, 126, 234] },
-        styles: { fontSize: 8 },
-        columnStyles: {
-            0: { cellWidth: 22 },
-            1: { cellWidth: 20 },
-            2: { cellWidth: 50 },
-            3: { cellWidth: 40 },
-            4: { cellWidth: 25 },
-            5: { cellWidth: 60 },
-            6: { cellWidth: 25, fontStyle: 'bold' }
-        }
-    });
+    if (temAutoTable) {
+        doc.autoTable({
+            startY: categoriaFiltro || redeFiltro ? 40 : 35,
+            head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Observações', 'Valor']],
+            body: tableData,
+            theme: 'striped',
+            headStyles: { fillColor: [102, 126, 234] },
+            styles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 22 },
+                1: { cellWidth: 20 },
+                2: { cellWidth: 50 },
+                3: { cellWidth: 40 },
+                4: { cellWidth: 25 },
+                5: { cellWidth: 60 },
+                6: { cellWidth: 25, fontStyle: 'bold' }
+            }
+        });
+    } else {
+        // Fallback (mobile): sem tabela, mas pelo menos mostra totais e festivo
+        doc.setFontSize(10);
+        doc.text('Tabela não suportada neste dispositivo (autoTable indisponível).', 14, categoriaFiltro || redeFiltro ? 44 : 38);
+    }
     
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
@@ -909,7 +1022,9 @@ function gerarPDF() {
         return sum + pServ + pAdd;
     }, 0);
     
-    let finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = (temAutoTable && doc.lastAutoTable && doc.lastAutoTable.finalY)
+        ? (doc.lastAutoTable.finalY + 10)
+        : (categoriaFiltro || redeFiltro ? 60 : 55);
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
@@ -926,19 +1041,33 @@ function gerarPDF() {
             `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
         ]));
 
-        doc.autoTable({
-            startY: finalY + 18,
-            head: [['Data (Festivo)', 'Prémio do Dia']],
-            body: tableFestivos,
-            theme: 'striped',
-            headStyles: { fillColor: [102, 126, 234] },
-            styles: { fontSize: 9 },
-            columnStyles: {
-                0: { cellWidth: 35 },
-                1: { cellWidth: 30, fontStyle: 'bold' }
-            }
-        });
-        finalY = doc.lastAutoTable.finalY + 6;
+        if (temAutoTable) {
+            doc.autoTable({
+                startY: finalY + 18,
+                head: [['Data (Festivo)', 'Prémio do Dia']],
+                body: tableFestivos,
+                theme: 'striped',
+                headStyles: { fillColor: [102, 126, 234] },
+                styles: { fontSize: 9 },
+                columnStyles: {
+                    0: { cellWidth: 35 },
+                    1: { cellWidth: 30, fontStyle: 'bold' }
+                }
+            });
+            finalY = doc.lastAutoTable.finalY + 6;
+        } else {
+            // Fallback sem tabela: listar datas/valores como texto
+            let y = finalY + 20;
+            doc.setFontSize(10);
+            doc.text('Datas Festivas:', 14, y);
+            y += 6;
+            diasPremio.forEach(d => {
+                const v = (parseFloat(premiosPorDia[d]) || 0).toFixed(2);
+                doc.text(`${formatarDataBRFromISODate(d)} - € ${v}`, 14, y);
+                y += 5;
+            });
+            finalY = y;
+        }
     } else {
         finalY = finalY + 14;
     }
@@ -955,16 +1084,8 @@ function gerarPDF() {
 
 // Gerar PDF com Equipamentos
 function gerarPDFComEquipamentos() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
-    
-    const mesAtual = document.getElementById('filtroMes').value || 
-                     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    
-    const categoriaFiltro = document.getElementById('filtroCategoria').value;
-    const redeFiltro = document.getElementById('filtroRede').value;
-    
-    let otsMes = obterOTsDoMes(mesAtual);
+    alert('PDF com equipamentos foi removido. Use o botão "📄 Gerar PDF".');
+    return;
     
     // Aplicar filtros adicionais
     if (categoriaFiltro) {
@@ -1094,7 +1215,7 @@ function gerarPDFComEquipamentos() {
     const valorReceber = totalValor + totalPremiosFestivos;
     doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
-    doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);
+    // doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);
 }
 
 // ==================== BACKUP LOCAL (JSON) ====================
