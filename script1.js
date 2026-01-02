@@ -31,6 +31,13 @@ function setBotaoSairVisivel(visivel) {
     } catch {}
 }
 
+function setBotaoForcarSyncVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncForcar');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
 function setBotoesEntrarVisiveis(visivel) {
     try {
         const ids = ['btnSyncGoogle', 'syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
@@ -112,6 +119,7 @@ async function garantirSyncPronto() {
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
+                        setBotaoForcarSyncVisivel(false);
                         mostrarPromptLoginSeNecessario();
                         return;
                     }
@@ -121,6 +129,7 @@ async function garantirSyncPronto() {
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
+                        setBotaoForcarSyncVisivel(true);
                         return;
                     }
                     if (st.state === 'pushed') {
@@ -226,6 +235,22 @@ window.syncSair = async function() {
     } catch (e) {
         console.error(e);
         alert('Falha ao sair: ' + (e?.message || e));
+    }
+};
+
+window.syncForcarAgora = async function() {
+    try {
+        atualizarUIStatusSync('Sync: forçando...');
+        const sync = await garantirSyncPronto();
+        if (typeof sync.forceSync === 'function') {
+            await sync.forceSync('ui');
+        } else {
+            // fallback antigo
+            await sync.pushLocal?.('manual');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Falha ao forçar sync: ' + (e?.message || e));
     }
 };
 

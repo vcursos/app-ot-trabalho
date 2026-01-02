@@ -537,6 +537,31 @@ export class FirebaseSync {
     }
   }
 
+  // Força sincronização agora (útil em PWA instalado quando o listener demora a disparar).
+  // Fluxo:
+  // 1) Puxa o remoto e aplica se for mais novo.
+  // 2) Em seguida, envia o local (se for mais novo) para garantir consistência.
+  async forceSync(reason = 'manual') {
+    if (!this._initialized) await this.init();
+    if (!this._uid) {
+      this.onStatus({ state: 'logged-out' });
+      return;
+    }
+
+    try {
+      this.onStatus({ state: 'syncing', phase: 'force-pull' });
+      await this._pullRemoteOnLogin();
+    } catch {}
+
+    try {
+      this.onStatus({ state: 'syncing', phase: 'force-push' });
+      await this._pushLocalIfNewer(`force-${reason}`);
+      this.onStatus({ state: 'sync-ok' });
+    } catch (e) {
+      this.onStatus({ state: 'sync-error', error: this._formatError(e) });
+    }
+  }
+
   _formatError(e) {
     try {
       const parts = [];
