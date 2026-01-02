@@ -15,6 +15,32 @@ function atualizarUIStatusSync(msg) {
     } catch {}
 }
 
+function setAuthPanelsVisibilidade({ mostrarAuthPanel, mostrarEmailPanel } = {}) {
+    try {
+        const authPanel = document.getElementById('syncAuthPanel');
+        const emailPanel = document.getElementById('syncEmailPanel');
+        if (authPanel && typeof mostrarAuthPanel === 'boolean') {
+            authPanel.style.display = mostrarAuthPanel ? 'flex' : 'none';
+        }
+        if (emailPanel && typeof mostrarEmailPanel === 'boolean') {
+            emailPanel.style.display = mostrarEmailPanel ? 'flex' : 'none';
+        }
+    } catch {}
+}
+
+function mostrarPromptLoginSeNecessario() {
+    try {
+        const jaMostrou = localStorage.getItem('syncLoginPromptMostrado') === '1';
+        if (jaMostrou) return;
+        localStorage.setItem('syncLoginPromptMostrado', '1');
+
+        // Mostra um aviso leve só na primeira vez
+        setTimeout(() => {
+            alert('Para sincronizar entre celular e desktop, faça login (Google ou Email).');
+        }, 1200);
+    } catch {}
+}
+
 // ==== FUNÇÕES GLOBAIS (UI de autenticação do Sync) ====
 window.syncAbrirLoginEmail = function() {
     const p = document.getElementById('syncEmailPanel');
@@ -92,6 +118,14 @@ window.syncSair = async function() {
         console.error(e);
         alert('Falha ao sair: ' + (e?.message || e));
     }
+};
+
+window.syncInfoTelefone = function() {
+    alert(
+        'Login por TELEFONE no Firebase Web/PWA precisa de reCAPTCHA e uma tela específica.\n\n' +
+        'Recomendação: use Google ou Email/Senha (já funciona).\n\n' +
+        'Se você quiser MESMO telefone, eu implemento o fluxo com reCAPTCHA (mas precisa estar com o domínio do GitHub Pages autorizado e o Phone Auth ativado no Firebase).'
+    );
 };
 
 function notificarMudancaParaSync(motivo) {
@@ -297,6 +331,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         const email = st.email ? ` | ${st.email}` : '';
                         const modo = st.isAnonymous ? 'anônimo' : 'conta';
                         atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
+
+                        // Auto-login UX:
+                        // - Se já está em conta (não anônimo): esconder painel de login.
+                        // - Se está anônimo: mostrar login (mas não forçar).
+                        if (st.isAnonymous) {
+                            setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                            mostrarPromptLoginSeNecessario();
+                        } else {
+                            setAuthPanelsVisibilidade({ mostrarAuthPanel: false, mostrarEmailPanel: false });
+                        }
                         return;
                     }
                     if (st.state === 'pushed') {
