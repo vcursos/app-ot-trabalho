@@ -29,12 +29,13 @@ import {
 // Preencha com as credenciais do seu projeto Firebase.
 // (Config do Firebase Console -> Project settings -> SDK setup and configuration)
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: 'AIzaSyDrXDix0uoEX6Cw9REZrNY3gMQgBlCLfYQ',
+  authDomain: 'ottrabalho-34c3f.firebaseapp.com',
+  projectId: 'ottrabalho-34c3f',
+  storageBucket: 'ottrabalho-34c3f.firebasestorage.app',
+  messagingSenderId: '415192260216',
+  appId: '1:415192260216:web:1624289493c64f7b17d78d',
+  measurementId: 'G-NJN6QXGD6X'
 };
 
 const STORAGE_KEYS = [
