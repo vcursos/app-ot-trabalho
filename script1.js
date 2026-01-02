@@ -28,6 +28,23 @@ function setAuthPanelsVisibilidade({ mostrarAuthPanel, mostrarEmailPanel } = {})
     } catch {}
 }
 
+function setBotaoSairVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncSair');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
+function setBotoesEntrarVisiveis(visivel) {
+    try {
+        const ids = ['btnSyncGoogle', 'btnSyncEmail'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+        });
+    } catch {}
+}
+
 function setBotoesAuthHabilitados(habilitar) {
     try {
         const ids = [
@@ -53,7 +70,7 @@ function mostrarPromptLoginSeNecessario() {
 
         // Mostra um aviso leve só na primeira vez
         setTimeout(() => {
-            alert('Para sincronizar entre celular e desktop, faça login (Google ou Email).');
+            alert('Para sincronizar entre celular e desktop, faça login (Google ou Email).\n\nSe preferir, você pode usar sem login (fica salvo só neste aparelho).');
         }, 1200);
     } catch {}
 }
@@ -101,18 +118,24 @@ async function garantirSyncPronto() {
                     if (st.state === 'not-configured') {
                         atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setBotoesEntrarVisiveis(true);
+                        setBotaoSairVisivel(false);
+                        return;
+                    }
+                    if (st.state === 'logged-out') {
+                        atualizarUIStatusSync('Sync: desligado (sem login)');
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setBotoesEntrarVisiveis(true);
+                        setBotaoSairVisivel(false);
+                        mostrarPromptLoginSeNecessario();
                         return;
                     }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
-                        const modo = st.isAnonymous ? 'anônimo' : 'conta';
-                        atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
-                        if (st.isAnonymous) {
-                            setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
-                            mostrarPromptLoginSeNecessario();
-                        } else {
-                            setAuthPanelsVisibilidade({ mostrarAuthPanel: false, mostrarEmailPanel: false });
-                        }
+                        atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(st.uid).slice(0, 6)}…)`);
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setBotoesEntrarVisiveis(false);
+                        setBotaoSairVisivel(true);
                         return;
                     }
                     if (st.state === 'pushed') {
@@ -121,6 +144,13 @@ async function garantirSyncPronto() {
                     }
                     if (st.state === 'remote-applied') {
                         atualizarUIStatusSync('Sync: atualizado');
+                        return;
+                    }
+                    if (st.state === 'redirect-error') {
+                        atualizarUIStatusSync('Sync: erro no redirect (ver console)');
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setBotoesEntrarVisiveis(true);
+                        setBotaoSairVisivel(false);
                         return;
                     }
                     if (String(st.state).includes('error')) {

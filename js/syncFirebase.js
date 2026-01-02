@@ -1,10 +1,10 @@
 // js/syncFirebase.js
-// Sincronização automática (desktop <-> mobile) usando Firebase (Auth anônimo + Firestore).
+// Sincronização (desktop <-> mobile) usando Firebase (Auth por Google/Email + Firestore).
 // Mantém localStorage como cache offline: sempre lemos local, e depois aplicamos remoto.
 //
 // IMPORTANTE:
 // 1) Você precisa preencher firebaseConfig abaixo.
-// 2) No Firebase Console: habilite Authentication -> Anonymous
+// 2) No Firebase Console: habilite Authentication -> Google e/ou Email/Password
 // 3) Crie um Firestore Database (modo produção/teste conforme sua preferência)
 // 4) Regras sugeridas estão no README/DEPLOY (vamos adicionar depois se você quiser)
 
@@ -19,7 +19,6 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/fireba
 import {
   getAuth,
   onAuthStateChanged,
-  signInAnonymously,
   GoogleAuthProvider,
   EmailAuthProvider,
   signInWithPopup,
@@ -162,10 +161,7 @@ export class FirebaseSync {
       // Se falhar (Safari/iOS), continua com default
     }
 
-    await this._ensureSignedIn();
-
-    // Se veio de redirect (mobile/PWA), precisamos capturar o resultado
-    // ANTES de anunciar "ready", pois isso pode trocar o usuário atual.
+    // Se veio de redirect (mobile/PWA), precisamos capturar o resultado.
     try {
       const res = await getRedirectResult(this._auth);
       if (res && this._auth.currentUser) {
@@ -177,35 +173,30 @@ export class FirebaseSync {
       this.onStatus({ state: 'redirect-error', error: this._formatError(e) });
     }
 
+    // NÃO fazer login anônimo automaticamente.
+    // Se não estiver logado, o app funciona offline (localStorage) e o sync fica desligado.
+    await this._loadCurrentUserOrIdle();
+
     this._initialized = true;
+    if (!this._uid) {
+      this.onStatus({ state: 'logged-out' });
+      return;
+    }
+
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
 
-    // Começa a escutar remoto
+    // Começa a escutar remoto e faz push inicial
     this._startRealtimeListener();
-
-    // Primeiro push: garante que o documento exista
     await this.pushLocal('init');
   }
 
-  async _ensureSignedIn() {
+  async _loadCurrentUserOrIdle() {
     return new Promise((resolve) => {
-      const unsub = onAuthStateChanged(this._auth, async (user) => {
-        if (user) {
-          this._uid = user.uid;
-          this._isAnonymous = !!user.isAnonymous;
-          unsub();
-          resolve();
-          return;
-        }
-
-        try {
-          await signInAnonymously(this._auth);
-        } catch (e) {
-          console.warn('Firebase auth falhou:', e);
-          this.onStatus({ state: 'auth-error', error: String(e) });
-          unsub();
-          resolve();
-        }
+      const unsub = onAuthStateChanged(this._auth, (user) => {
+        this._uid = user?.uid || null;
+        this._isAnonymous = !!user?.isAnonymous;
+        unsub();
+        resolve();
       });
     });
   }
@@ -385,13 +376,12 @@ export class FirebaseSync {
     try {
       await signOut(this._auth);
     } catch {}
-    // Volta a ficar anônimo
-    this._initialized = false;
+    // Volta a ficar DESLOGADO (sem criar conta anônima)
     this._uid = null;
-    this._isAnonymous = true;
+    this._isAnonymous = false;
     this._unsub?.();
     this._unsub = null;
-    await this.init();
+    this.onStatus({ state: 'logged-out' });
   }
 
   _computeHash(obj) {
