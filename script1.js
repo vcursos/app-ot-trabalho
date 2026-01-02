@@ -33,7 +33,7 @@ function setBotaoSairVisivel(visivel) {
 
 function setBotoesEntrarVisiveis(visivel) {
     try {
-        const ids = ['btnSyncGoogle'];
+        const ids = ['btnSyncGoogle', 'syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = visivel ? 'inline-flex' : 'none';
@@ -172,6 +172,48 @@ window.syncEntrarGoogle = async function() {
             dica = '\n\nDica: Pop-up bloqueado. O app vai tentar entrar por redirecionamento. Se não abrir, desative bloqueador de pop-up.';
         }
         alert('Falha ao entrar com Google: ' + (code ? code + ' | ' : '') + msg + dica);
+    }
+};
+
+function lerCredenciaisEmailUI() {
+    const email = (document.getElementById('syncEmail')?.value || '').trim();
+    const senha = (document.getElementById('syncSenha')?.value || '').trim();
+    return { email, senha };
+}
+
+window.syncEntrarEmail = async function() {
+    try {
+        const { email, senha } = lerCredenciaisEmailUI();
+        if (!email || !senha) {
+            alert('Informe Email e Senha.');
+            return;
+        }
+        atualizarUIStatusSync('Sync: entrando (email)...');
+        const sync = await garantirSyncPronto();
+        await sync.entrarEmailSenha(email, senha);
+    } catch (e) {
+        console.error(e);
+        const msg = String(e?.message || e);
+        const code = e?.code ? String(e.code) : '';
+        alert('Falha ao entrar por email: ' + (code ? code + ' | ' : '') + msg);
+    }
+};
+
+window.syncCriarEmail = async function() {
+    try {
+        const { email, senha } = lerCredenciaisEmailUI();
+        if (!email || !senha) {
+            alert('Informe Email e Senha.');
+            return;
+        }
+        atualizarUIStatusSync('Sync: criando conta (email)...');
+        const sync = await garantirSyncPronto();
+        await sync.criarContaEmailSenha(email, senha);
+    } catch (e) {
+        console.error(e);
+        const msg = String(e?.message || e);
+        const code = e?.code ? String(e.code) : '';
+        alert('Falha ao criar conta por email: ' + (code ? code + ' | ' : '') + msg);
     }
 };
 
