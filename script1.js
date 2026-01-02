@@ -40,19 +40,7 @@ function setBotaoForcarSyncVisivel(visivel) {
 
 function setBotoesEntrarVisiveis(visivel) {
     try {
-        const ids = ['btnSyncGoogle', 'syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const isInput = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
-            el.style.display = visivel ? (isInput ? 'inline-block' : 'inline-flex') : 'none';
-        });
-    } catch {}
-}
-
-function setEmailControlsVisiveis(visivel) {
-    try {
-        const ids = ['syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
+        const ids = ['btnSyncGoogle'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
@@ -73,7 +61,6 @@ function aplicarUIPosLogin() {
     // Garantia extra para PWA mobile: aplica o estado visual logo após autenticar.
     try {
         setBotoesEntrarVisiveis(false);
-        setEmailControlsVisiveis(false);
         setGoogleControlVisivel(false);
         setBotaoSairVisivel(true);
         setBotaoForcarSyncVisivel(true);
@@ -152,7 +139,6 @@ async function garantirSyncPronto() {
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         setBotaoForcarSyncVisivel(false);
-                        setEmailControlsVisiveis(true);
                         setGoogleControlVisivel(true);
                         mostrarPromptLoginSeNecessario();
                         return;
@@ -166,7 +152,6 @@ async function garantirSyncPronto() {
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
                         // Esconde também os controles individuais (garantia extra)
-                        setEmailControlsVisiveis(false);
                         setGoogleControlVisivel(false);
                         return;
                     }
@@ -223,49 +208,6 @@ window.syncEntrarGoogle = async function() {
     }
 };
 
-function lerCredenciaisEmailUI() {
-    const email = (document.getElementById('syncEmail')?.value || '').trim();
-    const senha = (document.getElementById('syncSenha')?.value || '').trim();
-    return { email, senha };
-}
-
-window.syncEntrarEmail = async function() {
-    try {
-        const { email, senha } = lerCredenciaisEmailUI();
-        if (!email || !senha) {
-            alert('Informe Email e Senha.');
-            return;
-        }
-        atualizarUIStatusSync('Sync: entrando (email)...');
-        const sync = await garantirSyncPronto();
-        await sync.entrarEmailSenha(email, senha);
-        aplicarUIPosLogin();
-    } catch (e) {
-        console.error(e);
-        const msg = String(e?.message || e);
-        const code = e?.code ? String(e.code) : '';
-        alert('Falha ao entrar por email: ' + (code ? code + ' | ' : '') + msg);
-    }
-};
-
-window.syncCriarEmail = async function() {
-    try {
-        const { email, senha } = lerCredenciaisEmailUI();
-        if (!email || !senha) {
-            alert('Informe Email e Senha.');
-            return;
-        }
-        atualizarUIStatusSync('Sync: criando conta (email)...');
-        const sync = await garantirSyncPronto();
-        await sync.criarContaEmailSenha(email, senha);
-        aplicarUIPosLogin();
-    } catch (e) {
-        console.error(e);
-        const msg = String(e?.message || e);
-        const code = e?.code ? String(e.code) : '';
-        alert('Falha ao criar conta por email: ' + (code ? code + ' | ' : '') + msg);
-    }
-};
 
 window.syncSair = async function() {
     try {
