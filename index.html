@@ -25,6 +25,7 @@
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="importarBackup()">📥 Importar</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
             </div>
+            <div id="syncStatus" style="margin-top:8px; font-size:12px; color:#666;"></div>
             <div class="resumo">
                 <div class="card">
                     <span>OTs Hoje</span>
@@ -408,6 +409,7 @@
     </div>
     <script src="js/config-tabelas.js"></script>
     <script src="js/servicos-custom.js"></script>
+    <script type="module" src="js/syncFirebase.js"></script>
     <script src="script1.js"></script>
     <script>
         // Registrar Service Worker para PWA (se suportado)

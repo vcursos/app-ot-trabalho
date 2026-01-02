@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
-    "@capacitor/core": "^6.1.0"
+    "@capacitor/core": "^6.1.0",
+    "firebase": "^12.7.0"
   }
 }

@@ -1,6 +1,30 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
 
+// ==================== SINCRONIZAÇÃO (Firebase opcional) ====================
+// Opção 2: sincronizar desktop <-> mobile via Firestore.
+// Mantém localStorage como fonte offline. Quando Firebase está configurado,
+// enviamos mudanças e aplicamos mudanças remotas em tempo real.
+window.__firebaseSync = null;
+
+function atualizarUIStatusSync(msg) {
+    try {
+        const el = document.getElementById('syncStatus');
+        if (!el) return;
+        el.textContent = msg || '';
+    } catch {}
+}
+
+function notificarMudancaParaSync(motivo) {
+    try {
+        if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
+            window.__firebaseSync.pushLocal(motivo || 'change');
+        }
+    } catch (e) {
+        console.warn('Falha ao notificar sync:', e);
+    }
+}
+
 // ==================== HISTÓRICO (ARQUIVO MENSAL) ====================
 // Mantém todos os meses armazenados para consulta futura.
 // Estrutura: { 'YYYY-MM': [ots...] }
@@ -13,6 +37,7 @@ function getMesAnoFromISODate(isoDateOrDateTime) {
 
 function salvarHistoricoOT() {
     localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes));
+    notificarMudancaParaSync('historicoOTPorMes');
 }
 
 function garantirOTNoHistorico(ot) {
@@ -72,6 +97,7 @@ function formatarDataBRFromISODate(isoDate) {
 
 function salvarPremiosFestivosPorDia() {
     localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia));
+    notificarMudancaParaSync('premiosFestivosPorDia');
 }
 
 function premioJaAplicadoNoDia(dataISO) {
@@ -157,6 +183,62 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Listener para adicional
     document.getElementById('adicionalServico').addEventListener('change', atualizarValorAdicional);
+
+    // Iniciar sync (se configurado) depois que a UI básica estiver pronta
+    (async function iniciarSyncFirebase() {
+        try {
+            // Import dinâmico do módulo de sync
+            const mod = await import('./js/syncFirebase.js');
+            if (!mod || !mod.FirebaseSync) return;
+
+            window.__firebaseSync = new mod.FirebaseSync({
+                enabled: true,
+                onRemoteApplied: () => {
+                    // Recarregar variáveis globais a partir do localStorage atualizado
+                    try {
+                        ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
+                        historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
+                        premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
+                    } catch {}
+
+                    try {
+                        atualizarTabela();
+                        atualizarResumos();
+                        atualizarUIFestivoPorDia();
+                        if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+                    } catch {}
+                },
+                onStatus: (st) => {
+                    if (!st || !st.state) return;
+                    if (st.state === 'not-configured') {
+                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                        return;
+                    }
+                    if (st.state === 'ready') {
+                        atualizarUIStatusSync(`Sync: ativo (UID ${String(st.uid).slice(0, 6)}…)`);
+                        return;
+                    }
+                    if (st.state === 'pushed') {
+                        atualizarUIStatusSync('Sync: ok');
+                        return;
+                    }
+                    if (st.state === 'remote-applied') {
+                        atualizarUIStatusSync('Sync: atualizado');
+                        return;
+                    }
+                    if (String(st.state).includes('error')) {
+                        atualizarUIStatusSync('Sync: erro (ver console)');
+                        return;
+                    }
+                }
+            });
+
+            await window.__firebaseSync.init();
+        } catch (e) {
+            console.warn('Sync Firebase não iniciou:', e);
+            atualizarUIStatusSync('Sync: indisponível');
+        }
+    })();
 });
 
 function getHojeISO() {
@@ -597,6 +679,7 @@ function atualizarValorServico() {
 
 function salvarDados() {
     localStorage.setItem('ordensTrabalho', JSON.stringify(ordensTrabalho));
+    notificarMudancaParaSync('ordensTrabalho');
 }
 
 function atualizarTabela(filtrarMes = null) {
@@ -708,6 +791,8 @@ function deletarOT(id) {
         atualizarTabela();
         atualizarResumos();
         atualizarUIFestivoPorDia();
+
+        notificarMudancaParaSync('deletarOT');
     }
 }
 
@@ -1242,6 +1327,8 @@ function exportarBackup() {
             versao: 1,
             ordensTrabalho: ordensTrabalho,
             registrosLogistica: registrosLogistica,
+            historicoOTPorMes: historicoOTPorMes,
+            premiosFestivosPorDia: premiosFestivosPorDia,
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1288,6 +1375,8 @@ function importarBackup() {
 
                 const novasOTs = Array.isArray(payload.ordensTrabalho) ? payload.ordensTrabalho : [];
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
+                const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
+                const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
 
                 if (novasOTs.length === 0 && novaLogistica.length === 0) {
                     alert('Backup não contém registros para importar.');
@@ -1299,6 +1388,8 @@ function importarBackup() {
                 if (substituir) {
                     ordensTrabalho = novasOTs;
                     registrosLogistica = novaLogistica;
+                    if (novoHistorico) historicoOTPorMes = novoHistorico;
+                    if (novosPremios) premiosFestivosPorDia = novosPremios;
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -1314,16 +1405,40 @@ function importarBackup() {
                         if (!mapLog.has(r.id)) mapLog.set(r.id, r);
                     });
                     registrosLogistica = Array.from(mapLog.values());
+
+                    // Histórico/premios: por segurança, mescla por mês/chave.
+                    if (novoHistorico) {
+                        historicoOTPorMes = historicoOTPorMes || {};
+                        Object.keys(novoHistorico).forEach(mes => {
+                            const cur = Array.isArray(historicoOTPorMes[mes]) ? historicoOTPorMes[mes] : [];
+                            const add = Array.isArray(novoHistorico[mes]) ? novoHistorico[mes] : [];
+                            const map = new Map();
+                            cur.forEach(o => o && map.set(o.id, o));
+                            add.forEach(o => o && !map.has(o.id) && map.set(o.id, o));
+                            historicoOTPorMes[mes] = Array.from(map.values());
+                        });
+                    }
+                    if (novosPremios) {
+                        premiosFestivosPorDia = premiosFestivosPorDia || {};
+                        Object.keys(novosPremios).forEach(d => {
+                            if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
+                        });
+                    }
                 }
 
                 // Persistir
                 localStorage.setItem('ordensTrabalho', JSON.stringify(ordensTrabalho));
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
+                localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
+                localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
+
+                notificarMudancaParaSync('importarBackup');
 
                 // Atualizar UI
                 atualizarTabela();
                 atualizarResumos();
                 atualizarTabelaLogistica();
+                atualizarUIFestivoPorDia();
 
                 alert('Backup importado com sucesso!');
             } catch (e) {
@@ -1587,6 +1702,7 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
     
     registrosLogistica.push(registro);
     localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
+    notificarMudancaParaSync('registrosLogistica');
     
     console.log('Total de registros:', registrosLogistica.length);
     
@@ -1660,6 +1776,7 @@ function deletarLogistica(id) {
     if (confirm('Deseja realmente excluir este registro de logística?')) {
         registrosLogistica = registrosLogistica.filter(reg => reg.id !== id);
         localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
+        notificarMudancaParaSync('deletarLogistica');
         atualizarTabelaLogistica();
     }
 }
