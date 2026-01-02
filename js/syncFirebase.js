@@ -29,7 +29,8 @@ import {
   linkWithCredential,
   signOut,
   setPersistence,
-  indexedDBLocalPersistence
+  indexedDBLocalPersistence,
+  browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore,
@@ -176,7 +177,13 @@ export class FirebaseSync {
     try {
       await setPersistence(this._auth, indexedDBLocalPersistence);
     } catch {
-      // Se falhar (Safari/iOS), continua com default
+      // Fallback: alguns ambientes (principalmente iOS/PWA) podem falhar com IndexedDB.
+      // browserLocalPersistence costuma funcionar melhor e ainda persiste entre reloads.
+      try {
+        await setPersistence(this._auth, browserLocalPersistence);
+      } catch {
+        // Se falhar, continua com o default do Firebase
+      }
     }
 
     // Se veio de redirect (mobile/PWA), precisamos capturar o resultado.
