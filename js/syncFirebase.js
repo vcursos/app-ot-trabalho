@@ -134,6 +134,7 @@ export class FirebaseSync {
     this._uid = null;
     this._isAnonymous = true;
     this._unsub = null;
+  this._authUnsub = null;
     this._initialized = false;
 
     this._lastPushedHash = '';
@@ -198,9 +199,9 @@ export class FirebaseSync {
       this.onStatus({ state: 'redirect-error', error: this._formatError(e) });
     }
 
-    // NÃO fazer login anônimo automaticamente.
-    // Se não estiver logado, o app funciona offline (localStorage) e o sync fica desligado.
-    await this._loadCurrentUserOrIdle();
+  // Mantém um listener de auth ativo: evita que o app "perca" sessão após login/reload
+  // por race conditions. (E também detecta logout real.)
+  await this._ensureAuthListener();
 
     this._initialized = true;
     if (!this._uid) {
@@ -215,13 +216,39 @@ export class FirebaseSync {
     await this.pushLocal('init');
   }
 
-  async _loadCurrentUserOrIdle() {
-    return new Promise((resolve) => {
-      const unsub = onAuthStateChanged(this._auth, (user) => {
+  async _ensureAuthListener() {
+    if (this._authUnsub) return;
+
+    await new Promise((resolve) => {
+      let first = true;
+      this._authUnsub = onAuthStateChanged(this._auth, (user) => {
+        const prevUid = this._uid;
         this._uid = user?.uid || null;
         this._isAnonymous = !!user?.isAnonymous;
-        unsub();
-        resolve();
+
+        // Primeiro evento: só sinaliza que já sabemos se existe sessão.
+        if (first) {
+          first = false;
+          resolve();
+        }
+
+        // Eventos subsequentes: refletem login/logout real
+        if (!this._initialized) return;
+
+        if (!this._uid) {
+          this._unsub?.();
+          this._unsub = null;
+          this.onStatus({ state: 'logged-out' });
+          return;
+        }
+
+        // Se mudou de usuário (ou recuperou sessão), garantir listener e status ready.
+        if (this._uid !== prevUid) {
+          try {
+            this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
+          } catch {}
+          this._startRealtimeListener();
+        }
       });
     });
   }
