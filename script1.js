@@ -492,6 +492,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Agora o app pode ficar sem login (sem anônimo). Mantém painel visível,
                         // mas alterna visibilidade dos botões via setBotoesEntrarVisiveis/setBotaoSairVisivel.
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+
+                        // Se a sessão foi restaurada após reload, refletir imediatamente na UI.
+                        // (Sem isso, o botão "Entrar (Google)" volta a aparecer.)
+                        try {
+                            setBotoesEntrarVisiveis(false);
+                            setGoogleControlVisivel(false);
+                            setBotaoSairVisivel(true);
+                            setBotaoForcarSyncVisivel(true);
+                        } catch {}
                         return;
                     }
                     if (st.state === 'pushed') {
