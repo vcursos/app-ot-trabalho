@@ -27,7 +27,7 @@
             </div>
             <div id="syncStatus" style="margin-top:8px; font-size:12px; color:#666;"></div>
 
-            <div id="syncAuthPanel" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+            <div id="syncAuthPanel" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; position:relative; z-index:5; pointer-events:auto;">
                 <button id="btnSyncGoogle" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarGoogle()">🔐 Entrar (Google)</button>
                 <button id="btnSyncEmail" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncAbrirLoginEmail()">📧 Entrar (Email)</button>
                 <button id="btnSyncSair" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncSair()">🚪 Sair</button>
@@ -429,13 +429,42 @@
         // Fallback: se por algum motivo o script ainda não registrou as funções globais,
         // mostramos um aviso em vez de ficar "sem acontecer nada".
         (function(){
-            const warn = (name) => {
+            // 1) Garanta que sempre exista uma função no window (evita clique "mudo").
+            const warn = (name, label) => {
                 if (typeof window[name] === 'function') return;
+                // Stub temporário: quando o script real carregar, ele substitui no window.
                 window[name] = function(){
-                    alert('Carregando sincronização... atualize a página e tente novamente.');
+                    alert('Clique detectado: ' + label + '\n\nAinda carregando/atualizando o app.\nTente atualizar (Ctrl+F5) ou reinstalar o PWA.');
                 };
             };
-            ['syncEntrarGoogle','syncAbrirLoginEmail','syncSair','syncEntrarEmailSenha','syncCriarContaEmailSenha','syncFecharLoginEmail'].forEach(warn);
+            warn('syncEntrarGoogle', 'Entrar (Google)');
+            warn('syncAbrirLoginEmail', 'Entrar (Email)');
+            warn('syncSair', 'Sair');
+            warn('syncEntrarEmailSenha', 'Entrar (Email/Senha)');
+            warn('syncCriarContaEmailSenha', 'Criar conta (Email/Senha)');
+            warn('syncFecharLoginEmail', 'Fechar painel (Email)');
+
+            // 2) Handlers por addEventListener (mais robusto que onclick).
+            window.addEventListener('DOMContentLoaded', () => {
+                const map = [
+                    ['btnSyncGoogle', 'syncEntrarGoogle'],
+                    ['btnSyncEmail', 'syncAbrirLoginEmail'],
+                    ['btnSyncSair', 'syncSair'],
+                    ['btnSyncEntrarEmail', 'syncEntrarEmailSenha'],
+                    ['btnSyncCriarEmail', 'syncCriarContaEmailSenha'],
+                    ['btnSyncCancelarEmail', 'syncFecharLoginEmail']
+                ];
+                map.forEach(([id, fn]) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('click', (ev) => {
+                        // Evita duplo disparo (onclick + listener)
+                        ev.preventDefault();
+                        try { window[fn]?.(); } catch (e) { console.error(e); }
+                        return false;
+                    });
+                });
+            });
         })();
     </script>
     <script>
