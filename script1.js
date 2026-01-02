@@ -954,14 +954,19 @@ function gerarPDF() {
         doc.text(filtros, 14, 34);
     }
     
-    // Tabela
+    // Tabela (com Equipamentos)
     const tableData = otsMes.map(ot => {
+        const equipamentos = (ot.equipamentos && ot.equipamentos.length > 0)
+            ? ot.equipamentos.map(eq => (typeof eq === 'string') ? eq : (eq.mac || '')).filter(Boolean).join(', ')
+            : (ot.macEquipamento || '-');
+
         return [
             new Date(ot.data).toLocaleDateString('pt-BR'),
             ot.numeroOT,
             ot.tipoServico,
             ot.categoria || '-',
             formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦]/g, ''),
+            equipamentos || '-',
             ot.observacoes || '-',
             `€ ${ot.valorServico.toFixed(2)}`
         ];
@@ -970,19 +975,20 @@ function gerarPDF() {
     if (temAutoTable) {
         doc.autoTable({
             startY: categoriaFiltro || redeFiltro ? 40 : 35,
-            head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Observações', 'Valor']],
+            head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Equipamentos', 'Observações', 'Valor']],
             body: tableData,
             theme: 'striped',
             headStyles: { fillColor: [102, 126, 234] },
             styles: { fontSize: 8 },
             columnStyles: {
-                0: { cellWidth: 22 },
+                0: { cellWidth: 18 },
                 1: { cellWidth: 20 },
-                2: { cellWidth: 50 },
-                3: { cellWidth: 40 },
-                4: { cellWidth: 25 },
-                5: { cellWidth: 60 },
-                6: { cellWidth: 25, fontStyle: 'bold' }
+                2: { cellWidth: 35 },
+                3: { cellWidth: 30 },
+                4: { cellWidth: 20 },
+                5: { cellWidth: 55 },
+                6: { cellWidth: 45 },
+                7: { cellWidth: 22, fontStyle: 'bold' }
             }
         });
     } else {
@@ -1016,6 +1022,14 @@ function gerarPDF() {
     }
     const diasPremio = Object.keys(premiosPorDia).sort();
     const totalPremiosFestivos = diasPremio.reduce((sum, d) => sum + (parseFloat(premiosPorDia[d]) || 0), 0);
+
+    // Se houver festivos selecionados mas com valor 0, ainda assim listar os dias no PDF
+    // (mantém o comportamento que o usuário espera: mostrar quais dias foram marcados).
+    const diasFestivoMarcado = Array.from(new Set(
+        otsMes
+            .filter(ot => ot && ot.otFestivo)
+            .map(ot => getDataISO(ot.data))
+    )).sort();
     const totalPontos = otsMes.reduce((sum, ot) => {
         const pServ = parseFloat(ot.pontosServico) || 0;
         const pAdd = parseFloat(ot.pontosAdicional) || 0;
@@ -1030,13 +1044,15 @@ function gerarPDF() {
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    if (totalPremiosFestivos > 0) {
+    if (totalPremiosFestivos > 0 || diasFestivoMarcado.length > 0) {
         doc.setFontSize(11);
         doc.setFont(undefined, 'normal');
         doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
 
         // Tabela separada: Data do Festivo + Valor (1x por dia)
-        const tableFestivos = diasPremio.map(d => ([
+        // Se um dia foi marcado como festivo mas o valor do prémio é 0, listamos mesmo assim.
+        const diasParaListar = Array.from(new Set([...(diasPremio || []), ...(diasFestivoMarcado || [])])).sort();
+        const tableFestivos = diasParaListar.map(d => ([
             formatarDataBRFromISODate(d),
             `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
         ]));
@@ -1061,7 +1077,7 @@ function gerarPDF() {
             doc.setFontSize(10);
             doc.text('Datas Festivas:', 14, y);
             y += 6;
-            diasPremio.forEach(d => {
+            diasParaListar.forEach(d => {
                 const v = (parseFloat(premiosPorDia[d]) || 0).toFixed(2);
                 doc.text(`${formatarDataBRFromISODate(d)} - € ${v}`, 14, y);
                 y += 5;
