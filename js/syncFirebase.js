@@ -8,7 +8,14 @@
 // 3) Crie um Firestore Database (modo produção/teste conforme sua preferência)
 // 4) Regras sugeridas estão no README/DEPLOY (vamos adicionar depois se você quiser)
 
-import { initializeApp } from 'firebase/app';
+// IMPORTANT: Este projeto é estático (GitHub Pages). Para funcionar no navegador
+// sem bundler, usamos os módulos ESM via CDN oficial do Firebase.
+// (Isso evita o erro: Failed to resolve module specifier "firebase/app".)
+
+// ATENÇÃO: este app roda como site estático (GitHub Pages), então NÃO dá pra usar
+// imports do tipo "firebase/app" (isso só funciona com bundler).
+// Aqui usamos os módulos ESM do Firebase via CDN.
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
   getAuth,
   onAuthStateChanged,
@@ -24,8 +31,7 @@ import {
   signOut,
   setPersistence,
   indexedDBLocalPersistence
-} from 'firebase/auth';
-
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore,
   doc,
@@ -33,7 +39,7 @@ import {
   setDoc,
   onSnapshot,
   serverTimestamp
-} from 'firebase/firestore';
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 // Preencha com as credenciais do seu projeto Firebase.
 // (Config do Firebase Console -> Project settings -> SDK setup and configuration)
