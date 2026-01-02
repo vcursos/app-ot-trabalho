@@ -103,6 +103,24 @@ function mergePreferNewest(localSnap, remoteSnap) {
   return localSnap;
 }
 
+function hasAnyData(snapshot) {
+  try {
+    if (!snapshot || typeof snapshot !== 'object') return false;
+    const ots = Array.isArray(snapshot.ordensTrabalho) ? snapshot.ordensTrabalho.length : 0;
+    const log = Array.isArray(snapshot.registrosLogistica) ? snapshot.registrosLogistica.length : 0;
+    const hist = snapshot.historicoOTPorMes && typeof snapshot.historicoOTPorMes === 'object'
+      ? Object.keys(snapshot.historicoOTPorMes).length
+      : 0;
+    const fest = snapshot.premiosFestivosPorDia && typeof snapshot.premiosFestivosPorDia === 'object'
+      ? Object.keys(snapshot.premiosFestivosPorDia).length
+      : 0;
+    const veic = snapshot.configuracaoVeiculo ? 1 : 0;
+    return (ots + log + hist + fest + veic) > 0;
+  } catch {
+    return false;
+  }
+}
+
 export class FirebaseSync {
   constructor(options = {}) {
     this.enabled = options.enabled ?? true;
@@ -274,7 +292,7 @@ export class FirebaseSync {
   async entrarGoogle() {
     if (!this._initialized) await this.init();
 
-    const prevAnonUid = this._uid;
+  const prevAnonUid = this._uid;
 
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
@@ -314,10 +332,18 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+
+    // Puxa dados da conta antes de fazer qualquer push.
+    await this._pullRemoteOnLogin();
+
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
     this._startRealtimeListener();
+
+    // Mantido por compatibilidade (mas agora não existe mais anon automático)
     await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
-    await this.pushLocal('login-google');
+
+    // Só faz push se o local for mais novo (ou se remoto não existir)
+    await this._pushLocalIfNewer('login-google');
   }
 
   async criarContaEmailSenha(email, senha) {
@@ -343,10 +369,13 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+
+    await this._pullRemoteOnLogin();
+
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
     this._startRealtimeListener();
     await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
-    await this.pushLocal('signup-email');
+    await this._pushLocalIfNewer('signup-email');
   }
 
   async entrarEmailSenha(email, senha) {
@@ -365,10 +394,65 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+
+    await this._pullRemoteOnLogin();
+
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
     this._startRealtimeListener();
     await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
-    await this.pushLocal('login-email');
+    await this._pushLocalIfNewer('login-email');
+  }
+
+  async _pullRemoteOnLogin() {
+    try {
+      if (!this._initialized || !this._uid) return;
+      this.onStatus({ state: 'syncing', phase: 'pull' });
+      const remote = await this.fetchRemoteOnce();
+      if (!remote || !remote.data) {
+        this.onStatus({ state: 'syncing', phase: 'pull', result: 'no-remote' });
+        return;
+      }
+
+      const localData = getLocalSnapshot();
+      const localWrap = { meta: { updatedAt: new Date().toISOString() }, data: localData };
+      const merged = mergePreferNewest(localWrap, remote);
+      const localHas = hasAnyData(localData);
+      const remoteHas = hasAnyData(remote.data);
+
+      // Regra simples:
+      // - Se remoto tem dados e local está vazio => aplicar remoto.
+      // - Senão, aplicar o mais novo por updatedAt.
+      const shouldApplyRemote = (remoteHas && !localHas) || (merged === remote);
+      if (shouldApplyRemote) {
+        applySnapshotToLocalStorage(remote.data || {});
+        this.onRemoteApplied(remote.data || {});
+        this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
+      }
+    } catch (e) {
+      console.warn('Falha ao puxar remoto no login:', e);
+      this.onStatus({ state: 'read-error', error: this._formatError(e) });
+    }
+  }
+
+  async _pushLocalIfNewer(reason) {
+    try {
+      if (!this._initialized || !this._uid) return;
+      const remote = await this.fetchRemoteOnce();
+      const localData = getLocalSnapshot();
+      const localWrap = { meta: { updatedAt: new Date().toISOString() }, data: localData };
+
+      if (!remote || !remote.meta) {
+        await this.pushLocal(reason);
+        return;
+      }
+
+      const merged = mergePreferNewest(localWrap, remote);
+      if (merged === localWrap) {
+        await this.pushLocal(reason);
+      }
+    } catch {
+      // não bloqueia o usuário
+    }
   }
 
   async sair() {
