@@ -13,6 +13,15 @@ import {
   getAuth,
   onAuthStateChanged,
   signInAnonymously,
+  GoogleAuthProvider,
+  EmailAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  linkWithCredential,
+  signOut,
   setPersistence,
   indexedDBLocalPersistence
 } from 'firebase/auth';
@@ -99,10 +108,21 @@ export class FirebaseSync {
     this._auth = null;
     this._db = null;
     this._uid = null;
+    this._isAnonymous = true;
     this._unsub = null;
     this._initialized = false;
 
     this._lastPushedHash = '';
+  }
+
+  getUserInfo() {
+    const u = this._auth?.currentUser;
+    return {
+      uid: this._uid,
+      isAnonymous: !!u?.isAnonymous,
+      email: u?.email || null,
+      providerIds: (u?.providerData || []).map(p => p?.providerId).filter(Boolean)
+    };
   }
 
   isConfigured() {
@@ -139,7 +159,14 @@ export class FirebaseSync {
     await this._ensureSignedIn();
 
     this._initialized = true;
-    this.onStatus({ state: 'ready', uid: this._uid });
+    this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
+
+    // Se veio de redirect (mobile), capturar resultado
+    try {
+      await getRedirectResult(this._auth);
+    } catch {
+      // ignora
+    }
 
     // Começa a escutar remoto
     this._startRealtimeListener();
@@ -153,6 +180,7 @@ export class FirebaseSync {
       const unsub = onAuthStateChanged(this._auth, async (user) => {
         if (user) {
           this._uid = user.uid;
+          this._isAnonymous = !!user.isAnonymous;
           unsub();
           resolve();
           return;
@@ -174,6 +202,167 @@ export class FirebaseSync {
     // Documento por usuário.
     // Coleção: users/{uid}/appData/main
     return doc(this._db, 'users', this._uid, 'appData', 'main');
+  }
+
+  async _readDocForUid(uid) {
+    try {
+      const ref = doc(this._db, 'users', uid, 'appData', 'main');
+      const snap = await getDoc(ref);
+      return snap.exists() ? snap.data() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async _writeDocForUid(uid, payload) {
+    try {
+      const ref = doc(this._db, 'users', uid, 'appData', 'main');
+      await setDoc(ref, payload, { merge: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async _migrateFromAnonymousIfNeeded(prevAnonUid, newUid) {
+    // Migra dados do doc do UID anônimo para o UID da conta, sem perder dados locais.
+    if (!prevAnonUid || !newUid || prevAnonUid === newUid) return;
+
+    const anonRemote = await this._readDocForUid(prevAnonUid);
+    const newRemote = await this._readDocForUid(newUid);
+
+    // Base: sempre respeita o localStorage (offline-first)
+    const localData = getLocalSnapshot();
+    const mergedPayload = {
+      meta: {
+        updatedAt: new Date().toISOString(),
+        updatedReason: 'migrate',
+        serverUpdatedAt: serverTimestamp()
+      },
+      data: localData
+    };
+
+    // Se existia anonRemote, e ele tem dados mais recentes que local, aplica nele
+    if (anonRemote && anonRemote.data) {
+      // preferir "novo" pelo meta.updatedAt
+      const localWrap = { meta: { updatedAt: mergedPayload.meta.updatedAt } };
+      const choice = mergePreferNewest(localWrap, anonRemote);
+      if (choice === anonRemote) {
+        mergedPayload.data = anonRemote.data;
+      }
+    }
+
+    // Se o newRemote já tem coisa, preferir o mais novo entre newRemote e mergedPayload
+    if (newRemote && newRemote.meta) {
+      const choice = mergePreferNewest(mergedPayload, newRemote);
+      if (choice === newRemote) {
+        // Já tem mais novo, não sobrescreve
+        applySnapshotToLocalStorage(newRemote.data || {});
+        this.onRemoteApplied(newRemote.data || {});
+        return;
+      }
+    }
+
+    await this._writeDocForUid(newUid, mergedPayload);
+    applySnapshotToLocalStorage(mergedPayload.data || {});
+    this.onRemoteApplied(mergedPayload.data || {});
+  }
+
+  async entrarGoogle() {
+    if (!this._initialized) await this.init();
+
+    const prevAnonUid = this._uid;
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    try {
+      // Desktop: popup; Mobile/PWA: redirect costuma funcionar melhor
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+      if (isMobile) {
+        await signInWithRedirect(this._auth, provider);
+        return;
+      }
+      await signInWithPopup(this._auth, provider);
+    } catch (e) {
+      this.onStatus({ state: 'auth-error', error: String(e) });
+      throw e;
+    }
+
+    // Após login
+    const u = this._auth.currentUser;
+    if (!u) return;
+    this._uid = u.uid;
+    this._isAnonymous = !!u.isAnonymous;
+    this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
+    this._startRealtimeListener();
+    await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
+    await this.pushLocal('login-google');
+  }
+
+  async criarContaEmailSenha(email, senha) {
+    if (!this._initialized) await this.init();
+
+    const prevAnonUid = this._uid;
+
+    try {
+      // Se o usuário atual é anônimo, nós LINKAMOS para não perder dados
+      const current = this._auth.currentUser;
+      if (current && current.isAnonymous) {
+        const cred = EmailAuthProvider.credential(email, senha);
+        await linkWithCredential(current, cred);
+      } else {
+        await createUserWithEmailAndPassword(this._auth, email, senha);
+      }
+    } catch (e) {
+      this.onStatus({ state: 'auth-error', error: String(e) });
+      throw e;
+    }
+
+    const u = this._auth.currentUser;
+    if (!u) return;
+    this._uid = u.uid;
+    this._isAnonymous = !!u.isAnonymous;
+    this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
+    this._startRealtimeListener();
+    await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
+    await this.pushLocal('signup-email');
+  }
+
+  async entrarEmailSenha(email, senha) {
+    if (!this._initialized) await this.init();
+
+    const prevAnonUid = this._uid;
+
+    try {
+      await signInWithEmailAndPassword(this._auth, email, senha);
+    } catch (e) {
+      this.onStatus({ state: 'auth-error', error: String(e) });
+      throw e;
+    }
+
+    const u = this._auth.currentUser;
+    if (!u) return;
+    this._uid = u.uid;
+    this._isAnonymous = !!u.isAnonymous;
+    this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
+    this._startRealtimeListener();
+    await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
+    await this.pushLocal('login-email');
+  }
+
+  async sair() {
+    if (!this._initialized) return;
+    try {
+      await signOut(this._auth);
+    } catch {}
+    // Volta a ficar anônimo
+    this._initialized = false;
+    this._uid = null;
+    this._isAnonymous = true;
+    this._unsub?.();
+    this._unsub = null;
+    await this.init();
   }
 
   _computeHash(obj) {

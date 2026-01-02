@@ -15,6 +15,85 @@ function atualizarUIStatusSync(msg) {
     } catch {}
 }
 
+// ==== FUNÇÕES GLOBAIS (UI de autenticação do Sync) ====
+window.syncAbrirLoginEmail = function() {
+    const p = document.getElementById('syncEmailPanel');
+    if (p) p.style.display = 'flex';
+};
+
+window.syncFecharLoginEmail = function() {
+    const p = document.getElementById('syncEmailPanel');
+    if (p) p.style.display = 'none';
+};
+
+window.syncEntrarGoogle = async function() {
+    try {
+        if (!window.__firebaseSync) {
+            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
+            return;
+        }
+        await window.__firebaseSync.entrarGoogle();
+    } catch (e) {
+        console.error(e);
+        alert('Falha ao entrar com Google: ' + (e?.message || e));
+    }
+};
+
+window.syncEntrarEmailSenha = async function() {
+    try {
+        const email = (document.getElementById('syncEmail')?.value || '').trim();
+        const senha = document.getElementById('syncSenha')?.value || '';
+        if (!email || !senha) {
+            alert('Preencha email e senha.');
+            return;
+        }
+        if (!window.__firebaseSync) {
+            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
+            return;
+        }
+        await window.__firebaseSync.entrarEmailSenha(email, senha);
+        window.syncFecharLoginEmail();
+    } catch (e) {
+        console.error(e);
+        alert('Falha ao entrar: ' + (e?.message || e));
+    }
+};
+
+window.syncCriarContaEmailSenha = async function() {
+    try {
+        const email = (document.getElementById('syncEmail')?.value || '').trim();
+        const senha = document.getElementById('syncSenha')?.value || '';
+        if (!email || !senha) {
+            alert('Preencha email e senha.');
+            return;
+        }
+        if (senha.length < 6) {
+            alert('Senha precisa ter pelo menos 6 caracteres.');
+            return;
+        }
+        if (!window.__firebaseSync) {
+            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
+            return;
+        }
+        await window.__firebaseSync.criarContaEmailSenha(email, senha);
+        window.syncFecharLoginEmail();
+    } catch (e) {
+        console.error(e);
+        alert('Falha ao criar conta: ' + (e?.message || e));
+    }
+};
+
+window.syncSair = async function() {
+    try {
+        if (!window.__firebaseSync) return;
+        await window.__firebaseSync.sair();
+        alert('Saiu da conta.');
+    } catch (e) {
+        console.error(e);
+        alert('Falha ao sair: ' + (e?.message || e));
+    }
+};
+
 function notificarMudancaParaSync(motivo) {
     try {
         if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
@@ -215,7 +294,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     if (st.state === 'ready') {
-                        atualizarUIStatusSync(`Sync: ativo (UID ${String(st.uid).slice(0, 6)}…)`);
+                        const email = st.email ? ` | ${st.email}` : '';
+                        const modo = st.isAnonymous ? 'anônimo' : 'conta';
+                        atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
                         return;
                     }
                     if (st.state === 'pushed') {
