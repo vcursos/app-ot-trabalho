@@ -15,15 +15,11 @@ function atualizarUIStatusSync(msg) {
     } catch {}
 }
 
-function setAuthPanelsVisibilidade({ mostrarAuthPanel, mostrarEmailPanel } = {}) {
+function setAuthPanelsVisibilidade({ mostrarAuthPanel } = {}) {
     try {
         const authPanel = document.getElementById('syncAuthPanel');
-        const emailPanel = document.getElementById('syncEmailPanel');
         if (authPanel && typeof mostrarAuthPanel === 'boolean') {
             authPanel.style.display = mostrarAuthPanel ? 'flex' : 'none';
-        }
-        if (emailPanel && typeof mostrarEmailPanel === 'boolean') {
-            emailPanel.style.display = mostrarEmailPanel ? 'flex' : 'none';
         }
     } catch {}
 }
@@ -37,7 +33,7 @@ function setBotaoSairVisivel(visivel) {
 
 function setBotoesEntrarVisiveis(visivel) {
     try {
-        const ids = ['btnSyncGoogle', 'btnSyncEmail'];
+        const ids = ['btnSyncGoogle'];
         ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = visivel ? 'inline-flex' : 'none';
@@ -49,11 +45,7 @@ function setBotoesAuthHabilitados(habilitar) {
     try {
         const ids = [
             'btnSyncGoogle',
-            'btnSyncEmail',
             'btnSyncSair',
-            'btnSyncEntrarEmail',
-            'btnSyncCriarEmail',
-            'btnSyncCancelarEmail'
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -76,18 +68,8 @@ function mostrarPromptLoginSeNecessario() {
 }
 
 // ==== FUNÇÕES GLOBAIS (UI de autenticação do Sync) ====
-// Importante: esses handlers são chamados via onclick inline no HTML,
-// então PRECISAM estar no window.
-try { console.log('[sync-ui] handlers carregados'); } catch {}
-window.syncAbrirLoginEmail = function() {
-    const p = document.getElementById('syncEmailPanel');
-    if (p) p.style.display = 'flex';
-};
-
-window.syncFecharLoginEmail = function() {
-    const p = document.getElementById('syncEmailPanel');
-    if (p) p.style.display = 'none';
-};
+// Agora: somente Google + Sair.
+try { console.log('[sync-ui] handlers carregados (Google-only)'); } catch {}
 
 async function garantirSyncPronto() {
     try {
@@ -120,14 +102,14 @@ async function garantirSyncPronto() {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
                         atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         return;
                     }
                     if (st.state === 'logged-out') {
                         atualizarUIStatusSync('Sync: desligado (sem login)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         mostrarPromptLoginSeNecessario();
@@ -136,7 +118,7 @@ async function garantirSyncPronto() {
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
                         atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(st.uid).slice(0, 6)}…)`);
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
                         return;
@@ -151,7 +133,7 @@ async function garantirSyncPronto() {
                     }
                     if (st.state === 'redirect-error') {
                         atualizarUIStatusSync('Sync: erro no redirect (ver console)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         return;
@@ -190,46 +172,6 @@ window.syncEntrarGoogle = async function() {
             dica = '\n\nDica: Pop-up bloqueado. O app vai tentar entrar por redirecionamento. Se não abrir, desative bloqueador de pop-up.';
         }
         alert('Falha ao entrar com Google: ' + (code ? code + ' | ' : '') + msg + dica);
-    }
-};
-
-window.syncEntrarEmailSenha = async function() {
-    try {
-        const email = (document.getElementById('syncEmail')?.value || '').trim();
-        const senha = document.getElementById('syncSenha')?.value || '';
-        if (!email || !senha) {
-            alert('Preencha email e senha.');
-            return;
-        }
-        atualizarUIStatusSync('Sync: iniciando...');
-        const sync = await garantirSyncPronto();
-        await sync.entrarEmailSenha(email, senha);
-        window.syncFecharLoginEmail();
-    } catch (e) {
-        console.error(e);
-        alert('Falha ao entrar: ' + (e?.message || e));
-    }
-};
-
-window.syncCriarContaEmailSenha = async function() {
-    try {
-        const email = (document.getElementById('syncEmail')?.value || '').trim();
-        const senha = document.getElementById('syncSenha')?.value || '';
-        if (!email || !senha) {
-            alert('Preencha email e senha.');
-            return;
-        }
-        if (senha.length < 6) {
-            alert('Senha precisa ter pelo menos 6 caracteres.');
-            return;
-        }
-        atualizarUIStatusSync('Sync: iniciando...');
-        const sync = await garantirSyncPronto();
-        await sync.criarContaEmailSenha(email, senha);
-        window.syncFecharLoginEmail();
-    } catch (e) {
-        console.error(e);
-        alert('Falha ao criar conta: ' + (e?.message || e));
     }
 };
 
