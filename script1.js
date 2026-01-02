@@ -43,7 +43,9 @@ function setBotoesEntrarVisiveis(visivel) {
         const ids = ['btnSyncGoogle', 'syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
         ids.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+            if (!el) return;
+            const isInput = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+            el.style.display = visivel ? (isInput ? 'inline-block' : 'inline-flex') : 'none';
         });
     } catch {}
 }
@@ -53,7 +55,9 @@ function setEmailControlsVisiveis(visivel) {
         const ids = ['syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
         ids.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+            if (!el) return;
+            const isInput = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+            el.style.display = visivel ? (isInput ? 'inline-block' : 'inline-flex') : 'none';
         });
     } catch {}
 }
@@ -62,6 +66,17 @@ function setGoogleControlVisivel(visivel) {
     try {
         const el = document.getElementById('btnSyncGoogle');
         if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
+function aplicarUIPosLogin() {
+    // Garantia extra para PWA mobile: aplica o estado visual logo após autenticar.
+    try {
+        setBotoesEntrarVisiveis(false);
+        setEmailControlsVisiveis(false);
+        setGoogleControlVisivel(false);
+        setBotaoSairVisivel(true);
+        setBotaoForcarSyncVisivel(true);
     } catch {}
 }
 
@@ -191,6 +206,7 @@ window.syncEntrarGoogle = async function() {
         atualizarUIStatusSync('Sync: iniciando...');
         const sync = await garantirSyncPronto();
         await sync.entrarGoogle();
+        aplicarUIPosLogin();
     } catch (e) {
         console.error(e);
         const msg = String(e?.message || e);
@@ -223,6 +239,7 @@ window.syncEntrarEmail = async function() {
         atualizarUIStatusSync('Sync: entrando (email)...');
         const sync = await garantirSyncPronto();
         await sync.entrarEmailSenha(email, senha);
+        aplicarUIPosLogin();
     } catch (e) {
         console.error(e);
         const msg = String(e?.message || e);
@@ -241,6 +258,7 @@ window.syncCriarEmail = async function() {
         atualizarUIStatusSync('Sync: criando conta (email)...');
         const sync = await garantirSyncPronto();
         await sync.criarContaEmailSenha(email, senha);
+        aplicarUIPosLogin();
     } catch (e) {
         console.error(e);
         const msg = String(e?.message || e);
