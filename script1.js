@@ -58,6 +58,13 @@ function setEmailControlsVisiveis(visivel) {
     } catch {}
 }
 
+function setGoogleControlVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncGoogle');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
 function setBotoesAuthHabilitados(habilitar) {
     try {
         const ids = [
@@ -131,6 +138,7 @@ async function garantirSyncPronto() {
                         setBotaoSairVisivel(false);
                         setBotaoForcarSyncVisivel(false);
                         setEmailControlsVisiveis(true);
+                        setGoogleControlVisivel(true);
                         mostrarPromptLoginSeNecessario();
                         return;
                     }
@@ -138,14 +146,13 @@ async function garantirSyncPronto() {
                         const email = st.email ? ` | ${st.email}` : '';
                         atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(st.uid).slice(0, 6)}…)`);
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+                        // Após autenticar: não mostrar novamente opções de login.
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
-
-                        // Se entrou via Google, esconder login por email.
-                        const providerIds = Array.isArray(st.providerIds) ? st.providerIds : [];
-                        const entrouGoogle = providerIds.includes('google.com');
-                        setEmailControlsVisiveis(!entrouGoogle);
+                        // Esconde também os controles individuais (garantia extra)
+                        setEmailControlsVisiveis(false);
+                        setGoogleControlVisivel(false);
                         return;
                     }
                     if (st.state === 'pushed') {
