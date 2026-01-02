@@ -48,6 +48,16 @@ function setBotoesEntrarVisiveis(visivel) {
     } catch {}
 }
 
+function setEmailControlsVisiveis(visivel) {
+    try {
+        const ids = ['syncEmail', 'syncSenha', 'btnSyncEmailEntrar', 'btnSyncEmailCriar'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+        });
+    } catch {}
+}
+
 function setBotoesAuthHabilitados(habilitar) {
     try {
         const ids = [
@@ -120,6 +130,7 @@ async function garantirSyncPronto() {
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         setBotaoForcarSyncVisivel(false);
+                        setEmailControlsVisiveis(true);
                         mostrarPromptLoginSeNecessario();
                         return;
                     }
@@ -130,6 +141,11 @@ async function garantirSyncPronto() {
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
+
+                        // Se entrou via Google, esconder login por email.
+                        const providerIds = Array.isArray(st.providerIds) ? st.providerIds : [];
+                        const entrouGoogle = providerIds.includes('google.com');
+                        setEmailControlsVisiveis(!entrouGoogle);
                         return;
                     }
                     if (st.state === 'pushed') {
@@ -253,6 +269,41 @@ window.syncForcarAgora = async function() {
         alert('Falha ao forçar sync: ' + (e?.message || e));
     }
 };
+
+// Auto-sync leve: a cada 10 minutos, puxa/envia dados se estiver logado.
+// Não mostra alertas e não bloqueia o usuário.
+(function iniciarAutoSync10min() {
+    const INTERVAL_MS = 10 * 60 * 1000;
+    let rodando = false;
+
+    async function tick() {
+        try {
+            if (rodando) return;
+            if (!navigator.onLine) return;
+            const sync = window.__firebaseSync;
+            if (!sync || !sync.getUserInfo) return;
+            const info = sync.getUserInfo();
+            if (!info?.uid) return;
+
+            rodando = true;
+            // Usar forceSync para garantir pull+push.
+            if (typeof sync.forceSync === 'function') {
+                await sync.forceSync('auto');
+            } else if (typeof sync.pushLocal === 'function') {
+                await sync.pushLocal('auto');
+            }
+        } catch {
+            // silencioso
+        } finally {
+            rodando = false;
+        }
+    }
+
+    // Primeira tentativa pouco depois de carregar (ajuda PWA pós-login)
+    setTimeout(tick, 2500);
+    // Repetição a cada 10 minutos
+    setInterval(tick, INTERVAL_MS);
+})();
 
 function notificarMudancaParaSync(motivo) {
     try {
