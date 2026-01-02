@@ -33,7 +33,6 @@ function setBotoesAuthHabilitados(habilitar) {
         const ids = [
             'btnSyncGoogle',
             'btnSyncEmail',
-            'btnSyncTelefone',
             'btnSyncSair',
             'btnSyncEntrarEmail',
             'btnSyncCriarEmail',
@@ -146,7 +145,17 @@ window.syncEntrarGoogle = async function() {
         await sync.entrarGoogle();
     } catch (e) {
         console.error(e);
-        alert('Falha ao entrar com Google: ' + (e?.message || e));
+        const msg = String(e?.message || e);
+        const code = e?.code ? String(e.code) : '';
+        let dica = '';
+        if (code.includes('auth/unauthorized-domain') || msg.toLowerCase().includes('unauthorized')) {
+            dica = '\n\nDica: No Firebase Console → Authentication → Settings → Authorized domains, adicione seu domínio do GitHub Pages (ex.: vcursos.github.io).';
+        } else if (code.includes('auth/operation-not-allowed')) {
+            dica = '\n\nDica: No Firebase Console → Authentication → Sign-in method, habilite o provedor Google.';
+        } else if (code.includes('auth/popup-blocked') || msg.toLowerCase().includes('popup')) {
+            dica = '\n\nDica: Pop-up bloqueado. O app vai tentar entrar por redirecionamento. Se não abrir, desative bloqueador de pop-up.';
+        }
+        alert('Falha ao entrar com Google: ' + (code ? code + ' | ' : '') + msg + dica);
     }
 };
 
@@ -199,14 +208,6 @@ window.syncSair = async function() {
         console.error(e);
         alert('Falha ao sair: ' + (e?.message || e));
     }
-};
-
-window.syncInfoTelefone = function() {
-    alert(
-        'Login por TELEFONE no Firebase Web/PWA precisa de reCAPTCHA e uma tela específica.\n\n' +
-        'Recomendação: use Google ou Email/Senha (já funciona).\n\n' +
-        'Se você quiser MESMO telefone, eu implemento o fluxo com reCAPTCHA (mas precisa estar com o domínio do GitHub Pages autorizado e o Phone Auth ativado no Firebase).'
-    );
 };
 
 function notificarMudancaParaSync(motivo) {

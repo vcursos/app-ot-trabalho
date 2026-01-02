@@ -164,15 +164,21 @@ export class FirebaseSync {
 
     await this._ensureSignedIn();
 
+    // Se veio de redirect (mobile/PWA), precisamos capturar o resultado
+    // ANTES de anunciar "ready", pois isso pode trocar o usuário atual.
+    try {
+      const res = await getRedirectResult(this._auth);
+      if (res && this._auth.currentUser) {
+        this._uid = this._auth.currentUser.uid;
+        this._isAnonymous = !!this._auth.currentUser.isAnonymous;
+      }
+    } catch (e) {
+      // Em alguns casos pode falhar (ex.: sem resultado). Não é fatal.
+      this.onStatus({ state: 'redirect-error', error: this._formatError(e) });
+    }
+
     this._initialized = true;
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
-
-    // Se veio de redirect (mobile), capturar resultado
-    try {
-      await getRedirectResult(this._auth);
-    } catch {
-      // ignora
-    }
 
     // Começa a escutar remoto
     this._startRealtimeListener();
@@ -283,15 +289,32 @@ export class FirebaseSync {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      // Desktop: popup; Mobile/PWA: redirect costuma funcionar melhor
+      // GitHub Pages/PWA às vezes bloqueia popup. Tentamos popup e, se falhar,
+      // caímos automaticamente para redirect.
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
       if (isMobile) {
         await signInWithRedirect(this._auth, provider);
         return;
       }
-      await signInWithPopup(this._auth, provider);
+
+      try {
+        await signInWithPopup(this._auth, provider);
+      } catch (ePopup) {
+        const code = ePopup?.code || '';
+        const msg = String(ePopup?.message || ePopup);
+
+        // Alguns erros comuns de popup: popup-blocked, popup-closed-by-user,
+        // ou até "redirect_uri_mismatch" dependendo do ambiente.
+        // Nesses casos, redirect costuma funcionar melhor.
+        if (String(code).includes('popup') || msg.toLowerCase().includes('popup')) {
+          await signInWithRedirect(this._auth, provider);
+          return;
+        }
+
+        throw ePopup;
+      }
     } catch (e) {
-      this.onStatus({ state: 'auth-error', error: String(e) });
+      this.onStatus({ state: 'auth-error', error: this._formatError(e) });
       throw e;
     }
 
@@ -321,7 +344,7 @@ export class FirebaseSync {
         await createUserWithEmailAndPassword(this._auth, email, senha);
       }
     } catch (e) {
-      this.onStatus({ state: 'auth-error', error: String(e) });
+      this.onStatus({ state: 'auth-error', error: this._formatError(e) });
       throw e;
     }
 
@@ -343,7 +366,7 @@ export class FirebaseSync {
     try {
       await signInWithEmailAndPassword(this._auth, email, senha);
     } catch (e) {
-      this.onStatus({ state: 'auth-error', error: String(e) });
+      this.onStatus({ state: 'auth-error', error: this._formatError(e) });
       throw e;
     }
 
@@ -445,7 +468,19 @@ export class FirebaseSync {
       this.onStatus({ state: 'pushed', at: payload.meta.updatedAt, reason });
     } catch (e) {
       console.warn('Falha ao enviar remoto:', e);
-      this.onStatus({ state: 'push-error', error: String(e) });
+      this.onStatus({ state: 'push-error', error: this._formatError(e) });
+    }
+  }
+
+  _formatError(e) {
+    try {
+      const parts = [];
+      if (e?.code) parts.push(String(e.code));
+      if (e?.message) parts.push(String(e.message));
+      const base = parts.filter(Boolean).join(' | ');
+      return base || String(e);
+    } catch {
+      return String(e);
     }
   }
 }
