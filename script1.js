@@ -333,8 +333,9 @@ function atualizarUIFestivoPorDia() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
-    // Evitar clique antes do sync iniciar
-    setBotoesAuthHabilitados(false);
+    // Não bloquear os botões de login: se ficarem "disabled", o clique não dispara.
+    // O fluxo de sync já lida com init sob demanda.
+    setBotoesAuthHabilitados(true);
     popularTodosServicos();
     popularAdicionais();
     atualizarTabela();
@@ -389,6 +390,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         setBotoesAuthHabilitados(true);
                         return;
                     }
+                    if (st.state === 'logged-out') {
+                        atualizarUIStatusSync('Sync: desligado (sem login)');
+                        setBotoesAuthHabilitados(true);
+                        // Mantém painel visível para o usuário poder clicar.
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+                        return;
+                    }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
                         const modo = st.isAnonymous ? 'anônimo' : 'conta';
@@ -396,15 +404,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         setBotoesAuthHabilitados(true);
 
-                        // Auto-login UX:
-                        // - Se já está em conta (não anônimo): esconder painel de login.
-                        // - Se está anônimo: mostrar login (mas não forçar).
-                        if (st.isAnonymous) {
-                            setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
-                            mostrarPromptLoginSeNecessario();
-                        } else {
-                            setAuthPanelsVisibilidade({ mostrarAuthPanel: false, mostrarEmailPanel: false });
-                        }
+                        // Agora o app pode ficar sem login (sem anônimo). Mantém painel visível,
+                        // mas alterna visibilidade dos botões via setBotoesEntrarVisiveis/setBotaoSairVisivel.
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         return;
                     }
                     if (st.state === 'pushed') {

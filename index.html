@@ -26,6 +26,7 @@
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
             </div>
             <div id="syncStatus" style="margin-top:8px; font-size:12px; color:#666;"></div>
+            <div id="syncClickDiag" style="margin-top:4px; font-size:11px; color:#999;"></div>
 
             <div id="syncAuthPanel" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; position:relative; z-index:5; pointer-events:auto;">
                 <button id="btnSyncGoogle" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarGoogle()">🔐 Entrar (Google)</button>
@@ -438,14 +439,21 @@
                     ['btnSyncSair', 'syncSair'],
                     // email removido: só Google
                 ];
+                function setDiag(text) {
+                    const d = document.getElementById('syncClickDiag');
+                    if (d) d.textContent = text;
+                }
+
                 map.forEach(([id, fn]) => {
                     const el = document.getElementById(id);
                     if (!el) return;
                     el.addEventListener('click', (ev) => {
-                        // Evita duplo disparo (onclick + listener)
-                        ev.preventDefault();
-                        try { window[fn]?.(); } catch (e) { console.error(e); }
-                        return false;
+                        // Diagnóstico: confirma visualmente que o clique chegou até aqui.
+                        setDiag(`Clique em ${id} @ ${new Date().toLocaleTimeString()}`);
+                        try { window[fn]?.(); } catch (e) {
+                            console.error(e);
+                            setDiag(`Erro ao chamar ${fn}: ${e && e.message ? e.message : e}`);
+                        }
                     });
                 });
             });
