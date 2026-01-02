@@ -76,6 +76,9 @@ function mostrarPromptLoginSeNecessario() {
 }
 
 // ==== FUNÇÕES GLOBAIS (UI de autenticação do Sync) ====
+// Importante: esses handlers são chamados via onclick inline no HTML,
+// então PRECISAM estar no window.
+try { console.log('[sync-ui] handlers carregados'); } catch {}
 window.syncAbrirLoginEmail = function() {
     const p = document.getElementById('syncEmailPanel');
     if (p) p.style.display = 'flex';
@@ -170,6 +173,7 @@ async function garantirSyncPronto() {
 
 window.syncEntrarGoogle = async function() {
     try {
+        try { console.log('[sync-ui] clique Google'); } catch {}
         atualizarUIStatusSync('Sync: iniciando...');
         const sync = await garantirSyncPronto();
         await sync.entrarGoogle();
@@ -231,6 +235,7 @@ window.syncCriarContaEmailSenha = async function() {
 
 window.syncSair = async function() {
     try {
+        try { console.log('[sync-ui] clique Sair'); } catch {}
         if (!window.__firebaseSync) return;
         await window.__firebaseSync.sair();
         alert('Saiu da conta.');

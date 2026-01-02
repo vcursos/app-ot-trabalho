@@ -423,8 +423,21 @@
     </div>
     <script src="js/config-tabelas.js"></script>
     <script src="js/servicos-custom.js"></script>
-    <script type="module" src="js/syncFirebase.js"></script>
     <script src="script1.js"></script>
+    <script type="module" src="js/syncFirebase.js"></script>
+    <script>
+        // Fallback: se por algum motivo o script ainda não registrou as funções globais,
+        // mostramos um aviso em vez de ficar "sem acontecer nada".
+        (function(){
+            const warn = (name) => {
+                if (typeof window[name] === 'function') return;
+                window[name] = function(){
+                    alert('Carregando sincronização... atualize a página e tente novamente.');
+                };
+            };
+            ['syncEntrarGoogle','syncAbrirLoginEmail','syncSair','syncEntrarEmailSenha','syncCriarContaEmailSenha','syncFecharLoginEmail'].forEach(warn);
+        })();
+    </script>
     <script>
         // Registrar Service Worker para PWA (se suportado)
         if ('serviceWorker' in navigator) {
