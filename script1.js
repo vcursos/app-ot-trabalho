@@ -28,6 +28,24 @@ function setAuthPanelsVisibilidade({ mostrarAuthPanel, mostrarEmailPanel } = {})
     } catch {}
 }
 
+function setBotoesAuthHabilitados(habilitar) {
+    try {
+        const ids = [
+            'btnSyncGoogle',
+            'btnSyncEmail',
+            'btnSyncTelefone',
+            'btnSyncSair',
+            'btnSyncEntrarEmail',
+            'btnSyncCriarEmail',
+            'btnSyncCancelarEmail'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = !habilitar;
+        });
+    } catch {}
+}
+
 function mostrarPromptLoginSeNecessario() {
     try {
         const jaMostrou = localStorage.getItem('syncLoginPromptMostrado') === '1';
@@ -52,13 +70,80 @@ window.syncFecharLoginEmail = function() {
     if (p) p.style.display = 'none';
 };
 
+async function garantirSyncPronto() {
+    try {
+        if (window.__firebaseSync) return window.__firebaseSync;
+
+        // Import dinâmico (mesmo fluxo usado no DOMContentLoaded)
+        const mod = await import('./js/syncFirebase.js');
+        if (!mod || !mod.FirebaseSync) {
+            throw new Error('Módulo de sync não encontrado.');
+        }
+
+        window.__firebaseSync = new mod.FirebaseSync({
+            enabled: true,
+            onRemoteApplied: () => {
+                try {
+                    ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
+                    historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
+                    premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
+                } catch {}
+
+                try {
+                    atualizarTabela();
+                    atualizarResumos();
+                    atualizarUIFestivoPorDia();
+                    if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+                } catch {}
+            },
+            onStatus: (st) => {
+                try {
+                    if (!st || !st.state) return;
+                    if (st.state === 'not-configured') {
+                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                        return;
+                    }
+                    if (st.state === 'ready') {
+                        const email = st.email ? ` | ${st.email}` : '';
+                        const modo = st.isAnonymous ? 'anônimo' : 'conta';
+                        atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
+                        if (st.isAnonymous) {
+                            setAuthPanelsVisibilidade({ mostrarAuthPanel: true, mostrarEmailPanel: false });
+                            mostrarPromptLoginSeNecessario();
+                        } else {
+                            setAuthPanelsVisibilidade({ mostrarAuthPanel: false, mostrarEmailPanel: false });
+                        }
+                        return;
+                    }
+                    if (st.state === 'pushed') {
+                        atualizarUIStatusSync('Sync: ok');
+                        return;
+                    }
+                    if (st.state === 'remote-applied') {
+                        atualizarUIStatusSync('Sync: atualizado');
+                        return;
+                    }
+                    if (String(st.state).includes('error')) {
+                        atualizarUIStatusSync('Sync: erro (ver console)');
+                    }
+                } catch {}
+            }
+        });
+
+        await window.__firebaseSync.init();
+        return window.__firebaseSync;
+    } catch (e) {
+        console.warn('Falha ao iniciar sync:', e);
+        throw e;
+    }
+}
+
 window.syncEntrarGoogle = async function() {
     try {
-        if (!window.__firebaseSync) {
-            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
-            return;
-        }
-        await window.__firebaseSync.entrarGoogle();
+        atualizarUIStatusSync('Sync: iniciando...');
+        const sync = await garantirSyncPronto();
+        await sync.entrarGoogle();
     } catch (e) {
         console.error(e);
         alert('Falha ao entrar com Google: ' + (e?.message || e));
@@ -73,11 +158,9 @@ window.syncEntrarEmailSenha = async function() {
             alert('Preencha email e senha.');
             return;
         }
-        if (!window.__firebaseSync) {
-            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
-            return;
-        }
-        await window.__firebaseSync.entrarEmailSenha(email, senha);
+        atualizarUIStatusSync('Sync: iniciando...');
+        const sync = await garantirSyncPronto();
+        await sync.entrarEmailSenha(email, senha);
         window.syncFecharLoginEmail();
     } catch (e) {
         console.error(e);
@@ -97,11 +180,9 @@ window.syncCriarContaEmailSenha = async function() {
             alert('Senha precisa ter pelo menos 6 caracteres.');
             return;
         }
-        if (!window.__firebaseSync) {
-            alert('Sync ainda não iniciou. Aguarde 2 segundos e tente novamente.');
-            return;
-        }
-        await window.__firebaseSync.criarContaEmailSenha(email, senha);
+        atualizarUIStatusSync('Sync: iniciando...');
+        const sync = await garantirSyncPronto();
+        await sync.criarContaEmailSenha(email, senha);
         window.syncFecharLoginEmail();
     } catch (e) {
         console.error(e);
@@ -274,6 +355,8 @@ function atualizarUIFestivoPorDia() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
+    // Evitar clique antes do sync iniciar
+    setBotoesAuthHabilitados(false);
     popularTodosServicos();
     popularAdicionais();
     atualizarTabela();
@@ -325,12 +408,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
                         atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                        setBotoesAuthHabilitados(true);
                         return;
                     }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
                         const modo = st.isAnonymous ? 'anônimo' : 'conta';
                         atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
+
+                        setBotoesAuthHabilitados(true);
 
                         // Auto-login UX:
                         // - Se já está em conta (não anônimo): esconder painel de login.
@@ -353,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     if (String(st.state).includes('error')) {
                         atualizarUIStatusSync('Sync: erro (ver console)');
+                        setBotoesAuthHabilitados(true);
                         return;
                     }
                 }
@@ -362,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
             console.warn('Sync Firebase não iniciou:', e);
             atualizarUIStatusSync('Sync: indisponível');
+            setBotoesAuthHabilitados(true);
         }
     })();
 });

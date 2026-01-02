@@ -28,18 +28,18 @@
             <div id="syncStatus" style="margin-top:8px; font-size:12px; color:#666;"></div>
 
             <div id="syncAuthPanel" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarGoogle()">🔐 Entrar (Google)</button>
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncAbrirLoginEmail()">📧 Entrar (Email)</button>
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncInfoTelefone()">📱 Entrar (Telefone)</button>
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncSair()">🚪 Sair</button>
+                <button id="btnSyncGoogle" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarGoogle()">🔐 Entrar (Google)</button>
+                <button id="btnSyncEmail" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncAbrirLoginEmail()">📧 Entrar (Email)</button>
+                <button id="btnSyncTelefone" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncInfoTelefone()">📱 Entrar (Telefone)</button>
+                <button id="btnSyncSair" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncSair()">🚪 Sair</button>
             </div>
 
             <div id="syncEmailPanel" style="margin-top:8px; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
                 <input id="syncEmail" type="email" placeholder="email" style="padding:8px; border-radius:8px; border:1px solid #ddd; min-width:220px;">
                 <input id="syncSenha" type="password" placeholder="senha" style="padding:8px; border-radius:8px; border:1px solid #ddd; min-width:160px;">
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarEmailSenha()">Entrar</button>
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncCriarContaEmailSenha()">Criar Conta</button>
-                <button type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncFecharLoginEmail()">Cancelar</button>
+                <button id="btnSyncEntrarEmail" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncEntrarEmailSenha()">Entrar</button>
+                <button id="btnSyncCriarEmail" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncCriarContaEmailSenha()">Criar Conta</button>
+                <button id="btnSyncCancelarEmail" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;" onclick="syncFecharLoginEmail()">Cancelar</button>
             </div>
             <div class="resumo">
                 <div class="card">
