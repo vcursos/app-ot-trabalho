@@ -298,28 +298,19 @@ export class FirebaseSync {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      // GitHub Pages/PWA às vezes bloqueia popup. Tentamos popup e, se falhar,
-      // caímos automaticamente para redirect.
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-      if (isMobile) {
-        await signInWithRedirect(this._auth, provider);
-        return;
-      }
-
+      // Preferência: sempre popup para manter o usuário na mesma página.
+      // Só usar redirect como fallback quando o popup for bloqueado.
       try {
         await signInWithPopup(this._auth, provider);
       } catch (ePopup) {
-        const code = ePopup?.code || '';
+        const code = String(ePopup?.code || '');
         const msg = String(ePopup?.message || ePopup);
 
-        // Alguns erros comuns de popup: popup-blocked, popup-closed-by-user,
-        // ou até "redirect_uri_mismatch" dependendo do ambiente.
-        // Nesses casos, redirect costuma funcionar melhor.
-        if (String(code).includes('popup') || msg.toLowerCase().includes('popup')) {
+        // Somente fallback quando realmente for erro de popup.
+        if (code.includes('popup') || msg.toLowerCase().includes('popup')) {
           await signInWithRedirect(this._auth, provider);
           return;
         }
-
         throw ePopup;
       }
     } catch (e) {
