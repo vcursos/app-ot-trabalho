@@ -1609,6 +1609,7 @@ function gerarPDFComEquipamentos() {
 // ==================== BACKUP LOCAL (JSON) ====================
 function exportarBackup() {
     try {
+        // Incluir dados de OTs e logística
         const payload = {
             geradoEm: new Date().toISOString(),
             versao: 1,
@@ -1616,6 +1617,10 @@ function exportarBackup() {
             registrosLogistica: registrosLogistica,
             historicoOTPorMes: historicoOTPorMes,
             premiosFestivosPorDia: premiosFestivosPorDia,
+            configuracaoVeiculo: JSON.parse(localStorage.getItem('configuracaoVeiculo') || 'null'),
+            // Incluir configurações de tabelas de serviços
+            tabelasCustomizadas: JSON.parse(localStorage.getItem('tabelasCustomizadas') || 'null'),
+            multiplicadores: JSON.parse(localStorage.getItem('multiplicadores') || 'null')
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1664,6 +1669,10 @@ function importarBackup() {
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
                 const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
                 const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
+                const novaConfigVeiculo = (payload.configuracaoVeiculo && typeof payload.configuracaoVeiculo === 'object') ? payload.configuracaoVeiculo : null;
+                // Configurações de tabelas de serviços (backward compatibility: se não existir no backup, ignorar)
+                const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object') ? payload.tabelasCustomizadas : null;
+                const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object') ? payload.multiplicadores : null;
 
                 if (novasOTs.length === 0 && novaLogistica.length === 0) {
                     alert('Backup não contém registros para importar.');
@@ -1677,6 +1686,16 @@ function importarBackup() {
                     registrosLogistica = novaLogistica;
                     if (novoHistorico) historicoOTPorMes = novoHistorico;
                     if (novosPremios) premiosFestivosPorDia = novosPremios;
+                    // Substituir também as configurações se existirem no backup (preserva se não existirem)
+                    if (novasTabelas) {
+                        // Substituir tabelas personalizadas
+                    }
+                    if (novosMultiplicadores) {
+                        // Substituir multiplicadores
+                    }
+                    if (novaConfigVeiculo) {
+                        // Substituir configuração do veículo
+                    }
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -1711,6 +1730,8 @@ function importarBackup() {
                             if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
                         });
                     }
+                    // Configurações: em modo mesclar, substitui sempre (não há conceito de merge para configs)
+                    // mas preserva se não existir no backup (backward compatibility)
                 }
 
                 // Persistir
@@ -1718,6 +1739,21 @@ function importarBackup() {
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
                 localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
+                
+                // Configuração do veículo (backward compatibility)
+                if (novaConfigVeiculo) {
+                    localStorage.setItem('configuracaoVeiculo', JSON.stringify(novaConfigVeiculo));
+                }
+                
+                // Configurações de tabelas de serviços (backward compatibility: só restaura se existir no backup)
+                if (novasTabelas) {
+                    localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
+                    notificarMudancaParaSync('tabelasCustomizadas');
+                }
+                if (novosMultiplicadores) {
+                    localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
+                    notificarMudancaParaSync('multiplicadores');
+                }
 
                 notificarMudancaParaSync('importarBackup');
 
@@ -1726,6 +1762,21 @@ function importarBackup() {
                 atualizarResumos();
                 atualizarTabelaLogistica();
                 atualizarUIFestivoPorDia();
+                
+                // Recarregar dropdowns de serviços se as tabelas foram importadas
+                if (novasTabelas || novosMultiplicadores) {
+                    try {
+                        // Recarregar serviços nos dropdowns para refletir as configurações restauradas
+                        if (typeof popularTodosServicos === 'function') {
+                            popularTodosServicos();
+                        }
+                        if (typeof popularAdicionais === 'function') {
+                            popularAdicionais();
+                        }
+                    } catch (e) {
+                        console.warn('Não foi possível atualizar dropdowns de serviços:', e);
+                    }
+                }
 
                 alert('Backup importado com sucesso!');
             } catch (e) {
