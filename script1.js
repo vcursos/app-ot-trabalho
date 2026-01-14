@@ -127,7 +127,7 @@ async function garantirSyncPronto() {
                 try {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                        atualizarUIStatusSync('Sync: não configurado - Configure Firebase em js/firebase-config.js para habilitar sincronização entre dispositivos');
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 onStatus: (st) => {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                        atualizarUIStatusSync('Sync: não configurado - Configure Firebase em js/firebase-config.js para habilitar sincronização entre dispositivos');
                         setBotoesAuthHabilitados(true);
                         return;
                     }
