@@ -136,10 +136,22 @@ npx cap open ios        # Xcode
 
 ## 💾 Armazenamento
 
-- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual)
+- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual, tabelasCustomizadas, multiplicadores)
 - **Persistência:** Tudo fica no dispositivo; não há servidor
-- **Backup:** Exportar JSON manualmente (botão "💾 Backup JSON")
-- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar Backup")
+- **Backup:** Exportar JSON manualmente (botão "💾 Backup JSON") - **inclui configurações de tabelas de serviços**
+- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar Backup") - **restaura tabelas e multiplicadores**
+
+### 🔄 Backup Completo
+
+O sistema de backup/importação agora inclui:
+- ✅ Ordens de Trabalho (OTs)
+- ✅ Registros de Logística
+- ✅ Histórico mensal de OTs
+- ✅ Prêmios por dias festivos
+- ✅ **Configurações de tabelas de serviços** (Instalações, Avarias, Adicionais)
+- ✅ **Multiplicadores configurados** (Normal, Domingo/Feriado, Dobrado)
+
+**Compatibilidade:** Backups antigos (versão 1) podem ser importados sem problemas. As configurações de tabelas atuais serão mantidas se não estiverem presentes no backup.
 
 ## 📄 Fluxo mensal recomendado
 

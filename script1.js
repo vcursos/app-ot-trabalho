@@ -1609,13 +1609,20 @@ function gerarPDFComEquipamentos() {
 // ==================== BACKUP LOCAL (JSON) ====================
 function exportarBackup() {
     try {
+        // Carregar configurações de tabelas de serviços
+        const tabelasCustomizadas = localStorage.getItem('tabelasCustomizadas');
+        const multiplicadores = localStorage.getItem('multiplicadores');
+        
         const payload = {
             geradoEm: new Date().toISOString(),
-            versao: 1,
+            versao: 2, // Incrementar versão para incluir novos campos
             ordensTrabalho: ordensTrabalho,
             registrosLogistica: registrosLogistica,
             historicoOTPorMes: historicoOTPorMes,
             premiosFestivosPorDia: premiosFestivosPorDia,
+            // Novos campos: configurações de tabelas de serviços
+            tabelasCustomizadas: tabelasCustomizadas ? JSON.parse(tabelasCustomizadas) : null,
+            multiplicadores: multiplicadores ? JSON.parse(multiplicadores) : null,
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1664,6 +1671,10 @@ function importarBackup() {
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
                 const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
                 const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
+                
+                // Novos campos: configurações de tabelas de serviços (retrocompatibilidade)
+                const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object') ? payload.tabelasCustomizadas : null;
+                const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object') ? payload.multiplicadores : null;
 
                 if (novasOTs.length === 0 && novaLogistica.length === 0) {
                     alert('Backup não contém registros para importar.');
@@ -1718,6 +1729,14 @@ function importarBackup() {
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
                 localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
+                
+                // Persistir configurações de tabelas de serviços (se presentes no backup)
+                if (novasTabelas) {
+                    localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
+                }
+                if (novosMultiplicadores) {
+                    localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
+                }
 
                 notificarMudancaParaSync('importarBackup');
 
@@ -1726,6 +1745,17 @@ function importarBackup() {
                 atualizarResumos();
                 atualizarTabelaLogistica();
                 atualizarUIFestivoPorDia();
+                
+                // Recarregar serviços nos dropdowns para refletir configurações importadas
+                if (novasTabelas || novosMultiplicadores) {
+                    try {
+                        if (typeof recarregarServicos === 'function') {
+                            recarregarServicos();
+                        }
+                    } catch (e) {
+                        console.warn('Não foi possível recarregar serviços:', e);
+                    }
+                }
 
                 alert('Backup importado com sucesso!');
             } catch (e) {
