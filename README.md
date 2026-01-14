@@ -136,10 +136,10 @@ npx cap open ios        # Xcode
 
 ## 💾 Armazenamento
 
-- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual)
+- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual, tabelasCustomizadas, multiplicadores, configuracaoVeiculo)
 - **Persistência:** Tudo fica no dispositivo; não há servidor
-- **Backup:** Exportar JSON manualmente (botão "💾 Backup JSON")
-- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar Backup")
+- **Backup:** Exportar JSON manualmente (botão "💾 Backup") - inclui OTs, logística e configurações de tabelas de serviços
+- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar") - restaura todos os dados incluindo configurações de serviços
 
 ## 📄 Fluxo mensal recomendado
 
@@ -147,7 +147,7 @@ npx cap open ios        # Xcode
 2. No último dia do mês:
    - Gerar PDF OT (aba Ordens de Trabalho)
    - Gerar PDF Logística (aba Logística Diária)
-   - Fazer Backup JSON (guarda todos os dados em arquivo)
+   - Fazer Backup JSON (guarda todos os dados em arquivo, incluindo configurações de tabelas de serviços)
 3. (Opcional) Limpar dados antigos via `limpar-dados.html`
 
 ## 🛠️ Tecnologias
