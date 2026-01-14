@@ -972,11 +972,13 @@ function salvarDados() {
 // Helper: ordena OTs por data descendente (mais recentes primeiro)
 function ordenarOTsPorDataDesc(ots) {
     return [...ots].sort((a, b) => {
-        // Compara strings ISO de data diretamente (formato YYYY-MM-DDTHH:mm:ss)
+        // Compara strings ISO de data (formato YYYY-MM-DDTHH:mm:ss)
         // OTs sem data válida vão para o final da lista
-        const dataA = a.data || '0000-01-01T00:00:00';
-        const dataB = b.data || '0000-01-01T00:00:00';
-        return dataB.localeCompare(dataA);
+        const FALLBACK_DATE = '0000-01-01T00:00:00';
+        const dataA = a.data || FALLBACK_DATE;
+        const dataB = b.data || FALLBACK_DATE;
+        // Comparação lexicográfica simples (ISO dates são comparáveis como strings)
+        return dataB > dataA ? 1 : dataB < dataA ? -1 : 0;
     });
 }
 
