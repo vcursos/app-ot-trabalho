@@ -1694,7 +1694,8 @@ function importarBackup() {
                 const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object' && !Array.isArray(payload.tabelasCustomizadas)) ? payload.tabelasCustomizadas : null;
                 const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object' && !Array.isArray(payload.multiplicadores)) ? payload.multiplicadores : null;
 
-                if (novasOTs.length === 0 && novaLogistica.length === 0) {
+                // Validação: backup deve conter pelo menos algum dado (OTs, logística, ou configurações)
+                if (novasOTs.length === 0 && novaLogistica.length === 0 && !novasTabelas && !novosMultiplicadores) {
                     alert('Backup não contém registros para importar.');
                     return;
                 }
@@ -1771,6 +1772,7 @@ function importarBackup() {
                 
                 // Recarregar serviços nos dropdowns apenas se configurações de serviço foram importadas E substituídas
                 // (em modo mesclar, configs são preservadas; em modo substituir, configs são atualizadas se presentes)
+                // Nota: recarregarServicos() recarrega todas as configs de localStorage, então uma única chamada é suficiente
                 if (substituir && (novasTabelas || novosMultiplicadores)) {
                     try {
                         if (typeof recarregarServicos === 'function') {
