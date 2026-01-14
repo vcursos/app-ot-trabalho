@@ -46,6 +46,13 @@
 ✅ Histórico de versões (Git)
 ✅ Pode atualizar sempre que quiser
 
+### ⚠️ Firebase Configuration para GitHub Pages:
+Se você estiver usando sincronização Firebase:
+1. Após configurar o repositório, vá ao Firebase Console
+2. Em Authentication > Settings > Authorized domains
+3. Adicione o domínio: `seu-usuario.github.io`
+4. Isso permite que o Google Login funcione no seu site
+
 ---
 
 ## Opção 3: Vercel (Profissional)
