@@ -1042,7 +1042,7 @@ function toggleSort(field) {
         // Se já está ordenando por esse campo, inverte a direção
         currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
     } else {
-        // Se é um campo novo, começa com desc
+        // Se é um campo novo, começa com desc (conforme requisito: data deve começar desc = mais recente primeiro)
         currentSort.field = field;
         currentSort.direction = 'desc';
     }
@@ -1069,7 +1069,12 @@ function atualizarIndicadoresOrdenacao() {
         const arrow = currentSort.field === 'data' 
             ? (currentSort.direction === 'asc' ? ' ▲' : ' ▼')
             : '';
-        thData.innerHTML = `Data <span class="sort-arrow">${arrow}</span>`;
+        // Use textContent for the arrow to avoid XSS
+        const span = thData.querySelector('.sort-arrow') || document.createElement('span');
+        span.className = 'sort-arrow';
+        span.textContent = arrow;
+        thData.textContent = 'Data ';
+        thData.appendChild(span);
     }
     
     // Atualizar indicador de OT
@@ -1078,7 +1083,12 @@ function atualizarIndicadoresOrdenacao() {
         const arrow = currentSort.field === 'numeroOT' 
             ? (currentSort.direction === 'asc' ? ' ▲' : ' ▼')
             : '';
-        thOT.innerHTML = `OT <span class="sort-arrow">${arrow}</span>`;
+        // Use textContent for the arrow to avoid XSS
+        const span = thOT.querySelector('.sort-arrow') || document.createElement('span');
+        span.className = 'sort-arrow';
+        span.textContent = arrow;
+        thOT.textContent = 'OT ';
+        thOT.appendChild(span);
     }
 }
 
