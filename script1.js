@@ -1686,16 +1686,6 @@ function importarBackup() {
                     registrosLogistica = novaLogistica;
                     if (novoHistorico) historicoOTPorMes = novoHistorico;
                     if (novosPremios) premiosFestivosPorDia = novosPremios;
-                    // Substituir também as configurações se existirem no backup (preserva se não existirem)
-                    if (novasTabelas) {
-                        // Substituir tabelas personalizadas
-                    }
-                    if (novosMultiplicadores) {
-                        // Substituir multiplicadores
-                    }
-                    if (novaConfigVeiculo) {
-                        // Substituir configuração do veículo
-                    }
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -1730,11 +1720,9 @@ function importarBackup() {
                             if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
                         });
                     }
-                    // Configurações: em modo mesclar, substitui sempre (não há conceito de merge para configs)
-                    // mas preserva se não existir no backup (backward compatibility)
                 }
 
-                // Persistir
+                // Persistir (OTs e Logística já foram atualizadas acima)
                 localStorage.setItem('ordensTrabalho', JSON.stringify(ordensTrabalho));
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
