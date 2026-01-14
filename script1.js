@@ -1728,12 +1728,16 @@ function importarBackup() {
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
                 localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
                 
-                // Configuração do veículo (backward compatibility)
+                // Configurações (veículo e tabelas de serviços) são sempre substituídas se presentes no backup,
+                // independentemente do modo (substituir ou mesclar), pois não há conceito de "merge" para configurações.
+                // Backward compatibility: só restaura se existir no backup, preserva configurações atuais caso contrário.
+                
+                // Configuração do veículo
                 if (novaConfigVeiculo) {
                     localStorage.setItem('configuracaoVeiculo', JSON.stringify(novaConfigVeiculo));
                 }
                 
-                // Configurações de tabelas de serviços (backward compatibility: só restaura se existir no backup)
+                // Configurações de tabelas de serviços
                 if (novasTabelas) {
                     localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
                     notificarMudancaParaSync('tabelasCustomizadas');
