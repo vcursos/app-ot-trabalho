@@ -41,9 +41,14 @@ import {
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
-// Preencha com as credenciais do seu projeto Firebase.
-// (Config do Firebase Console -> Project settings -> SDK setup and configuration)
-export const firebaseConfig = {
+// A configuração do Firebase deve ser fornecida através de window.firebaseConfig
+// (definido em js/firebase-config.js, que deve ser carregado ANTES deste módulo).
+// Se window.firebaseConfig não estiver disponível, usamos a configuração de fallback abaixo.
+//
+// NOTA DE SEGURANÇA: Firebase API keys para web são públicas por design e devem estar
+// no código cliente. A segurança é garantida pelas regras do Firestore e Authentication,
+// não pela ocultação da API key. Veja: https://firebase.google.com/docs/projects/api-keys
+export const firebaseConfig = (typeof window !== 'undefined' && window.firebaseConfig) || {
   apiKey: 'AIzaSyDrXDix0uoEX6Cw9REZrNY3gMQgBlCLfYQ',
   authDomain: 'ottrabalho-34c3f.firebaseapp.com',
   projectId: 'ottrabalho-34c3f',
@@ -439,20 +444,20 @@ export class FirebaseSync {
       }
 
       const localData = getLocalSnapshot();
-      const localWrap = { meta: { updatedAt: new Date().toISOString() }, data: localData };
-      const merged = mergePreferNewest(localWrap, remote);
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-      // Regra simples:
-      // - Se remoto tem dados e local está vazio => aplicar remoto.
-      // - Senão, aplicar o mais novo por updatedAt.
-      const shouldApplyRemote = (remoteHas && !localHas) || (merged === remote);
-      if (shouldApplyRemote) {
+
+      // Regra para login: preferir remoto quando disponível (servidor como fonte da verdade)
+      // - Se remoto tem dados => aplicar remoto (seja local vazio ou não)
+      // - Se remoto vazio e local tem dados => manter local
+      // Após login, mudanças locais futuras serão sincronizadas normalmente via pushLocal
+      if (remoteHas) {
         applySnapshotToLocalStorage(remote.data || {});
         this.onRemoteApplied(remote.data || {});
         this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
       }
+// Se remoto vazio e local tem dados: mantém local (não sobrescreve)
     } catch (e) {
       console.warn('Falha ao puxar remoto no login:', e);
       this.onStatus({ state: 'read-error', error: this._formatError(e) });

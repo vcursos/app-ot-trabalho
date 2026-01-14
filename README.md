@@ -136,10 +136,85 @@ npx cap open ios        # Xcode
 
 ## 💾 Armazenamento
 
-- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual)
+- **Dados locais:** localStorage (ordensTrabalho, registrosLogistica, registroDiaAtual, tabelasCustomizadas, multiplicadores)
 - **Persistência:** Tudo fica no dispositivo; não há servidor
-- **Backup:** Exportar JSON manualmente (botão "💾 Backup JSON")
-- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar Backup")
+- **Backup:** Exportar JSON manualmente (botão "💾 Backup JSON") - **inclui configurações de tabelas de serviços**
+- **Importação:** Restaurar de arquivo JSON (botão "📥 Importar Backup") - **restaura tabelas e multiplicadores**
+
+### 🔄 Backup Completo
+
+O sistema de backup/importação agora inclui:
+- ✅ Ordens de Trabalho (OTs)
+- ✅ Registros de Logística
+- ✅ Histórico mensal de OTs
+- ✅ Prêmios por dias festivos
+- ✅ **Configurações de tabelas de serviços** (Instalações, Avarias, Adicionais)
+- ✅ **Multiplicadores configurados** (Normal, Domingo/Feriado, Dobrado)
+
+**Compatibilidade:** Backups antigos (versão 1) podem ser importados sem problemas. As configurações de tabelas atuais serão mantidas se não estiverem presentes no backup.
+
+## 🔄 Sincronização Firebase (Cross-Device)
+
+O app suporta sincronização entre dispositivos usando Firebase + Google Login:
+
+### Configuração Inicial
+
+1. **Obter credenciais Firebase:**
+   - Acesse [Firebase Console](https://console.firebase.google.com/)
+   - Crie um projeto ou use um existente
+   - Vá em Project Settings > General > Your apps
+   - Copie as credenciais do SDK
+
+2. **Configurar o app:**
+   - Edite o arquivo `js/firebase-config.js`
+   - Substitua os valores com suas credenciais:
+   ```javascript
+   window.firebaseConfig = {
+     apiKey: "SUA_API_KEY",
+     authDomain: "SEU_PROJETO.firebaseapp.com",
+     projectId: "SEU_PROJETO_ID",
+     storageBucket: "SEU_STORAGE.appspot.com",
+     messagingSenderId: "SEU_MESSAGING_ID",
+     appId: "SEU_APP_ID",
+     measurementId: "SEU_MEASUREMENT_ID"
+   };
+   ```
+
+3. **Habilitar autenticação no Firebase:**
+   - No Firebase Console, vá em Authentication > Sign-in method
+   - Ative o provedor "Google"
+   - Adicione os domínios autorizados (ex: seu-dominio.com, localhost)
+
+4. **Criar banco Firestore:**
+   - No Firebase Console, vá em Firestore Database
+   - Clique em "Create database"
+   - Escolha modo de produção ou teste
+   - Configure as regras de segurança:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId}/appData/{document=**} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+     }
+   }
+   ```
+
+### Como Usar
+
+- **Login:** Clique em "🔐 Entrar (Google)" e faça login com sua conta Google
+- **Sincronização automática:** Após login, os dados sincronizam automaticamente entre dispositivos
+- **Atualizar manualmente:** Use o botão "🔄 Atualizar dados" para forçar sincronização
+- **Logout:** Clique em "🚪 Sair" para desconectar
+
+### Comportamento de Merge
+
+- O app sempre prioriza os dados mais recentes (por timestamp)
+- Dados locais nunca são perdidos: se local é mais novo, ele é enviado ao servidor
+- Se servidor tem dados mais novos, eles são baixados e aplicados localmente
+- Login em novo dispositivo: puxa dados do servidor primeiro, depois sincroniza locais se mais novos
+>>>>>>> main
 
 ## 📄 Fluxo mensal recomendado
 
@@ -158,12 +233,16 @@ npx cap open ios        # Xcode
 - Service Worker (cache offline)
 - Web App Manifest (PWA)
 - Capacitor (empacotamento nativo opcional)
+- Firebase (Authentication + Firestore para sincronização cross-device)
 
 ## 🔒 Segurança & Privacidade
 
-- Todos os dados ficam apenas no dispositivo
-- Sem servidor, sem login, sem rastreamento
-- Se limpar o app ou dados do navegador, o histórico é perdido (faça backup!)
+- Todos os dados ficam no dispositivo (localStorage) como cache offline
+- Com Firebase configurado: dados sincronizam entre seus dispositivos via conta Google
+- Autenticação segura via Firebase Authentication
+- Regras Firestore garantem que cada usuário só acessa seus próprios dados
+- Se limpar o app ou dados do navegador, e não tiver Firebase configurado, o histórico é perdido (faça backup!)
+- Com Firebase: dados ficam seguros no servidor e podem ser recuperados fazendo login novamente
 
 ## 📞 Suporte
 
