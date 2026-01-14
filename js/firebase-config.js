@@ -4,6 +4,10 @@
 //
 // IMPORTANTE: Este arquivo deve ser carregado ANTES de syncFirebase.js no index.html
 // para garantir que a configuração esteja disponível quando o módulo de sync inicializar.
+//
+// NOTA DE SEGURANÇA: Firebase API keys para web são públicas por design e DEVEM estar
+// no código cliente. A segurança é garantida pelas regras do Firestore e Authentication,
+// não pela ocultação da API key. Veja: https://firebase.google.com/docs/projects/api-keys
 
 window.firebaseConfig = {
   apiKey: "AIzaSyDrXDix0uoEX6Cw9REZrNY3gMQgBlCLfYQ",

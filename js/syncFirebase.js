@@ -44,6 +44,10 @@ import {
 // A configuração do Firebase deve ser fornecida através de window.firebaseConfig
 // (definido em js/firebase-config.js, que deve ser carregado ANTES deste módulo).
 // Se window.firebaseConfig não estiver disponível, usamos a configuração de fallback abaixo.
+//
+// NOTA DE SEGURANÇA: Firebase API keys para web são públicas por design e devem estar
+// no código cliente. A segurança é garantida pelas regras do Firestore e Authentication,
+// não pela ocultação da API key. Veja: https://firebase.google.com/docs/projects/api-keys
 export const firebaseConfig = (typeof window !== 'undefined' && window.firebaseConfig) || {
   apiKey: 'AIzaSyDrXDix0uoEX6Cw9REZrNY3gMQgBlCLfYQ',
   authDomain: 'ottrabalho-34c3f.firebaseapp.com',
