@@ -969,6 +969,19 @@ function salvarDados() {
     notificarMudancaParaSync('ordensTrabalho');
 }
 
+// Helper: ordena OTs por data descendente (mais recentes primeiro)
+function ordenarOTsPorDataDesc(ots) {
+    return [...ots].sort((a, b) => {
+        // Compara strings ISO de data (formato YYYY-MM-DDTHH:mm:ss)
+        // OTs sem data válida vão para o final da lista
+        const FALLBACK_DATE = '0000-01-01T00:00:00';
+        const dataA = a.data || FALLBACK_DATE;
+        const dataB = b.data || FALLBACK_DATE;
+        // Comparação lexicográfica simples (ISO dates são comparáveis como strings)
+        return dataB > dataA ? 1 : dataB < dataA ? -1 : 0;
+    });
+}
+
 function atualizarTabela(filtrarMes = null) {
     const tbody = document.getElementById('corpoTabela');
     tbody.innerHTML = '';
@@ -989,7 +1002,10 @@ function atualizarTabela(filtrarMes = null) {
         return;
     }
     
-    otsFiltradas.reverse().forEach(ot => {
+    // Ordenar por data descendente (mais recentes primeiro)
+    otsFiltradas = ordenarOTsPorDataDesc(otsFiltradas);
+    
+    otsFiltradas.forEach(ot => {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
         
@@ -1158,7 +1174,10 @@ function aplicarFiltros() {
         return;
     }
     
-    otsFiltradas.reverse().forEach(ot => {
+    // Ordenar por data descendente (mais recentes primeiro)
+    otsFiltradas = ordenarOTsPorDataDesc(otsFiltradas);
+    
+    otsFiltradas.forEach(ot => {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
         
@@ -1210,7 +1229,10 @@ function pesquisarPorMAC() {
         return;
     }
     
-    resultados.reverse().forEach(ot => {
+    // Ordenar por data descendente (mais recentes primeiro)
+    const resultadosOrdenados = ordenarOTsPorDataDesc(resultados);
+    
+    resultadosOrdenados.forEach(ot => {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
         
