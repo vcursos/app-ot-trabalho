@@ -1609,9 +1609,27 @@ function gerarPDFComEquipamentos() {
 // ==================== BACKUP LOCAL (JSON) ====================
 function exportarBackup() {
     try {
-        // Carregar configurações de tabelas de serviços
-        const tabelasCustomizadas = localStorage.getItem('tabelasCustomizadas');
-        const multiplicadores = localStorage.getItem('multiplicadores');
+        // Carregar configurações de tabelas de serviços com tratamento de erro
+        let parsedTabelas = null;
+        let parsedMultiplicadores = null;
+        
+        try {
+            const tabelasCustomizadas = localStorage.getItem('tabelasCustomizadas');
+            if (tabelasCustomizadas) {
+                parsedTabelas = JSON.parse(tabelasCustomizadas);
+            }
+        } catch (e) {
+            console.warn('Erro ao parsear tabelasCustomizadas:', e);
+        }
+        
+        try {
+            const multiplicadores = localStorage.getItem('multiplicadores');
+            if (multiplicadores) {
+                parsedMultiplicadores = JSON.parse(multiplicadores);
+            }
+        } catch (e) {
+            console.warn('Erro ao parsear multiplicadores:', e);
+        }
         
         const payload = {
             geradoEm: new Date().toISOString(),
@@ -1621,8 +1639,8 @@ function exportarBackup() {
             historicoOTPorMes: historicoOTPorMes,
             premiosFestivosPorDia: premiosFestivosPorDia,
             // Novos campos: configurações de tabelas de serviços
-            tabelasCustomizadas: tabelasCustomizadas ? JSON.parse(tabelasCustomizadas) : null,
-            multiplicadores: multiplicadores ? JSON.parse(multiplicadores) : null,
+            tabelasCustomizadas: parsedTabelas,
+            multiplicadores: parsedMultiplicadores,
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1669,12 +1687,12 @@ function importarBackup() {
 
                 const novasOTs = Array.isArray(payload.ordensTrabalho) ? payload.ordensTrabalho : [];
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
-                const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
-                const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
+                const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object' && !Array.isArray(payload.historicoOTPorMes)) ? payload.historicoOTPorMes : null;
+                const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object' && !Array.isArray(payload.premiosFestivosPorDia)) ? payload.premiosFestivosPorDia : null;
                 
                 // Novos campos: configurações de tabelas de serviços (retrocompatibilidade)
-                const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object') ? payload.tabelasCustomizadas : null;
-                const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object') ? payload.multiplicadores : null;
+                const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object' && !Array.isArray(payload.tabelasCustomizadas)) ? payload.tabelasCustomizadas : null;
+                const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object' && !Array.isArray(payload.multiplicadores)) ? payload.multiplicadores : null;
 
                 if (novasOTs.length === 0 && novaLogistica.length === 0) {
                     alert('Backup não contém registros para importar.');
@@ -1746,7 +1764,8 @@ function importarBackup() {
                 atualizarTabelaLogistica();
                 atualizarUIFestivoPorDia();
                 
-                // Recarregar serviços nos dropdowns para refletir configurações importadas
+                // Recarregar serviços nos dropdowns apenas se configurações de serviço foram importadas
+                // (se não estão no backup, os configs em localStorage não mudaram)
                 if (novasTabelas || novosMultiplicadores) {
                     try {
                         if (typeof recarregarServicos === 'function') {
