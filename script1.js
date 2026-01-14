@@ -973,8 +973,9 @@ function salvarDados() {
 function ordenarOTsPorDataDesc(ots) {
     return [...ots].sort((a, b) => {
         // Compara strings ISO de data diretamente (formato YYYY-MM-DDTHH:mm:ss)
-        const dataA = a.data || '';
-        const dataB = b.data || '';
+        // OTs sem data válida vão para o final da lista
+        const dataA = a.data || '0000-01-01T00:00:00';
+        const dataB = b.data || '0000-01-01T00:00:00';
         return dataB.localeCompare(dataA);
     });
 }
