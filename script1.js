@@ -1702,10 +1702,19 @@ function importarBackup() {
                 const substituir = confirm('Deseja SUBSTITUIR todos os dados atuais pelos do backup?\nClique em OK para substituir.\nClique em Cancelar para mesclar (sem duplicar por id).');
 
                 if (substituir) {
+                    // Substituir: sobrescrever tudo
                     ordensTrabalho = novasOTs;
                     registrosLogistica = novaLogistica;
                     if (novoHistorico) historicoOTPorMes = novoHistorico;
                     if (novosPremios) premiosFestivosPorDia = novosPremios;
+                    
+                    // Substituir configurações de serviços (se presentes no backup)
+                    if (novasTabelas) {
+                        localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
+                    }
+                    if (novosMultiplicadores) {
+                        localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
+                    }
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -1740,21 +1749,17 @@ function importarBackup() {
                             if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
                         });
                     }
+                    
+                    // Mesclar: manter configs existentes, não sobrescrever
+                    // (Configurações de serviço são diferentes - não têm IDs para mesclar individualmente)
+                    // No modo mesclar, preservamos as configs atuais do usuário
                 }
 
-                // Persistir
+                // Persistir OTs e logística
                 localStorage.setItem('ordensTrabalho', JSON.stringify(ordensTrabalho));
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
                 localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
-                
-                // Persistir configurações de tabelas de serviços (se presentes no backup)
-                if (novasTabelas) {
-                    localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
-                }
-                if (novosMultiplicadores) {
-                    localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
-                }
 
                 notificarMudancaParaSync('importarBackup');
 
@@ -1764,9 +1769,9 @@ function importarBackup() {
                 atualizarTabelaLogistica();
                 atualizarUIFestivoPorDia();
                 
-                // Recarregar serviços nos dropdowns apenas se configurações de serviço foram importadas
-                // (se não estão no backup, os configs em localStorage não mudaram)
-                if (novasTabelas || novosMultiplicadores) {
+                // Recarregar serviços nos dropdowns apenas se configurações de serviço foram importadas E substituídas
+                // (em modo mesclar, configs são preservadas; em modo substituir, configs são atualizadas se presentes)
+                if (substituir && (novasTabelas || novosMultiplicadores)) {
                     try {
                         if (typeof recarregarServicos === 'function') {
                             recarregarServicos();
