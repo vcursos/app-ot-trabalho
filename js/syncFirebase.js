@@ -439,20 +439,19 @@ export class FirebaseSync {
       }
 
       const localData = getLocalSnapshot();
-      const localWrap = { meta: { updatedAt: new Date().toISOString() }, data: localData };
-      const merged = mergePreferNewest(localWrap, remote);
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-      // Regra simples:
-      // - Se remoto tem dados e local está vazio => aplicar remoto.
-      // - Senão, aplicar o mais novo por updatedAt.
-      const shouldApplyRemote = (remoteHas && !localHas) || (merged === remote);
-      if (shouldApplyRemote) {
+      // Regra para login: preferir remoto quando disponível (servidor como fonte da verdade)
+      // - Se remoto tem dados => aplicar remoto (seja local vazio ou não)
+      // - Se remoto vazio e local tem dados => manter local
+      // Após login, mudanças locais futuras serão sincronizadas normalmente via pushLocal
+      if (remoteHas) {
         applySnapshotToLocalStorage(remote.data || {});
         this.onRemoteApplied(remote.data || {});
         this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
       }
+      // Se remoto vazio e local tem dados: mantém local (não sobrescreve)
     } catch (e) {
       console.warn('Falha ao puxar remoto no login:', e);
       this.onStatus({ state: 'read-error', error: this._formatError(e) });
