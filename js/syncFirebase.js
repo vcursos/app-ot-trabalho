@@ -447,6 +447,7 @@ export class FirebaseSync {
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
+
       // Regra para login: preferir remoto quando disponível (servidor como fonte da verdade)
       // - Se remoto tem dados => aplicar remoto (seja local vazio ou não)
       // - Se remoto vazio e local tem dados => manter local
@@ -456,7 +457,7 @@ export class FirebaseSync {
         this.onRemoteApplied(remote.data || {});
         this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
       }
-      // Se remoto vazio e local tem dados: mantém local (não sobrescreve)
+// Se remoto vazio e local tem dados: mantém local (não sobrescreve)
     } catch (e) {
       console.warn('Falha ao puxar remoto no login:', e);
       this.onStatus({ state: 'read-error', error: this._formatError(e) });

@@ -1,6 +1,14 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
 
+// ==================== SORT STATE ====================
+// Estado atual de ordenação: { field: 'data'|'numeroOT', direction: 'asc'|'desc' }
+let currentSort = { field: 'data', direction: 'desc' }; // Default: data desc (mais recente primeiro)
+
+// ==================== EDIT STATE ====================
+// ID da OT sendo editada (null se for nova OT)
+let otEmEdicao = null;
+
 // ==================== SINCRONIZAÇÃO (Firebase opcional) ====================
 // Opção 2: sincronizar desktop <-> mobile via Firestore.
 // Mantém localStorage como fonte offline. Quando Firebase está configurado,
@@ -127,7 +135,7 @@ async function garantirSyncPronto() {
                 try {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: não configurado - Configure Firebase em js/firebase-config.js para habilitar sincronização entre dispositivos');
+                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
@@ -471,7 +479,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 onStatus: (st) => {
                     if (!st || !st.state) return;
                     if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: não configurado - Configure Firebase em js/firebase-config.js para habilitar sincronização entre dispositivos');
+                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
                         setBotoesAuthHabilitados(true);
                         return;
                     }
@@ -726,7 +734,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const premioAplicado = (marcadoFestivo && permitirAplicarHoje) ? premioConfigurado : 0;
     
     const ot = {
-        id: Date.now(),
+        id: otEmEdicao || Date.now(), // Usar ID existente se estiver editando
         // Guardar a data da OT (não a data/hora de cadastro), para o PDF sempre mostrar correto
         data: dataOTISO + 'T00:00:00',
         numeroOT: numeroOT || '-',
@@ -749,7 +757,17 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         valorServico: valorTotalFinal
     };
     
-    ordensTrabalho.push(ot);
+    // Modo edição: atualizar OT existente
+    if (otEmEdicao) {
+        const index = ordensTrabalho.findIndex(o => o.id === otEmEdicao);
+        if (index !== -1) {
+            ordensTrabalho[index] = ot;
+        }
+        otEmEdicao = null; // Resetar modo edição
+    } else {
+        // Modo novo: adicionar nova OT
+        ordensTrabalho.push(ot);
+    }
 
     // Arquivar no histórico do mês (não apagar meses antigos)
     garantirOTNoHistorico(ot);
@@ -775,6 +793,9 @@ function limparFormulario() {
     document.getElementById('formOT').reset();
     limparCamposServico();
     
+    // Resetar modo de edição
+    otEmEdicao = null;
+    
     // Resetar multiplicador para normal
     const multiplicadorEl = document.getElementById('multiplicadorServico');
     if (multiplicadorEl) {
@@ -795,6 +816,19 @@ function limparFormulario() {
     
     equipamentosTemp = [];
     atualizarListaEquipamentos();
+    
+    // Resetar texto do botão e título
+    const btnSubmit = document.querySelector('#formOT button[type="submit"]');
+    if (btnSubmit) {
+        btnSubmit.textContent = 'Registrar OT';
+        btnSubmit.style.background = '';
+    }
+    
+    const formSection = document.querySelector('.form-section h2');
+    if (formSection) {
+        formSection.textContent = 'Nova Ordem de Trabalho';
+        formSection.style.color = '';
+    }
 }
 
 function obterValorServico(itemMOI) {
@@ -969,6 +1003,95 @@ function salvarDados() {
     notificarMudancaParaSync('ordensTrabalho');
 }
 
+// ==================== SORTING FUNCTIONS ====================
+/**
+ * Ordena array de OTs baseado no estado de ordenação atual
+ */
+function ordenarOTs(ots) {
+    if (!ots || ots.length === 0) return ots;
+    
+    const sorted = [...ots]; // Cria cópia para não modificar o original
+    
+    sorted.sort((a, b) => {
+        let compareValue = 0;
+        
+        if (currentSort.field === 'data') {
+            // Ordenar por data
+            const dateA = new Date(a.data);
+            const dateB = new Date(b.data);
+            compareValue = dateA - dateB;
+        } else if (currentSort.field === 'numeroOT') {
+            // Ordenar por número da OT (string comparison)
+            const numA = String(a.numeroOT || '').toLowerCase();
+            const numB = String(b.numeroOT || '').toLowerCase();
+            compareValue = numA.localeCompare(numB);
+        }
+        
+        // Aplicar direção (asc ou desc)
+        return currentSort.direction === 'asc' ? compareValue : -compareValue;
+    });
+    
+    return sorted;
+}
+
+/**
+ * Alterna a ordenação por um campo específico
+ */
+function toggleSort(field) {
+    if (currentSort.field === field) {
+        // Se já está ordenando por esse campo, inverte a direção
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        // Se é um campo novo, começa com desc (conforme requisito: data deve começar desc = mais recente primeiro)
+        currentSort.field = field;
+        currentSort.direction = 'desc';
+    }
+    
+    // Atualizar indicadores visuais no header
+    atualizarIndicadoresOrdenacao();
+    
+    // Re-renderizar tabela com nova ordenação
+    const termo = document.getElementById('pesquisaMAC').value.toLowerCase().trim();
+    if (termo) {
+        pesquisarPorMAC();
+    } else {
+        aplicarFiltros();
+    }
+}
+
+/**
+ * Atualiza os indicadores visuais de ordenação nos headers da tabela
+ */
+function atualizarIndicadoresOrdenacao() {
+    // Atualizar indicador de Data
+    const thData = document.querySelector('th[data-sort="data"]');
+    if (thData) {
+        const arrow = currentSort.field === 'data' 
+            ? (currentSort.direction === 'asc' ? ' ▲' : ' ▼')
+            : '';
+        // Use textContent for the arrow to avoid XSS
+        const span = thData.querySelector('.sort-arrow') || document.createElement('span');
+        span.className = 'sort-arrow';
+        span.textContent = arrow;
+        thData.textContent = 'Data ';
+        thData.appendChild(span);
+    }
+    
+    // Atualizar indicador de OT
+    const thOT = document.querySelector('th[data-sort="numeroOT"]');
+    if (thOT) {
+        const arrow = currentSort.field === 'numeroOT' 
+            ? (currentSort.direction === 'asc' ? ' ▲' : ' ▼')
+            : '';
+        // Use textContent for the arrow to avoid XSS
+        const span = thOT.querySelector('.sort-arrow') || document.createElement('span');
+        span.className = 'sort-arrow';
+        span.textContent = arrow;
+        thOT.textContent = 'OT ';
+        thOT.appendChild(span);
+    }
+}
+
 // Helper: ordena OTs por data descendente (mais recentes primeiro)
 function ordenarOTsPorDataDesc(ots) {
     return [...ots].sort((a, b) => {
@@ -1002,8 +1125,8 @@ function atualizarTabela(filtrarMes = null) {
         return;
     }
     
-    // Ordenar por data descendente (mais recentes primeiro)
-    otsFiltradas = ordenarOTsPorDataDesc(otsFiltradas);
+    // Aplicar ordenação
+    otsFiltradas = ordenarOTs(otsFiltradas);
     
     otsFiltradas.forEach(ot => {
         const tr = document.createElement('tr');
@@ -1024,11 +1147,17 @@ function atualizarTabela(filtrarMes = null) {
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
-            <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
+            <td>
+                <button class="btn-edit" onclick="editarOT(${ot.id})" title="Editar">✏️</button>
+                <button class="btn-delete" onclick="deletarOT(${ot.id})" title="Excluir">🗑️</button>
+            </td>
         `;
         
         tbody.appendChild(tr);
     });
+    
+    // Atualizar indicadores de ordenação
+    atualizarIndicadoresOrdenacao();
 }
 
 function formatarTipoTrabalho(tipo) {
@@ -1096,6 +1225,104 @@ function deletarOT(id) {
         atualizarUIFestivoPorDia();
 
         notificarMudancaParaSync('deletarOT');
+    }
+}
+
+
+// ==================== EDIT OT FUNCTION ====================
+/**
+ * Carrega os dados de uma OT existente no formulário para edição
+ */
+function editarOT(id) {
+    const ot = ordensTrabalho.find(o => o.id === id);
+    if (!ot) {
+        alert('OT não encontrada!');
+        return;
+    }
+    
+    // Marcar que estamos editando esta OT
+    otEmEdicao = id;
+    
+    // Rolar para o topo do formulário
+    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+    
+    // Preencher os campos do formulário
+    const dataISO = ot.data ? ot.data.substring(0, 10) : '';
+    document.getElementById('dataOT').value = dataISO;
+    document.getElementById('numeroOT').value = ot.numeroOT || '';
+    document.getElementById('observacoes').value = ot.observacoes || '';
+    document.getElementById('tipoTrabalho').value = ot.tipoTrabalho || '';
+    
+    // Preencher serviço
+    if (ot.tipoServico) {
+        try {
+            // Tentar encontrar o serviço no select
+            const selectServico = document.getElementById('tipoServico');
+            const servicoInfo = {
+                item: ot.tipoServico,
+                valor: ot.valorServico || 0,
+                red: ot.rede || '',
+                categoria: ot.categoria || '',
+                tipologia: ot.tipologia || '',
+                pontos: ot.pontosServico || 0
+            };
+            selectServico.value = JSON.stringify(servicoInfo);
+            atualizarValorServico();
+        } catch (e) {
+            console.warn('Erro ao restaurar serviço:', e);
+        }
+    }
+    
+    // Preencher adicional
+    if (ot.adicional) {
+        try {
+            const selectAdicional = document.getElementById('adicionalServico');
+            const adicionalInfo = {
+                item: ot.adicional,
+                valor: ot.valorAdicional || 0,
+                tipologia: ot.adicionalDesc || '',
+                pontos: ot.pontosAdicional || 0
+            };
+            selectAdicional.value = JSON.stringify(adicionalInfo);
+            atualizarValorAdicional();
+        } catch (e) {
+            console.warn('Erro ao restaurar adicional:', e);
+        }
+    }
+    
+    // Preencher multiplicador
+    if (ot.multiplicador) {
+        const selectMultiplicador = document.getElementById('multiplicadorServico');
+        if (selectMultiplicador) {
+            selectMultiplicador.value = ot.multiplicador;
+        }
+    }
+    
+    // Preencher festivo
+    const checkboxFestivo = document.getElementById('otFestivo');
+    if (checkboxFestivo && ot.otFestivo) {
+        checkboxFestivo.checked = true;
+    }
+    
+    // Preencher equipamentos
+    equipamentosTemp = ot.equipamentos ? [...ot.equipamentos] : [];
+    atualizarListaEquipamentos();
+    
+    // Recalcular valor total
+    calcularValorTotal();
+    
+    // Atualizar texto do botão para indicar modo edição
+    const btnSubmit = document.querySelector('#formOT button[type="submit"]');
+    if (btnSubmit) {
+        btnSubmit.textContent = 'Atualizar OT';
+        btnSubmit.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)';
+    }
+    
+    // Mostrar mensagem indicando modo de edição
+    const formSection = document.querySelector('.form-section h2');
+    if (formSection) {
+        formSection.textContent = 'Editar Ordem de Trabalho #' + (ot.numeroOT || id);
+        formSection.style.color = '#f39c12';
     }
 }
 
@@ -1174,12 +1401,17 @@ function aplicarFiltros() {
         return;
     }
     
-    // Ordenar por data descendente (mais recentes primeiro)
-    otsFiltradas = ordenarOTsPorDataDesc(otsFiltradas);
+    // Aplicar ordenação
+    otsFiltradas = ordenarOTs(otsFiltradas);
     
     otsFiltradas.forEach(ot => {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
+        
+        // Formatar equipamentos para exibição
+        const equipamentosTexto = ot.equipamentos && ot.equipamentos.length > 0
+            ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : `${eq.tipo}: ${eq.mac}`).join(', ')
+            : (ot.macEquipamento || '-');
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}</td>
@@ -1189,13 +1421,19 @@ function aplicarFiltros() {
             <td><small>${ot.categoria || '-'}</small></td>
             <td><span class="badge-rede">${ot.rede || '-'}</span></td>
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
-            <td><small>${ot.macEquipamento}</small></td>
+            <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
-            <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
+            <td>
+                <button class="btn-edit" onclick="editarOT(${ot.id})" title="Editar">✏️</button>
+                <button class="btn-delete" onclick="deletarOT(${ot.id})" title="Excluir">🗑️</button>
+            </td>
         `;
         
         tbody.appendChild(tr);
     });
+    
+    // Atualizar indicadores de ordenação
+    atualizarIndicadoresOrdenacao();
 }
 
 // Pesquisar por MAC
@@ -1229,8 +1467,8 @@ function pesquisarPorMAC() {
         return;
     }
     
-    // Ordenar por data descendente (mais recentes primeiro)
-    const resultadosOrdenados = ordenarOTsPorDataDesc(resultados);
+    // Aplicar ordenação aos resultados da busca
+    const resultadosOrdenados = ordenarOTs(resultados);
     
     resultadosOrdenados.forEach(ot => {
         const tr = document.createElement('tr');
@@ -1257,11 +1495,17 @@ function pesquisarPorMAC() {
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
-            <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
+            <td>
+                <button class="btn-edit" onclick="editarOT(${ot.id})" title="Editar">✏️</button>
+                <button class="btn-delete" onclick="deletarOT(${ot.id})" title="Excluir">🗑️</button>
+            </td>
         `;
         
         tbody.appendChild(tr);
     });
+    
+    // Atualizar indicadores de ordenação
+    atualizarIndicadoresOrdenacao();
 }
 
 // Retorna exatamente as OTs visíveis na tabela (mesmo critério de filtros).

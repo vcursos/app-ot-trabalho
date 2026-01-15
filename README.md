@@ -214,6 +214,7 @@ O app suporta sincronização entre dispositivos usando Firebase + Google Login:
 - Dados locais nunca são perdidos: se local é mais novo, ele é enviado ao servidor
 - Se servidor tem dados mais novos, eles são baixados e aplicados localmente
 - Login em novo dispositivo: puxa dados do servidor primeiro, depois sincroniza locais se mais novos
+>>>>>>> main
 
 ## 📄 Fluxo mensal recomendado
 
