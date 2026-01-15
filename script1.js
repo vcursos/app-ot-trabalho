@@ -1092,6 +1092,19 @@ function atualizarIndicadoresOrdenacao() {
     }
 }
 
+// Helper: ordena OTs por data descendente (mais recentes primeiro)
+function ordenarOTsPorDataDesc(ots) {
+    return [...ots].sort((a, b) => {
+        // Compara strings ISO de data (formato YYYY-MM-DDTHH:mm:ss)
+        // OTs sem data válida vão para o final da lista
+        const FALLBACK_DATE = '0000-01-01T00:00:00';
+        const dataA = a.data || FALLBACK_DATE;
+        const dataB = b.data || FALLBACK_DATE;
+        // Comparação lexicográfica simples (ISO dates são comparáveis como strings)
+        return dataB > dataA ? 1 : dataB < dataA ? -1 : 0;
+    });
+}
+
 function atualizarTabela(filtrarMes = null) {
     const tbody = document.getElementById('corpoTabela');
     tbody.innerHTML = '';
@@ -1214,6 +1227,7 @@ function deletarOT(id) {
         notificarMudancaParaSync('deletarOT');
     }
 }
+
 
 // ==================== EDIT OT FUNCTION ====================
 /**
@@ -1861,13 +1875,38 @@ function gerarPDFComEquipamentos() {
 // ==================== BACKUP LOCAL (JSON) ====================
 function exportarBackup() {
     try {
+        // Carregar configurações de tabelas de serviços com tratamento de erro
+        let parsedTabelas = null;
+        let parsedMultiplicadores = null;
+        
+        try {
+            const tabelasCustomizadas = localStorage.getItem('tabelasCustomizadas');
+            if (tabelasCustomizadas) {
+                parsedTabelas = JSON.parse(tabelasCustomizadas);
+            }
+        } catch (e) {
+            console.warn('Erro ao parsear tabelasCustomizadas:', e);
+        }
+        
+        try {
+            const multiplicadores = localStorage.getItem('multiplicadores');
+            if (multiplicadores) {
+                parsedMultiplicadores = JSON.parse(multiplicadores);
+            }
+        } catch (e) {
+            console.warn('Erro ao parsear multiplicadores:', e);
+        }
+        
         const payload = {
             geradoEm: new Date().toISOString(),
-            versao: 1,
+            versao: 2, // Incrementar versão para incluir novos campos
             ordensTrabalho: ordensTrabalho,
             registrosLogistica: registrosLogistica,
             historicoOTPorMes: historicoOTPorMes,
             premiosFestivosPorDia: premiosFestivosPorDia,
+            // Novos campos: configurações de tabelas de serviços
+            tabelasCustomizadas: parsedTabelas,
+            multiplicadores: parsedMultiplicadores,
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1914,10 +1953,15 @@ function importarBackup() {
 
                 const novasOTs = Array.isArray(payload.ordensTrabalho) ? payload.ordensTrabalho : [];
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
-                const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
-                const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
+                const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object' && !Array.isArray(payload.historicoOTPorMes)) ? payload.historicoOTPorMes : null;
+                const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object' && !Array.isArray(payload.premiosFestivosPorDia)) ? payload.premiosFestivosPorDia : null;
+                
+                // Novos campos: configurações de tabelas de serviços (retrocompatibilidade)
+                const novasTabelas = (payload.tabelasCustomizadas && typeof payload.tabelasCustomizadas === 'object' && !Array.isArray(payload.tabelasCustomizadas)) ? payload.tabelasCustomizadas : null;
+                const novosMultiplicadores = (payload.multiplicadores && typeof payload.multiplicadores === 'object' && !Array.isArray(payload.multiplicadores)) ? payload.multiplicadores : null;
 
-                if (novasOTs.length === 0 && novaLogistica.length === 0) {
+                // Validação: backup deve conter pelo menos algum dado (OTs, logística, ou configurações)
+                if (novasOTs.length === 0 && novaLogistica.length === 0 && !novasTabelas && !novosMultiplicadores) {
                     alert('Backup não contém registros para importar.');
                     return;
                 }
@@ -1925,10 +1969,19 @@ function importarBackup() {
                 const substituir = confirm('Deseja SUBSTITUIR todos os dados atuais pelos do backup?\nClique em OK para substituir.\nClique em Cancelar para mesclar (sem duplicar por id).');
 
                 if (substituir) {
+                    // Substituir: sobrescrever tudo
                     ordensTrabalho = novasOTs;
                     registrosLogistica = novaLogistica;
                     if (novoHistorico) historicoOTPorMes = novoHistorico;
                     if (novosPremios) premiosFestivosPorDia = novosPremios;
+                    
+                    // Substituir configurações de serviços (se presentes no backup)
+                    if (novasTabelas) {
+                        localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
+                    }
+                    if (novosMultiplicadores) {
+                        localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
+                    }
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -1963,9 +2016,13 @@ function importarBackup() {
                             if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
                         });
                     }
+                    
+                    // Mesclar: manter configs existentes, não sobrescrever
+                    // (Configurações de serviço são diferentes - não têm IDs para mesclar individualmente)
+                    // No modo mesclar, preservamos as configs atuais do usuário
                 }
 
-                // Persistir
+                // Persistir OTs e logística
                 localStorage.setItem('ordensTrabalho', JSON.stringify(ordensTrabalho));
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
@@ -1978,6 +2035,19 @@ function importarBackup() {
                 atualizarResumos();
                 atualizarTabelaLogistica();
                 atualizarUIFestivoPorDia();
+                
+                // Recarregar serviços nos dropdowns apenas se configurações de serviço foram importadas E substituídas
+                // (em modo mesclar, configs são preservadas; em modo substituir, configs são atualizadas se presentes)
+                // Nota: recarregarServicos() recarrega todas as configs de localStorage, então uma única chamada é suficiente
+                if (substituir && (novasTabelas || novosMultiplicadores)) {
+                    try {
+                        if (typeof recarregarServicos === 'function') {
+                            recarregarServicos();
+                        }
+                    } catch (e) {
+                        console.warn('Não foi possível recarregar serviços:', e);
+                    }
+                }
 
                 alert('Backup importado com sucesso!');
             } catch (e) {
