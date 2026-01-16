@@ -35,6 +35,8 @@
             <div id="syncAuthPanel" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; position:relative; z-index:5; pointer-events:auto;">
                 <button id="btnSyncGoogle" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;">🔐 Entrar (Google)</button>
                 <button id="btnSyncForcar" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">🔄 Atualizar dados</button>
+                <button id="btnSyncSalvar" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">💾 Salvar dados</button>
+                <button id="btnSyncCarregar" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">📥 Carregar dados</button>
                 <button id="btnSyncSair" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">🚪 Sair</button>
             </div>
             <div class="resumo">
@@ -437,6 +439,8 @@
             };
             warn('syncEntrarGoogle', 'Entrar (Google)');
             warn('syncForcarAgora', 'Atualizar dados');
+            warn('syncSalvarAgora', 'Salvar dados');
+            warn('syncCarregarAgora', 'Carregar dados');
             warn('syncSair', 'Sair');
 
             // 2) Handlers por addEventListener (mais robusto que onclick).
@@ -444,6 +448,8 @@
                 const map = [
                     ['btnSyncGoogle', 'syncEntrarGoogle'],
                     ['btnSyncForcar', 'syncForcarAgora'],
+                    ['btnSyncSalvar', 'syncSalvarAgora'],
+                    ['btnSyncCarregar', 'syncCarregarAgora'],
                     ['btnSyncSair', 'syncSair'],
                 ];
                 function setDiag(text) {
