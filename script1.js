@@ -245,7 +245,7 @@ window.syncForcarAgora = async function() {
     }
 };
 
-// Auto-sync: a cada 2-3 minutos, puxa/envia dados se estiver logado.
+// Auto-sync: a cada 3 minutos, puxa/envia dados se estiver logado.
 // Não mostra alertas e não bloqueia o usuário.
 (function iniciarAutoSync10min() {
     const INTERVAL_MS = 3 * 60 * 1000; // Reduzido de 10min para 3min
@@ -305,7 +305,10 @@ window.addEventListener('beforeunload', function() {
             // Firebase SDK internamente pode usar sendBeacon se configurado
             window.__firebaseSync.pushLocal('beforeunload').catch(() => {});
         }
-    } catch {}
+    } catch (e) {
+        // Silencioso - beforeunload tem tempo limitado
+        console.warn('Erro ao sincronizar no beforeunload:', e);
+    }
 });
 
 // Sincronizar ao ir para background (mobile/PWA)
@@ -315,7 +318,10 @@ document.addEventListener('visibilitychange', function() {
             if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
                 window.__firebaseSync.pushLocal('visibilitychange-hidden').catch(() => {});
             }
-        } catch {}
+        } catch (e) {
+            // Silencioso para não atrapalhar transição de app
+            console.warn('Erro ao sincronizar no visibilitychange:', e);
+        }
     }
 });
 
@@ -325,7 +331,10 @@ window.addEventListener('online', function() {
         if (window.__firebaseSync && typeof window.__firebaseSync.forceSync === 'function') {
             window.__firebaseSync.forceSync('online').catch(() => {});
         }
-    } catch {}
+    } catch (e) {
+        // Silencioso
+        console.warn('Erro ao sincronizar ao voltar online:', e);
+    }
 });
 
 // ==================== HISTÓRICO (ARQUIVO MENSAL) ====================
