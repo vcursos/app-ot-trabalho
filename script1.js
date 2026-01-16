@@ -46,6 +46,20 @@ function setBotaoForcarSyncVisivel(visivel) {
     } catch {}
 }
 
+function setBotaoSalvarVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncSalvar');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
+function setBotaoCarregarVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncCarregar');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
 function setBotoesEntrarVisiveis(visivel) {
     try {
         const ids = ['btnSyncGoogle'];
@@ -72,6 +86,8 @@ function aplicarUIPosLogin() {
         setGoogleControlVisivel(false);
         setBotaoSairVisivel(true);
         setBotaoForcarSyncVisivel(true);
+        setBotaoSalvarVisivel(true);
+        setBotaoCarregarVisivel(true);
     } catch {}
 }
 
@@ -80,6 +96,9 @@ function setBotoesAuthHabilitados(habilitar) {
         const ids = [
             'btnSyncGoogle',
             'btnSyncSair',
+            'btnSyncForcar',
+            'btnSyncSalvar',
+            'btnSyncCarregar',
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -104,6 +123,30 @@ function mostrarPromptLoginSeNecessario() {
 // ==== FUNÇÕES GLOBAIS (UI de autenticação do Sync) ====
 // Agora: somente Google + Sair.
 try { console.log('[sync-ui] handlers carregados (Google-only)'); } catch {}
+
+// Constante para timeout de reset de status
+const STATUS_RESET_DELAY_MS = 2000;
+
+// Variável para armazenar timeout de reset de status (evitar múltiplos timeouts simultâneos)
+let statusResetTimeout = null;
+
+// Helper para verificar se usuário está logado
+async function verificarUsuarioLogado() {
+    try {
+        const sync = await garantirSyncPronto();
+        if (!sync || !sync.getUserInfo) {
+            return null;
+        }
+        const info = sync.getUserInfo();
+        if (!info || !info.uid) {
+            return null;
+        }
+        return info;
+    } catch (e) {
+        console.warn('Erro ao verificar usuário logado:', e);
+        return null;
+    }
+}
 
 async function garantirSyncPronto() {
     try {
@@ -147,6 +190,8 @@ async function garantirSyncPronto() {
                         setBotoesEntrarVisiveis(true);
                         setBotaoSairVisivel(false);
                         setBotaoForcarSyncVisivel(false);
+                        setBotaoSalvarVisivel(false);
+                        setBotaoCarregarVisivel(false);
                         setGoogleControlVisivel(true);
                         mostrarPromptLoginSeNecessario();
                         return;
@@ -159,6 +204,8 @@ async function garantirSyncPronto() {
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
+                        setBotaoSalvarVisivel(true);
+                        setBotaoCarregarVisivel(true);
                         // Esconde também os controles individuais (garantia extra)
                         setGoogleControlVisivel(false);
                         return;
@@ -242,6 +289,88 @@ window.syncForcarAgora = async function() {
     } catch (e) {
         console.error(e);
         alert('Falha ao forçar sync: ' + (e?.message || e));
+    }
+};
+
+window.syncSalvarAgora = async function() {
+    try {
+        // Verificar se está logado
+        const info = await verificarUsuarioLogado();
+        if (!info) {
+            alert('Por favor, faça login primeiro.');
+            return;
+        }
+
+        // Confirmar ação
+        if (!confirm('Deseja salvar agora?')) {
+            return;
+        }
+
+        // Atualizar status
+        atualizarUIStatusSync('Sync: salvando...');
+
+        // Chamar pushLocal
+        const sync = await garantirSyncPronto();
+        if (typeof sync.pushLocal === 'function') {
+            await sync.pushLocal('manual-save');
+            atualizarUIStatusSync('Sync: salvo!');
+            
+            // Limpar timeout anterior se existir
+            if (statusResetTimeout) {
+                clearTimeout(statusResetTimeout);
+            }
+            statusResetTimeout = setTimeout(() => {
+                atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
+                statusResetTimeout = null;
+            }, STATUS_RESET_DELAY_MS);
+        } else {
+            throw new Error('Método pushLocal não disponível');
+        }
+    } catch (e) {
+        console.error(e);
+        atualizarUIStatusSync('Sync: erro ao salvar');
+        alert('Falha ao salvar dados: ' + (e?.message || e));
+    }
+};
+
+window.syncCarregarAgora = async function() {
+    try {
+        // Verificar se está logado
+        const info = await verificarUsuarioLogado();
+        if (!info) {
+            alert('Por favor, faça login primeiro.');
+            return;
+        }
+
+        // Confirmar ação
+        if (!confirm('Carregar dados salvos do servidor?')) {
+            return;
+        }
+
+        // Atualizar status
+        atualizarUIStatusSync('Sync: carregando...');
+
+        // Chamar forceSync (pull + push if local newer)
+        const sync = await garantirSyncPronto();
+        if (typeof sync.forceSync === 'function') {
+            await sync.forceSync('manual-load');
+            atualizarUIStatusSync('Sync: carregado!');
+            
+            // Limpar timeout anterior se existir
+            if (statusResetTimeout) {
+                clearTimeout(statusResetTimeout);
+            }
+            statusResetTimeout = setTimeout(() => {
+                atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
+                statusResetTimeout = null;
+            }, STATUS_RESET_DELAY_MS);
+        } else {
+            throw new Error('Método forceSync não disponível');
+        }
+    } catch (e) {
+        console.error(e);
+        atualizarUIStatusSync('Sync: erro ao carregar');
+        alert('Falha ao carregar dados: ' + (e?.message || e));
     }
 };
 
@@ -556,6 +685,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             setGoogleControlVisivel(false);
                             setBotaoSairVisivel(true);
                             setBotaoForcarSyncVisivel(true);
+                            setBotaoSalvarVisivel(true);
+                            setBotaoCarregarVisivel(true);
                         } catch {}
                         return;
                     }
