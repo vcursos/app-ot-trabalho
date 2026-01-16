@@ -436,10 +436,13 @@ export class FirebaseSync {
   async _pullRemoteOnLogin() {
     try {
       if (!this._initialized || !this._uid) return;
-      this.onStatus({ state: 'syncing', phase: 'pull' });
+      
+      // Feedback visual: iniciando sincronização
+      this.onStatus({ state: 'syncing', phase: 'pull', message: 'Buscando dados do servidor...' });
+      
       const remote = await this.fetchRemoteOnce();
       if (!remote || !remote.data) {
-        this.onStatus({ state: 'syncing', phase: 'pull', result: 'no-remote' });
+        this.onStatus({ state: 'syncing', phase: 'pull', result: 'no-remote', message: 'Sem dados no servidor' });
         return;
       }
 
@@ -447,20 +450,26 @@ export class FirebaseSync {
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-
-      // Regra para login: preferir remoto quando disponível (servidor como fonte da verdade)
-      // - Se remoto tem dados => aplicar remoto (seja local vazio ou não)
-      // - Se remoto vazio e local tem dados => manter local
+      // Regra para login: Preferir remoto quando disponível (servidor como fonte da verdade)
+      // - Se remoto tem dados => SEMPRE aplicar remoto (seja local vazio ou não)
+      // - Se remoto vazio e local tem dados => manter local (não sobrescrever)
       // Após login, mudanças locais futuras serão sincronizadas normalmente via pushLocal
       if (remoteHas) {
+        // Feedback visual: aplicando dados
+        this.onStatus({ state: 'syncing', phase: 'applying', message: 'Aplicando dados do servidor...' });
+        
         applySnapshotToLocalStorage(remote.data || {});
         this.onRemoteApplied(remote.data || {});
-        this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
+        
+        // Feedback final: concluído
+        this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null, message: 'Dados sincronizados com sucesso' });
+      } else {
+        // Remoto vazio e local tem dados: mantém local (não sobrescreve)
+        this.onStatus({ state: 'syncing', phase: 'pull', result: 'local-kept', message: 'Mantendo dados locais' });
       }
-// Se remoto vazio e local tem dados: mantém local (não sobrescreve)
     } catch (e) {
       console.warn('Falha ao puxar remoto no login:', e);
-      this.onStatus({ state: 'read-error', error: this._formatError(e) });
+      this.onStatus({ state: 'read-error', error: this._formatError(e), message: 'Erro ao buscar dados do servidor' });
     }
   }
 

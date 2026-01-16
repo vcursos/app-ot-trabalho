@@ -245,10 +245,10 @@ window.syncForcarAgora = async function() {
     }
 };
 
-// Auto-sync leve: a cada 10 minutos, puxa/envia dados se estiver logado.
+// Auto-sync: a cada 3 minutos, puxa/envia dados se estiver logado.
 // Não mostra alertas e não bloqueia o usuário.
 (function iniciarAutoSync10min() {
-    const INTERVAL_MS = 10 * 60 * 1000;
+    const INTERVAL_MS = 3 * 60 * 1000; // Reduzido de 10min para 3min
     let rodando = false;
 
     async function tick() {
@@ -276,19 +276,67 @@ window.syncForcarAgora = async function() {
 
     // Primeira tentativa pouco depois de carregar (ajuda PWA pós-login)
     setTimeout(tick, 2500);
-    // Repetição a cada 10 minutos
+    // Repetição a cada 3 minutos
     setInterval(tick, INTERVAL_MS);
 })();
 
 function notificarMudancaParaSync(motivo) {
     try {
         if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
-            window.__firebaseSync.pushLocal(motivo || 'change');
+            // Push imediato (não em background) para garantir sincronização
+            window.__firebaseSync.pushLocal(motivo || 'change').catch(() => {
+                // silencioso se falhar
+            });
         }
     } catch (e) {
         console.warn('Falha ao notificar sync:', e);
     }
 }
+
+// ==================== SINCRONIZAÇÃO AUTOMÁTICA (EVENTOS DE CICLO DE VIDA) ====================
+// Sincronizar ao sair do app ou ir para background
+
+// Sincronizar ao fechar aba/janela
+// NOTA: beforeunload tem tempo limitado (~100ms em alguns browsers)
+// Usamos melhor esforço (best-effort): Firebase SDK pode usar sendBeacon internamente
+// Para garantir 100%, o usuário deve esperar 1-2 segundos antes de fechar (ou usar visibilitychange no mobile)
+window.addEventListener('beforeunload', function() {
+    try {
+        if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
+            // pushLocal é async, mas Firebase SDK pode usar sendBeacon se configurado
+            window.__firebaseSync.pushLocal('beforeunload').catch(() => {});
+        }
+    } catch (e) {
+        // Silencioso - beforeunload tem tempo limitado
+        console.warn('Erro ao sincronizar no beforeunload:', e);
+    }
+});
+
+// Sincronizar ao ir para background (mobile/PWA)
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+        try {
+            if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
+                window.__firebaseSync.pushLocal('visibilitychange-hidden').catch(() => {});
+            }
+        } catch (e) {
+            // Silencioso para não atrapalhar transição de app
+            console.warn('Erro ao sincronizar no visibilitychange:', e);
+        }
+    }
+});
+
+// Sincronizar ao voltar online
+window.addEventListener('online', function() {
+    try {
+        if (window.__firebaseSync && typeof window.__firebaseSync.forceSync === 'function') {
+            window.__firebaseSync.forceSync('online').catch(() => {});
+        }
+    } catch (e) {
+        // Silencioso
+        console.warn('Erro ao sincronizar ao voltar online:', e);
+    }
+});
 
 // ==================== HISTÓRICO (ARQUIVO MENSAL) ====================
 // Mantém todos os meses armazenados para consulta futura.
