@@ -297,12 +297,13 @@ function notificarMudancaParaSync(motivo) {
 // Sincronizar ao sair do app ou ir para background
 
 // Sincronizar ao fechar aba/janela
+// NOTA: beforeunload tem tempo limitado (~100ms em alguns browsers)
+// Usamos melhor esforço (best-effort): Firebase SDK pode usar sendBeacon internamente
+// Para garantir 100%, o usuário deve esperar 1-2 segundos antes de fechar (ou usar visibilitychange no mobile)
 window.addEventListener('beforeunload', function() {
     try {
         if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
-            // Usar sendBeacon se disponível para garantir envio mesmo ao fechar
-            // Nota: pushLocal é async, mas beforeunload tem tempo limitado
-            // Firebase SDK internamente pode usar sendBeacon se configurado
+            // pushLocal é async, mas Firebase SDK pode usar sendBeacon se configurado
             window.__firebaseSync.pushLocal('beforeunload').catch(() => {});
         }
     } catch (e) {

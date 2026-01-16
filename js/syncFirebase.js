@@ -450,9 +450,9 @@ export class FirebaseSync {
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-      // Regra para login: SEMPRE preferir remoto quando disponível (servidor como fonte da verdade)
-      // - Se remoto tem dados => aplicar remoto (seja local vazio ou não)
-      // - Se remoto vazio e local tem dados => manter local
+      // Regra para login: Preferir remoto quando disponível (servidor como fonte da verdade)
+      // - Se remoto tem dados => SEMPRE aplicar remoto (seja local vazio ou não)
+      // - Se remoto vazio e local tem dados => manter local (não sobrescrever)
       // Após login, mudanças locais futuras serão sincronizadas normalmente via pushLocal
       if (remoteHas) {
         // Feedback visual: aplicando dados
