@@ -374,6 +374,72 @@ window.syncCarregarAgora = async function() {
     }
 };
 
+window.syncLimparCache = async function() {
+    try {
+        // Confirmar ação
+        if (!confirm('Limpar cache do app e atualizar agora?')) {
+            return;
+        }
+
+        // Atualizar status
+        atualizarUIStatusSync('Limpando cache...');
+
+        // Verificar suporte a Service Worker e Cache API
+        const temSW = 'serviceWorker' in navigator;
+        const temCache = 'caches' in window;
+
+        if (!temSW && !temCache) {
+            alert('Service Worker e Cache API não suportados neste navegador.\n\nPor favor, faça uma atualização manual (Ctrl+F5 ou Cmd+Shift+R).');
+            atualizarUIStatusSync('');
+            return;
+        }
+
+        let etapas = [];
+
+        // 1. Unregister service workers
+        if (temSW) {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const reg of registrations) {
+                    await reg.unregister();
+                }
+                etapas.push(`${registrations.length} service worker(s) desregistrado(s)`);
+            } catch (e) {
+                console.warn('Erro ao desregistrar service workers:', e);
+                etapas.push('Erro ao desregistrar service workers');
+            }
+        }
+
+        // 2. Clear Cache Storage (não toca em localStorage/Firebase)
+        if (temCache) {
+            try {
+                const cacheNames = await caches.keys();
+                for (const name of cacheNames) {
+                    await caches.delete(name);
+                }
+                etapas.push(`${cacheNames.length} cache(s) limpo(s)`);
+            } catch (e) {
+                console.warn('Erro ao limpar caches:', e);
+                etapas.push('Erro ao limpar caches');
+            }
+        }
+
+        // Mostrar resultado
+        atualizarUIStatusSync('Cache limpo, recarregando...');
+        
+        // Aguardar um momento para o usuário ver a mensagem
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 3. Reload page para buscar assets mais recentes
+        // location.reload(true) está deprecated, mas location.reload() já força reload do servidor
+        location.reload();
+    } catch (e) {
+        console.error('Erro ao limpar cache:', e);
+        alert('Falha ao limpar cache: ' + (e?.message || e));
+        atualizarUIStatusSync('');
+    }
+};
+
 // Auto-sync: a cada 3 minutos, puxa/envia dados se estiver logado.
 // Não mostra alertas e não bloqueia o usuário.
 (function iniciarAutoSync10min() {

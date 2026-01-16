@@ -38,6 +38,7 @@
                 <button id="btnSyncSalvar" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">💾 Salvar dados</button>
                 <button id="btnSyncCarregar" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">📥 Carregar dados</button>
                 <button id="btnSyncSair" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px; display:none;">🚪 Sair</button>
+                <button id="btnLimparCache" type="button" class="btn-secondary" style="font-size:13px; padding:8px 12px;">🔄 Atualizar app (limpar cache)</button>
             </div>
             <div class="resumo">
                 <div class="card">
@@ -442,6 +443,7 @@
             warn('syncSalvarAgora', 'Salvar dados');
             warn('syncCarregarAgora', 'Carregar dados');
             warn('syncSair', 'Sair');
+            warn('syncLimparCache', 'Atualizar app (limpar cache)');
 
             // 2) Handlers por addEventListener (mais robusto que onclick).
             window.addEventListener('DOMContentLoaded', () => {
@@ -451,6 +453,7 @@
                     ['btnSyncSalvar', 'syncSalvarAgora'],
                     ['btnSyncCarregar', 'syncCarregarAgora'],
                     ['btnSyncSair', 'syncSair'],
+                    ['btnLimparCache', 'syncLimparCache'],
                 ];
                 function setDiag(text) {
                     const d = document.getElementById('syncClickDiag');
