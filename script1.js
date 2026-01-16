@@ -121,6 +121,22 @@ function mostrarPromptLoginSeNecessario() {
 // Agora: somente Google + Sair.
 try { console.log('[sync-ui] handlers carregados (Google-only)'); } catch {}
 
+// Constante para timeout de reset de status
+const STATUS_RESET_DELAY_MS = 2000;
+
+// Helper para verificar se usuário está logado
+async function verificarUsuarioLogado() {
+    const sync = await garantirSyncPronto();
+    if (!sync || !sync.getUserInfo) {
+        return null;
+    }
+    const info = sync.getUserInfo();
+    if (!info || !info.uid) {
+        return null;
+    }
+    return info;
+}
+
 async function garantirSyncPronto() {
     try {
         if (window.__firebaseSync) return window.__firebaseSync;
@@ -268,13 +284,8 @@ window.syncForcarAgora = async function() {
 window.syncSalvarAgora = async function() {
     try {
         // Verificar se está logado
-        const sync = await garantirSyncPronto();
-        if (!sync || !sync.getUserInfo) {
-            alert('Por favor, faça login primeiro.');
-            return;
-        }
-        const info = sync.getUserInfo();
-        if (!info || !info.uid) {
+        const info = await verificarUsuarioLogado();
+        if (!info) {
             alert('Por favor, faça login primeiro.');
             return;
         }
@@ -288,12 +299,13 @@ window.syncSalvarAgora = async function() {
         atualizarUIStatusSync('Sync: salvando...');
 
         // Chamar pushLocal
+        const sync = await garantirSyncPronto();
         if (typeof sync.pushLocal === 'function') {
             await sync.pushLocal('manual-save');
             atualizarUIStatusSync('Sync: salvo!');
             setTimeout(() => {
                 atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
-            }, 2000);
+            }, STATUS_RESET_DELAY_MS);
         } else {
             throw new Error('Método pushLocal não disponível');
         }
@@ -307,13 +319,8 @@ window.syncSalvarAgora = async function() {
 window.syncCarregarAgora = async function() {
     try {
         // Verificar se está logado
-        const sync = await garantirSyncPronto();
-        if (!sync || !sync.getUserInfo) {
-            alert('Por favor, faça login primeiro.');
-            return;
-        }
-        const info = sync.getUserInfo();
-        if (!info || !info.uid) {
+        const info = await verificarUsuarioLogado();
+        if (!info) {
             alert('Por favor, faça login primeiro.');
             return;
         }
@@ -327,12 +334,13 @@ window.syncCarregarAgora = async function() {
         atualizarUIStatusSync('Sync: carregando...');
 
         // Chamar forceSync (pull + push if local newer)
+        const sync = await garantirSyncPronto();
         if (typeof sync.forceSync === 'function') {
             await sync.forceSync('manual-load');
             atualizarUIStatusSync('Sync: carregado!');
             setTimeout(() => {
                 atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
-            }, 2000);
+            }, STATUS_RESET_DELAY_MS);
         } else {
             throw new Error('Método forceSync não disponível');
         }
