@@ -96,6 +96,9 @@ function setBotoesAuthHabilitados(habilitar) {
         const ids = [
             'btnSyncGoogle',
             'btnSyncSair',
+            'btnSyncForcar',
+            'btnSyncSalvar',
+            'btnSyncCarregar',
         ];
         ids.forEach(id => {
             const el = document.getElementById(id);
@@ -124,17 +127,25 @@ try { console.log('[sync-ui] handlers carregados (Google-only)'); } catch {}
 // Constante para timeout de reset de status
 const STATUS_RESET_DELAY_MS = 2000;
 
+// Variável para armazenar timeout de reset de status (evitar múltiplos timeouts simultâneos)
+let statusResetTimeout = null;
+
 // Helper para verificar se usuário está logado
 async function verificarUsuarioLogado() {
-    const sync = await garantirSyncPronto();
-    if (!sync || !sync.getUserInfo) {
+    try {
+        const sync = await garantirSyncPronto();
+        if (!sync || !sync.getUserInfo) {
+            return null;
+        }
+        const info = sync.getUserInfo();
+        if (!info || !info.uid) {
+            return null;
+        }
+        return info;
+    } catch (e) {
+        console.warn('Erro ao verificar usuário logado:', e);
         return null;
     }
-    const info = sync.getUserInfo();
-    if (!info || !info.uid) {
-        return null;
-    }
-    return info;
 }
 
 async function garantirSyncPronto() {
@@ -303,8 +314,14 @@ window.syncSalvarAgora = async function() {
         if (typeof sync.pushLocal === 'function') {
             await sync.pushLocal('manual-save');
             atualizarUIStatusSync('Sync: salvo!');
-            setTimeout(() => {
+            
+            // Limpar timeout anterior se existir
+            if (statusResetTimeout) {
+                clearTimeout(statusResetTimeout);
+            }
+            statusResetTimeout = setTimeout(() => {
                 atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
+                statusResetTimeout = null;
             }, STATUS_RESET_DELAY_MS);
         } else {
             throw new Error('Método pushLocal não disponível');
@@ -338,8 +355,14 @@ window.syncCarregarAgora = async function() {
         if (typeof sync.forceSync === 'function') {
             await sync.forceSync('manual-load');
             atualizarUIStatusSync('Sync: carregado!');
-            setTimeout(() => {
+            
+            // Limpar timeout anterior se existir
+            if (statusResetTimeout) {
+                clearTimeout(statusResetTimeout);
+            }
+            statusResetTimeout = setTimeout(() => {
                 atualizarUIStatusSync(`Sync: ativo | ${info.email || ''} (UID ${String(info.uid).slice(0, 6)}…)`);
+                statusResetTimeout = null;
             }, STATUS_RESET_DELAY_MS);
         } else {
             throw new Error('Método forceSync não disponível');
