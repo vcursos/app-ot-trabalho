@@ -490,6 +490,13 @@
                         if (bar) bar.style.display = 'none';
                     }
 
+                    // Helper: enviar mensagem SKIP_WAITING ao SW
+                    function skipWaiting() {
+                        if (reg && reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    }
+
                     // Auto-refresh: limpar cache e recarregar quando nova versão disponível
                     function autoRefreshApp() {
                         try {
@@ -499,6 +506,7 @@
                             }
                             
                             // Limpar cache storage (preserva localStorage e Firebase)
+                            // Aguardar conclusão antes de ativar novo SW
                             if ('caches' in window) {
                                 caches.keys().then(function(names) {
                                     return Promise.all(names.map(function(name) {
@@ -506,28 +514,28 @@
                                     }));
                                 }).then(function() {
                                     console.log('Cache limpo automaticamente para atualização');
+                                    // Só ativar novo SW após cache limpo
+                                    skipWaiting();
                                 }).catch(function(err) {
                                     console.warn('Erro ao limpar cache:', err);
+                                    // Mesmo com erro, ativar novo SW
+                                    skipWaiting();
                                 });
-                            }
-                            
-                            // Pedir ao SW para skip waiting
-                            if (reg && reg.waiting) {
-                                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            } else {
+                                // Sem Cache API, ativar novo SW direto
+                                skipWaiting();
                             }
                         } catch (err) {
                             console.error('Erro no auto-refresh:', err);
+                            // Em caso de erro, tentar ativar novo SW mesmo assim
+                            skipWaiting();
                         }
                     }
 
                     var btn = document.getElementById('btnPwaAtualizar');
                     if (btn) {
                         btn.addEventListener('click', function() {
-                            try {
-                                if (reg && reg.waiting) {
-                                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                }
-                            } catch {}
+                            skipWaiting();
                             // Se o controller trocar, já recarrega no listener abaixo.
                         });
                     }
