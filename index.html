@@ -546,10 +546,13 @@
                         autoRefreshApp();
                     } else if (reg.installing) {
                         console.log('Atualização instalando, aguardando...');
-                        reg.installing.addEventListener('statechange', function() {
-                            if (reg.waiting) {
+                        var installingWorker = reg.installing;
+                        installingWorker.addEventListener('statechange', function handleStateChange() {
+                            if (this.state === 'installed' && navigator.serviceWorker.controller) {
                                 console.log('Atualização pronta, iniciando auto-refresh...');
                                 autoRefreshApp();
+                                // Remover listener após usar
+                                installingWorker.removeEventListener('statechange', handleStateChange);
                             }
                         });
                     }
