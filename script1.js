@@ -200,14 +200,8 @@ async function garantirSyncPronto() {
                         const email = st.email ? ` | ${st.email}` : '';
                         atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(st.uid).slice(0, 6)}…)`);
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        // Após autenticar: não mostrar novamente opções de login.
-                        setBotoesEntrarVisiveis(false);
-                        setBotaoSairVisivel(true);
-                        setBotaoForcarSyncVisivel(true);
-                        setBotaoSalvarVisivel(true);
-                        setBotaoCarregarVisivel(true);
-                        // Esconde também os controles individuais (garantia extra)
-                        setGoogleControlVisivel(false);
+                        // Após autenticar: aplicar UI de pós-login (garantia para PWA/iOS)
+                        aplicarUIPosLogin();
                         return;
                     }
                     if (st.state === 'pushed') {
@@ -233,6 +227,17 @@ async function garantirSyncPronto() {
         });
 
         await window.__firebaseSync.init();
+        
+        // Após init: se sessão foi restaurada, aplicar UI imediatamente (fix para PWA/iOS)
+        try {
+            const info = window.__firebaseSync.getUserInfo();
+            if (info && info.uid) {
+                aplicarUIPosLogin();
+                const email = info.email ? ` | ${info.email}` : '';
+                atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(info.uid).slice(0, 6)}…)`);
+            }
+        } catch {}
+        
         return window.__firebaseSync;
     } catch (e) {
         console.warn('Falha ao iniciar sync:', e);
@@ -773,6 +778,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             await window.__firebaseSync.init();
+            
+            // Após init: se sessão foi restaurada, aplicar UI imediatamente (fix para PWA/iOS)
+            try {
+                const info = window.__firebaseSync.getUserInfo();
+                if (info && info.uid) {
+                    aplicarUIPosLogin();
+                    const email = info.email ? ` | ${info.email}` : '';
+                    atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(info.uid).slice(0, 6)}…)`);
+                }
+            } catch {}
         } catch (e) {
             console.warn('Sync Firebase não iniciou:', e);
             atualizarUIStatusSync('Sync: indisponível');
