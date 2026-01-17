@@ -535,15 +535,23 @@
                     var btn = document.getElementById('btnPwaAtualizar');
                     if (btn) {
                         btn.addEventListener('click', function() {
-                            skipWaiting();
-                            // Se o controller trocar, já recarrega no listener abaixo.
+                            // Usar mesma lógica do auto-refresh para consistência
+                            autoRefreshApp();
                         });
                     }
 
-                    // Se já existir uma atualização baixada, ativar automaticamente
+                    // Se já existir uma atualização baixada ou instalando, ativar automaticamente
                     if (reg.waiting) {
                         console.log('Atualização disponível ao carregar, iniciando auto-refresh...');
                         autoRefreshApp();
+                    } else if (reg.installing) {
+                        console.log('Atualização instalando, aguardando...');
+                        reg.installing.addEventListener('statechange', function() {
+                            if (reg.waiting) {
+                                console.log('Atualização pronta, iniciando auto-refresh...');
+                                autoRefreshApp();
+                            }
+                        });
                     }
 
                     // Quando encontrar update, ativar automaticamente
