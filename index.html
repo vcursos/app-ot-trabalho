@@ -490,35 +490,79 @@
                         if (bar) bar.style.display = 'none';
                     }
 
+                    // Helper: enviar mensagem SKIP_WAITING ao SW
+                    function skipWaiting() {
+                        if (reg && reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    }
+
+                    // Auto-refresh: limpar cache e recarregar quando nova versão disponível
+                    function autoRefreshApp() {
+                        try {
+                            // Mostrar status
+                            if (typeof atualizarUIStatusSync === 'function') {
+                                atualizarUIStatusSync('Atualizando app…');
+                            }
+                            
+                            // Limpar cache storage (preserva localStorage e Firebase)
+                            // Aguardar conclusão antes de ativar novo SW
+                            if ('caches' in window) {
+                                caches.keys().then(function(names) {
+                                    return Promise.all(names.map(function(name) {
+                                        return caches.delete(name);
+                                    }));
+                                }).then(function() {
+                                    console.log('Cache limpo automaticamente para atualização');
+                                    // Só ativar novo SW após cache limpo
+                                    skipWaiting();
+                                }).catch(function(err) {
+                                    console.warn('Erro ao limpar cache:', err);
+                                    // Mesmo com erro, ativar novo SW
+                                    skipWaiting();
+                                });
+                            } else {
+                                // Sem Cache API, ativar novo SW direto
+                                skipWaiting();
+                            }
+                        } catch (err) {
+                            console.error('Erro no auto-refresh:', err);
+                            // Em caso de erro, tentar ativar novo SW mesmo assim
+                            skipWaiting();
+                        }
+                    }
+
                     var btn = document.getElementById('btnPwaAtualizar');
                     if (btn) {
                         btn.addEventListener('click', function() {
-                            try {
-                                if (reg && reg.waiting) {
-                                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                }
-                            } catch {}
-                            // Se o controller trocar, já recarrega no listener abaixo.
+                            // Usar mesma lógica do auto-refresh para consistência
+                            autoRefreshApp();
                         });
                     }
 
-                    // Se já existir uma atualização baixada, pedir para ativar já
+                    // Se já existir uma atualização baixada ou instalando, ativar automaticamente
                     if (reg.waiting) {
-                        showUpdateUI();
-                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        console.log('Atualização disponível ao carregar, iniciando auto-refresh...');
+                        autoRefreshApp();
+                    } else if (reg.installing) {
+                        console.log('Atualização instalando, aguardando...');
+                        reg.installing.addEventListener('statechange', function() {
+                            if (reg.waiting) {
+                                console.log('Atualização pronta, iniciando auto-refresh...');
+                                autoRefreshApp();
+                            }
+                        });
                     }
 
-                    // Quando encontrar update, forçar ativação imediata
+                    // Quando encontrar update, ativar automaticamente
                     reg.addEventListener('updatefound', function() {
                         var newWorker = reg.installing;
                         if (!newWorker) return;
                         newWorker.addEventListener('statechange', function() {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // Nova versão pronta -> ativar já
-                                if (reg.waiting) {
-                                    showUpdateUI();
-                                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                }
+                                // Nova versão pronta -> ativar automaticamente
+                                console.log('Nova versão instalada, iniciando auto-refresh...');
+                                autoRefreshApp();
                             }
                         });
                     });
@@ -529,12 +573,16 @@
                         if (refreshing) return;
                         refreshing = true;
                         hideUpdateUI();
+                        console.log('Controller mudou, recarregando para versão nova...');
                         window.location.reload();
                     });
                 }).catch(function(err){
                     console.warn('ServiceWorker não registrado:', err);
                 });
             });
+        } else {
+            // Fallback: SW não suportado
+            console.warn('Service Worker não suportado neste navegador');
         }
     </script>
 </body>
