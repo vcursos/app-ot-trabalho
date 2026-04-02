@@ -490,41 +490,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (st.state === 'logged-out') {
                         atualizarUIStatusSync('Sync: desligado (sem login)');
                         setBotoesAuthHabilitados(true);
-                        // Mantém painel visível para o usuário poder clicar.
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+                        setBotoesEntrarVisiveis(true);
+                        setGoogleControlVisivel(true);
+                        setBotaoSairVisivel(false);
+                        setBotaoForcarSyncVisivel(false);
                         return;
                     }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
-                        const modo = st.isAnonymous ? 'anônimo' : 'conta';
-                        atualizarUIStatusSync(`Sync: ativo (${modo})${email} (UID ${String(st.uid).slice(0, 6)}…)`);
-
+                        atualizarUIStatusSync(`✅ Sync ativo${email}`);
                         setBotoesAuthHabilitados(true);
-
-                        // Agora o app pode ficar sem login (sem anônimo). Mantém painel visível,
-                        // mas alterna visibilidade dos botões via setBotoesEntrarVisiveis/setBotaoSairVisivel.
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-
-                        // Se a sessão foi restaurada após reload, refletir imediatamente na UI.
-                        // (Sem isso, o botão "Entrar (Google)" volta a aparecer.)
-                        try {
-                            setBotoesEntrarVisiveis(false);
-                            setGoogleControlVisivel(false);
-                            setBotaoSairVisivel(true);
-                            setBotaoForcarSyncVisivel(true);
-                        } catch {}
+                        setBotoesEntrarVisiveis(false);
+                        setGoogleControlVisivel(false);
+                        setBotaoSairVisivel(true);
+                        setBotaoForcarSyncVisivel(true);
                         return;
                     }
-                    if (st.state === 'pushed') {
-                        atualizarUIStatusSync('Sync: ok');
+                    if (st.state === 'syncing') {
+                        atualizarUIStatusSync('🔄 Sincronizando...');
+                        return;
+                    }
+                    if (st.state === 'pushed' || st.state === 'sync-ok') {
+                        atualizarUIStatusSync('✅ Sync: ok');
                         return;
                     }
                     if (st.state === 'remote-applied') {
-                        atualizarUIStatusSync('Sync: atualizado');
+                        atualizarUIStatusSync('✅ Dados restaurados');
                         return;
                     }
                     if (String(st.state).includes('error')) {
-                        atualizarUIStatusSync('Sync: erro (ver console)');
+                        atualizarUIStatusSync('⚠️ Sync: erro (ver console)');
                         setBotoesAuthHabilitados(true);
                         return;
                     }

@@ -211,9 +211,11 @@ export class FirebaseSync {
 
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
 
-    // Começa a escutar remoto e faz push inicial
+    // Sessão restaurada automaticamente: puxar dados remotos primeiro,
+    // depois iniciar listener em tempo real e enviar local se for mais novo.
     this._startRealtimeListener();
-    await this.pushLocal('init');
+    await this._pullRemoteOnLogin();   // ← Pull automático ao abrir o app
+    await this._pushLocalIfNewer('init');
   }
 
   async _ensureAuthListener() {
