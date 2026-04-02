@@ -219,17 +219,24 @@ export class FirebaseSync {
     this._auth = getAuth(this._app);
     this._db = getFirestore(this._app);
 
-    // Mantém sessão no IndexedDB (melhor p/ PWA)
+    // Persistência de sessão: tentar IndexedDB primeiro (melhor para PWA),
+    // depois localStorage como fallback (Android WebView às vezes falha com IndexedDB).
+    let persistenceOk = false;
     try {
       await setPersistence(this._auth, indexedDBLocalPersistence);
+      persistenceOk = true;
     } catch {
-      // Fallback: alguns ambientes (principalmente iOS/PWA) podem falhar com IndexedDB.
-      // browserLocalPersistence costuma funcionar melhor e ainda persiste entre reloads.
       try {
         await setPersistence(this._auth, browserLocalPersistence);
+        persistenceOk = true;
       } catch {
-        // Se falhar, continua com o default do Firebase
+        // continua com o default do Firebase (session persistence)
       }
+    }
+    // No Android PWA, forçar re-login via cookie/localStorage se IndexedDB falhou
+    // e temos cache de sessão — o Firebase pode não ter restaurado a sessão.
+    if (!persistenceOk) {
+      try { localStorage.setItem('__syncPersistFallback', '1'); } catch {}
     }
 
     // Se veio de redirect (mobile/PWA), precisamos capturar o resultado.
@@ -250,6 +257,11 @@ export class FirebaseSync {
 
     this._initialized = true;
     if (!this._uid) {
+      // Sessão não restaurada pelo Firebase.
+      // Se temos cache local (ex.: Android que não restaurou IndexedDB),
+      // tentar pull directo dos dados remotos assim que o utilizador reconectar.
+      // Por agora emitir logged-out para a UI mostrar botão de login.
+      saveSessionCache(null); // limpar cache stale
       this.onStatus({ state: 'logged-out' });
       return;
     }
@@ -302,6 +314,12 @@ export class FirebaseSync {
             this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
           } catch {}
           this._startRealtimeListener();
+          // Pull automático quando Firebase recupera sessão em segundo plano
+          // (importante no Android onde a sessão pode ser restaurada depois do init).
+          try {
+            await this._pullRemoteOnLogin();
+            await this._pushLocalIfNewer('session-restored');
+          } catch {}
         }
       });
     });

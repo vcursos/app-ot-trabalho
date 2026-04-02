@@ -1266,7 +1266,7 @@ function atualizarTabela(filtrarMes = null) {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1290,14 +1290,19 @@ function atualizarTabela(filtrarMes = null) {
         } else if (diaSemana === 6) {
             badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
         }
+
+        // Mostrar tipo de trabalho com serviço e categoria como subtexto
+        const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
+        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
+        const tipoCell = subtexto
+            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
+            : tipoLabel;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
-            <td><small>${ot.tipoServico}</small></td>
+            <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${ot.categoria || '-'}</small></td>
-            <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td>
@@ -1588,7 +1593,7 @@ function aplicarFiltros() {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1607,15 +1612,19 @@ function aplicarFiltros() {
         } else if (diaSemana === 6) {
             badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
         }
+
+        const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
+        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
+        const tipoCell = subtexto
+            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
+            : tipoLabel;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
-            <td><small>${ot.tipoServico}</small></td>
+            <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${ot.categoria || '-'}</small></td>
-            <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
-            <td><small>${ot.macEquipamento}</small></td>
+            <td><small>${ot.macEquipamento || '-'}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
         `;
@@ -1651,7 +1660,7 @@ function pesquisarPorMAC() {
     });
     
     if (resultados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhum equipamento encontrado com este MAC</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhum equipamento encontrado com este MAC</td></tr>';
         return;
     }
     
@@ -1669,14 +1678,18 @@ function pesquisarPorMAC() {
                 return codigoDestacado;
             }).join(', ')
             : (ot.macEquipamento || '-');
+
+        const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
+        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
+        const tipoCell = subtexto
+            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
+            : tipoLabel;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}</td>
             <td><strong>${ot.numeroOT}</strong></td>
-            <td><small>${ot.tipoServico}</small></td>
+            <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${ot.categoria || '-'}</small></td>
-            <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
