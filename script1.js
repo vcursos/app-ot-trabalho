@@ -1,5 +1,6 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
+let adicionaisTemp = []; // Array temporário para adicionais antes de salvar OT
 
 // ==================== SINCRONIZAÇÃO (Firebase opcional) ====================
 // Opção 2: sincronizar desktop <-> mobile via Firestore.
@@ -345,6 +346,14 @@ function getDataISO(isoStringOrDate) {
     return `${y}-${m}-${day}`;
 }
 
+function getMesAtualISO() {
+    // Retorna YYYY-MM do mês atual
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+}
+
 function formatarDataBRFromISODate(isoDate) {
     // isoDate: 'YYYY-MM-DD'
     if (!isoDate) return '-';
@@ -381,37 +390,43 @@ function setPremioNoDiaSeMaior(dataISO, valor, aplicadoEm) {
 }
 
 function atualizarUIFestivoPorDia() {
+    const checkboxSabado = document.getElementById('otSabado');
+    const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
-    const preview = document.getElementById('previewPremioFestivo');
+    const previewEl = document.getElementById('previewPremios');
+    const badgeSabado = document.getElementById('badgeSabado');
+    const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
-    if (!checkboxFestivo) return;
 
-    const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioFestivo: 0 };
-    const premioBase = parseFloat(mult.premioFestivo) || 0;
-    // Considera a data selecionada no formulário (se existir), para não depender do "hoje"
+    const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioSabado: 0, premioDomingo: 0, premioFestivo: 0 };
+    
+    // Considera a data selecionada no formulário (se existir)
     const dataFormEl = document.getElementById('dataOT');
     const dataBase = (dataFormEl && dataFormEl.value) ? (dataFormEl.value + 'T00:00:00') : null;
     const hojeISO = getDataISO(dataBase);
     const jaAplicado = premioJaAplicadoNoDia(hojeISO);
 
+    // Desabilitar todos os checkboxes se já foi aplicado prémio hoje
     if (jaAplicado) {
-        checkboxFestivo.checked = false;
-        checkboxFestivo.disabled = true;
-        checkboxFestivo.setAttribute('title', 'Prémio festivo já aplicado hoje');
-        if (preview) {
-            const val = parseFloat(premiosFestivosPorDia[hojeISO]?.valor) || 0;
-            preview.textContent = val > 0
-                ? `Prémio do dia já aplicado em ${formatarDataBRFromISODate(hojeISO)}: € ${val.toFixed(2)}`
-                : 'Prémio do dia já aplicado hoje.';
-        }
+        if (checkboxSabado) { checkboxSabado.checked = false; checkboxSabado.disabled = true; }
+        if (checkboxDomingo) { checkboxDomingo.checked = false; checkboxDomingo.disabled = true; }
+        if (checkboxFestivo) { checkboxFestivo.checked = false; checkboxFestivo.disabled = true; }
+        if (badgeSabado) badgeSabado.style.display = 'none';
+        if (badgeDomingo) badgeDomingo.style.display = 'none';
         if (badgeFestivo) badgeFestivo.style.display = 'none';
+        if (previewEl) {
+            const val = parseFloat(premiosFestivosPorDia[hojeISO]?.valor) || 0;
+            previewEl.innerHTML = `<span style="color:#ff9800;">⚠️ Prémio €${val.toFixed(2)} já aplicado em ${formatarDataBRFromISODate(hojeISO)}</span>`;
+        }
     } else {
-        checkboxFestivo.disabled = false;
-        checkboxFestivo.removeAttribute('title');
-        if (preview) {
-            preview.textContent = premioBase > 0
-                ? `Prémio configurado: € ${premioBase.toFixed(2)} (aplica 1x por dia)`
-                : 'Prémio configurado: € 0.00';
+        if (checkboxSabado) checkboxSabado.disabled = false;
+        if (checkboxDomingo) checkboxDomingo.disabled = false;
+        if (checkboxFestivo) checkboxFestivo.disabled = false;
+        if (previewEl) {
+            const sab = parseFloat(mult.premioSabado) || 0;
+            const dom = parseFloat(mult.premioDomingo) || 0;
+            const fest = parseFloat(mult.premioFestivo) || 0;
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}`;
         }
     }
 }
@@ -440,9 +455,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Listener para atualizar valor quando serviço for selecionado
     document.getElementById('tipoServico').addEventListener('change', atualizarValorServico);
-    
-    // Listener para adicional
-    document.getElementById('adicionalServico').addEventListener('change', atualizarValorAdicional);
 
     // Iniciar sync (se configurado) depois que a UI básica estiver pronta
     (async function iniciarSyncFirebase() {
@@ -657,6 +669,88 @@ function removerEquipamento(index) {
     atualizarListaEquipamentos();
 }
 
+// ==================== ADICIONAIS MÚLTIPLOS ====================
+
+// Adicionar adicional à lista
+function adicionarAdicional() {
+    const select = document.getElementById('adicionalServico');
+    const valorSelecionado = select.value;
+    
+    if (!valorSelecionado) {
+        alert('Selecione um adicional para adicionar.');
+        return;
+    }
+    
+    try {
+        const adicionalInfo = JSON.parse(valorSelecionado);
+        
+        // Verificar se já foi adicionado
+        const jaExiste = adicionaisTemp.some(a => a.item === adicionalInfo.item);
+        if (jaExiste) {
+            alert('Este adicional já foi adicionado.');
+            return;
+        }
+        
+        adicionaisTemp.push(adicionalInfo);
+        atualizarListaAdicionais();
+        calcularValorTotal();
+        
+        // Resetar o select
+        select.value = '';
+    } catch (e) {
+        console.error('Erro ao adicionar adicional:', e);
+        alert('Erro ao processar adicional.');
+    }
+}
+
+// Atualizar visualização da lista de adicionais
+function atualizarListaAdicionais() {
+    const lista = document.getElementById('listaAdicionais');
+    const valorAdicionalEl = document.getElementById('valorAdicional');
+    
+    if (!lista) return;
+    
+    if (adicionaisTemp.length === 0) {
+        lista.innerHTML = '<span style="color: #999; font-size: 12px;">Nenhum adicional selecionado</span>';
+        if (valorAdicionalEl) valorAdicionalEl.value = '0.00';
+        return;
+    }
+    
+    // Calcular valor total dos adicionais
+    const valorTotal = adicionaisTemp.reduce((sum, a) => sum + (parseFloat(a.valor) || 0), 0);
+    if (valorAdicionalEl) valorAdicionalEl.value = valorTotal.toFixed(2);
+    
+    lista.innerHTML = adicionaisTemp.map((adicional, index) => `
+        <div style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #9c27b0; color: white; border-radius: 5px; margin: 2px; font-size: 12px;">
+            <span>➕ ${adicional.item} (€${(adicional.valor || 0).toFixed(2)})</span>
+            <button type="button" onclick="removerAdicional(${index})" style="background: rgba(255,255,255,0.3); color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-weight: bold;">✕</button>
+        </div>
+    `).join('');
+}
+
+// Remover adicional da lista
+function removerAdicional(index) {
+    adicionaisTemp.splice(index, 1);
+    atualizarListaAdicionais();
+    calcularValorTotal();
+}
+
+// Obter texto dos adicionais para exibição
+function getAdicionaisTexto() {
+    if (adicionaisTemp.length === 0) return '-';
+    return adicionaisTemp.map(a => a.item).join(', ');
+}
+
+// Obter valor total dos adicionais
+function getValorTotalAdicionais() {
+    return adicionaisTemp.reduce((sum, a) => sum + (parseFloat(a.valor) || 0), 0);
+}
+
+// Obter pontos total dos adicionais
+function getPontosTotalAdicionais() {
+    return adicionaisTemp.reduce((sum, a) => sum + (parseFloat(a.pontos) || 0), 0);
+}
+
 function definirDataAtual() {
     const hoje = new Date();
     const mes = String(hoje.getMonth() + 1).padStart(2, '0');
@@ -687,16 +781,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     }
     
     const categoriaSelecionada = document.getElementById('categoriaServico').value;
-    const adicionalSelecionado = document.getElementById('adicionalServico').value;
     
-    let adicionalInfo = null;
-    if (adicionalSelecionado) {
-        try {
-            adicionalInfo = JSON.parse(adicionalSelecionado);
-        } catch (e) {
-            adicionalInfo = getServicoInfo(adicionalSelecionado);
-        }
-    }
+    // Usar múltiplos adicionais
+    const valorAdicionalBase = getValorTotalAdicionais();
+    const pontosAdicionalBase = getPontosTotalAdicionais();
+    const adicionaisTexto = getAdicionaisTexto();
     
     // Obter multiplicador selecionado
     const multiplicadorEl = document.getElementById('multiplicadorServico');
@@ -706,24 +795,113 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     
     // Valores base sem multiplicador
     const valorServicoBase = servicoInfo ? servicoInfo.valor : 0;
-    const valorAdicionalBase = adicionalInfo ? adicionalInfo.valor : 0;
 
     // Pontos base
     const pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
-    const pontosAdicionalBase = adicionalInfo ? (parseFloat(adicionalInfo.pontos) || 0) : 0;
     
     // Valor total com multiplicador
     const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
 
-    // Prémio festivo (extra do dia), aplicado apenas 1x por dia
+    // Checkboxes de prémios de saída
+    const checkboxSabado = document.getElementById('otSabado');
+    const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    
     const dataFormEl = document.getElementById('dataOT');
     const dataOTISO = (dataFormEl && dataFormEl.value) ? dataFormEl.value : getDataISO();
     const hojeISO = dataOTISO;
-    const premioConfigurado = parseFloat((obterMultiplicadores()?.premioFestivo)) || 0;
-    const permitirAplicarHoje = !premioJaAplicadoNoDia(hojeISO);
+    
+    // Se está editando, verificar prémios da OT original
+    const otOriginal = otEmEdicao ? ordensTrabalho.find(o => o.id === otEmEdicao) : null;
+    const permitirAplicarHoje = otEmEdicao ? true : !premioJaAplicadoNoDia(hojeISO);
+    
+    // Verificar dia da semana
+    const dataOTDate = new Date(dataOTISO + 'T12:00:00');
+    const diaSemana = dataOTDate.getDay(); // 0=domingo, 6=sábado
+    
+    // Calcular prémios baseado nos checkboxes (só aplica se permitido)
+    const marcadoSabado = !!(checkboxSabado && checkboxSabado.checked);
+    const marcadoDomingo = !!(checkboxDomingo && checkboxDomingo.checked);
     const marcadoFestivo = !!(checkboxFestivo && checkboxFestivo.checked);
-    const premioAplicado = (marcadoFestivo && permitirAplicarHoje) ? premioConfigurado : 0;
+    
+    let premioSabadoAplicado = 0;
+    let premioDomingoAplicado = 0;
+    let premioFestivoAplicado = 0;
+    
+    if (permitirAplicarHoje) {
+        if (marcadoSabado) {
+            premioSabadoAplicado = parseFloat(mult?.premioSabado) || 0;
+        }
+        if (marcadoDomingo) {
+            premioDomingoAplicado = parseFloat(mult?.premioDomingo) || 0;
+        }
+        if (marcadoFestivo) {
+            premioFestivoAplicado = parseFloat(mult?.premioFestivo) || 0;
+        }
+    }
+    
+    // Total de prémios aplicados
+    const premioTotalAplicado = premioSabadoAplicado + premioDomingoAplicado + premioFestivoAplicado;
+    
+    // Se está em modo edição, atualizar ao invés de criar nova
+    if (otEmEdicao) {
+        const index = ordensTrabalho.findIndex(o => o.id === otEmEdicao);
+        if (index !== -1) {
+            // Capturar dados antigos para verificar se precisa limpar prémios
+            const otAntiga = ordensTrabalho[index];
+            const dataAntigaISO = otAntiga ? getDataISO(otAntiga.data) : null;
+            
+            // Manter o ID original
+            ordensTrabalho[index] = {
+                ...ordensTrabalho[index],
+                data: dataOTISO + 'T00:00:00',
+                numeroOT: numeroOT || '-',
+                tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
+                categoria: categoriaSelecionada,
+                rede: servicoInfo ? servicoInfo.red : '',
+                tipologia: servicoInfo ? servicoInfo.tipologia : '',
+                adicional: adicionaisTexto,
+                adicionais: [...adicionaisTemp], // Array completo de adicionais
+                valorAdicional: valorAdicionalBase,
+                pontosServico: pontosServicoBase,
+                pontosAdicional: pontosAdicionalBase,
+                multiplicador: tipoMultiplicador,
+                valorMultiplicador: valorMultiplicador,
+                otSabado: marcadoSabado,
+                otDomingo: marcadoDomingo,
+                otFestivo: marcadoFestivo,
+                premioSabadoAplicado: marcadoSabado ? premioSabadoAplicado : 0,
+                premioDomingoAplicado: marcadoDomingo ? premioDomingoAplicado : 0,
+                premioFestivoAplicado: marcadoFestivo ? premioFestivoAplicado : 0,
+                diaSemana: diaSemana,
+                equipamentos: [...equipamentosTemp],
+                tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
+                observacoes: document.getElementById('observacoes').value || '',
+                valorServico: valorTotalFinal
+            };
+            
+            salvarDados();
+            
+            // Se removeu prémios, limpar do registro do dia (para PDF)
+            if (dataAntigaISO) {
+                limparPremiosDoDiaSeNaoExistirMaisOT(dataAntigaISO);
+            }
+            // Também verificar a nova data se mudou
+            if (dataOTISO !== dataAntigaISO) {
+                limparPremiosDoDiaSeNaoExistirMaisOT(dataOTISO);
+            }
+            
+            atualizarTabela();
+            atualizarResumos();
+            atualizarUIFestivoPorDia();
+            
+            // Limpar modo edição
+            cancelarEdicao();
+            
+            alert('Ordem de trabalho atualizada com sucesso!');
+            return;
+        }
+    }
     
     const ot = {
         id: Date.now(),
@@ -734,15 +912,22 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         categoria: categoriaSelecionada,
         rede: servicoInfo ? servicoInfo.red : '',
         tipologia: servicoInfo ? servicoInfo.tipologia : '',
-        adicional: adicionalInfo ? adicionalInfo.item : (adicionalSelecionado || ''),
-        adicionalDesc: adicionalInfo ? adicionalInfo.tipologia : '',
+        adicional: adicionaisTexto,
+        adicionais: [...adicionaisTemp], // Array completo de adicionais
         valorAdicional: valorAdicionalBase,
-    pontosServico: pontosServicoBase,
-    pontosAdicional: pontosAdicionalBase,
+        pontosServico: pontosServicoBase,
+        pontosAdicional: pontosAdicionalBase,
         multiplicador: tipoMultiplicador,
         valorMultiplicador: valorMultiplicador,
-    otFestivo: (marcadoFestivo && permitirAplicarHoje),
-        premioFestivoAplicado: premioAplicado,
+        // Flags de prémios
+        otSabado: (marcadoSabado && permitirAplicarHoje),
+        otDomingo: (marcadoDomingo && permitirAplicarHoje),
+        otFestivo: (marcadoFestivo && permitirAplicarHoje),
+        // Valores dos prémios aplicados
+        premioSabadoAplicado: premioSabadoAplicado,
+        premioDomingoAplicado: premioDomingoAplicado,
+        premioFestivoAplicado: premioFestivoAplicado,
+        diaSemana: diaSemana, // Guardar dia da semana para referência
         equipamentos: [...equipamentosTemp], // Copiar array de equipamentos
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
         observacoes: document.getElementById('observacoes').value || '',
@@ -755,9 +940,9 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     garantirOTNoHistorico(ot);
     salvarHistoricoOT();
 
-    // Se foi marcado e aplicado hoje, registrar que o prémio do dia já foi usado
-    if (premioAplicado > 0) {
-        setPremioNoDiaSeMaior(hojeISO, premioAplicado, ot.data);
+    // Se aplicou algum prémio hoje, registrar que o prémio do dia já foi usado
+    if (premioTotalAplicado > 0) {
+        setPremioNoDiaSeMaior(hojeISO, premioTotalAplicado, ot.data);
     }
 
     salvarDados();
@@ -781,20 +966,33 @@ function limparFormulario() {
         multiplicadorEl.value = 'normal';
     }
 
-    // Resetar festivo
+    // Resetar checkboxes de prémios
+    const checkboxSabado = document.getElementById('otSabado');
+    const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
-    if (checkboxFestivo) {
-        checkboxFestivo.checked = false;
-    }
+    if (checkboxSabado) checkboxSabado.checked = false;
+    if (checkboxDomingo) checkboxDomingo.checked = false;
+    if (checkboxFestivo) checkboxFestivo.checked = false;
+    
+    // Esconder badges
+    const badgeSabado = document.getElementById('badgeSabado');
+    const badgeDomingo = document.getElementById('badgeDomingo');
+    const badgeFestivo = document.getElementById('badgeFestivo');
+    if (badgeSabado) badgeSabado.style.display = 'none';
+    if (badgeDomingo) badgeDomingo.style.display = 'none';
+    if (badgeFestivo) badgeFestivo.style.display = 'none';
 
     // Atualizar preview do prémio
     calcularValorTotal();
 
-    // Atualizar estado do festivo (pode ficar desabilitado se já aplicado hoje)
+    // Atualizar estado dos checkboxes (pode ficar desabilitado se já aplicado hoje)
     atualizarUIFestivoPorDia();
     
     equipamentosTemp = [];
     atualizarListaEquipamentos();
+    
+    adicionaisTemp = [];
+    atualizarListaAdicionais();
 }
 
 function obterValorServico(itemMOI) {
@@ -899,7 +1097,7 @@ function popularServicosPorCategoria(categoria) {
     
     servicosFiltrados.forEach(servico => {
         const option = document.createElement('option');
-        option.value = servico.item;
+        option.value = JSON.stringify(servico);
         option.textContent = `${servico.item} - ${servico.tipologia}`;
         option.dataset.valor = servico.valor;
         option.dataset.red = servico.red;
@@ -913,7 +1111,6 @@ function popularServicosPorCategoria(categoria) {
 
 function limparCamposServico() {
     document.getElementById('valorServico').value = '';
-    document.getElementById('redeServico').value = '';
     document.getElementById('categoriaServico').value = '';
     document.getElementById('valorTotal').value = '';
 }
@@ -924,15 +1121,13 @@ function atualizarValorServico() {
     if (select.value) {
         try {
             const servico = JSON.parse(select.value);
-            const valor = servico.valor || 0;
-            const rede = servico.red || '';
+            const valor = parseFloat(servico.valor) || 0;
             const categoria = servico.categoria || '';
             const codigo = servico.item || '';
             const descricao = servico.tipologia || '';
             
             // Atualizar campos readonly
             document.getElementById('valorServico').value = valor.toFixed(2);
-            document.getElementById('redeServico').value = rede;
             document.getElementById('categoriaServico').value = categoria;
             
             // Auto-selecionar tipo de trabalho baseado no código/descrição
@@ -975,17 +1170,24 @@ function atualizarTabela(filtrarMes = null) {
     
     let otsFiltradas = ordensTrabalho;
     
-    // Aplicar filtro de mês
-    if (filtrarMes) {
-        otsFiltradas = otsFiltradas.filter(ot => {
-            const dataOT = new Date(ot.data);
-            const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
-            return mesAno === filtrarMes;
-        });
+    // Se não foi especificado filtro, usar o mês atual por padrão
+    const mesParaFiltrar = filtrarMes || getMesAtualISO();
+    
+    // Aplicar filtro de mês (sempre filtra)
+    otsFiltradas = otsFiltradas.filter(ot => {
+        const dataOT = new Date(ot.data);
+        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
+        return mesAno === mesParaFiltrar;
+    });
+    
+    // Atualizar o select do filtro para mostrar o mês atual
+    const filtroMesEl = document.getElementById('filtroMes');
+    if (filtroMesEl && !filtrarMes) {
+        filtroMesEl.value = mesParaFiltrar;
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="10">Nenhuma ordem de trabalho encontrada</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -998,17 +1200,31 @@ function atualizarTabela(filtrarMes = null) {
             ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : `${eq.tipo}: ${eq.mac}`).join(', ')
             : (ot.macEquipamento || '-');
         
+        // Identificar se é dia especial para destacar na tabela
+        const diaSemana = data.getDay();
+        const isFestivo = ot.otFestivo === true;
+        let badgeDia = '';
+        if (isFestivo) {
+            badgeDia = '<span style="background:#9c27b0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">🎉 FESTIVO</span>';
+        } else if (diaSemana === 0) {
+            badgeDia = '<span style="background:#e91e63;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">DOM</span>';
+        } else if (diaSemana === 6) {
+            badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
+        }
+        
         tr.innerHTML = `
-            <td>${data.toLocaleDateString('pt-BR')}</td>
+            <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td><small>${ot.tipoServico}</small></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td><small>${ot.categoria || '-'}</small></td>
-            <td><span class="badge-rede">${ot.rede || '-'}</span></td>
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
-            <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
+            <td>
+                <button class="btn-edit" onclick="editarOT(${ot.id})" title="Editar">✏️</button>
+                <button class="btn-delete" onclick="deletarOT(${ot.id})" title="Excluir">🗑️</button>
+            </td>
         `;
         
         tbody.appendChild(tr);
@@ -1043,24 +1259,37 @@ function removerOTDoHistorico(id) {
     }
 }
 
-function limparPremioFestivoDoDiaSeNaoExistirMaisOTFestiva(dataISO) {
+function limparPremiosDoDiaSeNaoExistirMaisOT(dataISO) {
     try {
         if (!dataISO) return;
 
-        const aindaExiste = ordensTrabalho.some(ot => {
+        // Verificar se ainda existe alguma OT neste dia com prémios (Sábado, Domingo ou Festivo)
+        const aindaExistePremioNoDia = ordensTrabalho.some(ot => {
             if (!ot) return false;
             const dataOT = getDataISO(ot.data);
-            const temFestivo = (parseFloat(ot.premioFestivoAplicado) || 0) > 0;
-            return dataOT === dataISO && temFestivo;
+            if (dataOT !== dataISO) return false;
+            
+            // Verificar se tem algum prémio aplicado
+            const temSabado = (parseFloat(ot.premioSabadoAplicado) || 0) > 0 || ot.otSabado;
+            const temDomingo = (parseFloat(ot.premioDomingoAplicado) || 0) > 0 || ot.otDomingo;
+            const temFestivo = (parseFloat(ot.premioFestivoAplicado) || 0) > 0 || ot.otFestivo;
+            
+            return temSabado || temDomingo || temFestivo;
         });
 
-        if (!aindaExiste && premiosFestivosPorDia && premiosFestivosPorDia[dataISO]) {
+        // Se não existe mais nenhuma OT com prémio neste dia, limpar o registro
+        if (!aindaExistePremioNoDia && premiosFestivosPorDia && premiosFestivosPorDia[dataISO]) {
             delete premiosFestivosPorDia[dataISO];
             salvarPremiosFestivosPorDia();
         }
     } catch (e) {
-        console.warn('Falha ao limpar prémio festivo do dia:', e);
+        console.warn('Falha ao limpar prémios do dia:', e);
     }
+}
+
+// Manter compatibilidade com nome antigo
+function limparPremioFestivoDoDiaSeNaoExistirMaisOTFestiva(dataISO) {
+    limparPremiosDoDiaSeNaoExistirMaisOT(dataISO);
 }
 
 function deletarOT(id) {
@@ -1081,6 +1310,112 @@ function deletarOT(id) {
 
         notificarMudancaParaSync('deletarOT');
     }
+}
+
+// Variável para guardar ID da OT sendo editada
+let otEmEdicao = null;
+
+function editarOT(id) {
+    const ot = ordensTrabalho.find(o => o.id === id);
+    if (!ot) {
+        alert('OT não encontrada!');
+        return;
+    }
+    
+    // Guardar ID para saber que está em modo edição
+    otEmEdicao = id;
+    
+    // Preencher o formulário com os dados da OT
+    document.getElementById('dataOT').value = ot.data ? ot.data.substring(0, 10) : '';
+    document.getElementById('numeroOT').value = ot.numeroOT || '';
+    document.getElementById('tipoTrabalho').value = ot.tipoTrabalho || '';
+    document.getElementById('observacoes').value = ot.observacoes || '';
+    
+    // Categoria
+    const categoriaEl = document.getElementById('categoriaServico');
+    if (categoriaEl) categoriaEl.value = ot.categoria || '';
+    
+    // Valor do serviço (readonly, só para mostrar)
+    const valorServicoEl = document.getElementById('valorServico');
+    if (valorServicoEl) valorServicoEl.value = ot.pontosServico ? ot.pontosServico : '';
+    
+    // Valor total
+    const valorTotalEl = document.getElementById('valorTotal');
+    if (valorTotalEl) valorTotalEl.value = ot.valorServico ? ot.valorServico.toFixed(2) : '';
+    
+    // Multiplicador
+    const multiplicadorEl = document.getElementById('multiplicadorServico');
+    if (multiplicadorEl) multiplicadorEl.value = ot.multiplicador || 'normal';
+    
+    // Checkboxes de prémios
+    const checkSabado = document.getElementById('otSabado');
+    const checkDomingo = document.getElementById('otDomingo');
+    const checkFestivo = document.getElementById('otFestivo');
+    if (checkSabado) checkSabado.checked = !!ot.otSabado;
+    if (checkDomingo) checkDomingo.checked = !!ot.otDomingo;
+    if (checkFestivo) checkFestivo.checked = !!ot.otFestivo;
+    
+    // Equipamentos
+    equipamentosTemp = ot.equipamentos ? [...ot.equipamentos] : [];
+    atualizarListaEquipamentos();
+    
+    // Adicionais
+    adicionaisTemp = ot.adicionais ? [...ot.adicionais] : [];
+    atualizarListaAdicionais();
+    
+    // Mudar botão de "Registrar" para "Atualizar"
+    const btnSubmit = document.querySelector('#formOT button[type="submit"]');
+    if (btnSubmit) {
+        btnSubmit.textContent = '✏️ Atualizar OT';
+        btnSubmit.style.background = 'linear-gradient(135deg, #f39c12, #e67e22)';
+    }
+    
+    // Mostrar botão de cancelar edição
+    mostrarBotaoCancelarEdicao();
+    
+    // Scroll para o topo do formulário
+    document.getElementById('formOT').scrollIntoView({ behavior: 'smooth' });
+    
+    // Destacar que está em modo edição
+    document.getElementById('formOT').style.boxShadow = '0 0 15px rgba(243, 156, 18, 0.5)';
+}
+
+function mostrarBotaoCancelarEdicao() {
+    // Remover botão existente se houver
+    const btnExistente = document.getElementById('btnCancelarEdicao');
+    if (btnExistente) btnExistente.remove();
+    
+    // Criar botão de cancelar
+    const btnCancelar = document.createElement('button');
+    btnCancelar.type = 'button';
+    btnCancelar.id = 'btnCancelarEdicao';
+    btnCancelar.textContent = '❌ Cancelar Edição';
+    btnCancelar.style.cssText = 'margin-left: 10px; padding: 12px 20px; background: #e74c3c; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;';
+    btnCancelar.onclick = cancelarEdicao;
+    
+    const btnSubmit = document.querySelector('#formOT button[type="submit"]');
+    if (btnSubmit && btnSubmit.parentElement) {
+        btnSubmit.parentElement.appendChild(btnCancelar);
+    }
+}
+
+function cancelarEdicao() {
+    otEmEdicao = null;
+    limparFormulario();
+    
+    // Restaurar botão
+    const btnSubmit = document.querySelector('#formOT button[type="submit"]');
+    if (btnSubmit) {
+        btnSubmit.textContent = '✅ Registrar OT';
+        btnSubmit.style.background = '';
+    }
+    
+    // Remover botão de cancelar
+    const btnCancelar = document.getElementById('btnCancelarEdicao');
+    if (btnCancelar) btnCancelar.remove();
+    
+    // Remover destaque
+    document.getElementById('formOT').style.boxShadow = '';
 }
 
 function atualizarResumos() {
@@ -1125,36 +1460,56 @@ function filtrarPorMes() {
 }
 
 function aplicarFiltros() {
-    const mes = document.getElementById('filtroMes').value;
+    const mesInput = document.getElementById('filtroMes').value;
     const categoria = document.getElementById('filtroCategoria').value;
-    const rede = document.getElementById('filtroRede').value;
+    const diaSemanaFiltro = document.getElementById('filtroDiaSemana')?.value || '';
+    
+    // Se não selecionou mês, usar mês atual
+    const mes = mesInput || getMesAtualISO();
     
     const tbody = document.getElementById('corpoTabela');
     tbody.innerHTML = '';
     
     let otsFiltradas = ordensTrabalho;
     
-    // Filtro por mês
-    if (mes) {
-        otsFiltradas = otsFiltradas.filter(ot => {
-            const dataOT = new Date(ot.data);
-            const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
-            return mesAno === mes;
-        });
-    }
+    // Filtro por mês (sempre aplica, usando mês atual como padrão)
+    otsFiltradas = otsFiltradas.filter(ot => {
+        const dataOT = new Date(ot.data);
+        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
+        return mesAno === mes;
+    });
     
     // Filtro por categoria
     if (categoria) {
         otsFiltradas = otsFiltradas.filter(ot => ot.categoria === categoria);
     }
     
-    // Filtro por rede
-    if (rede) {
-        otsFiltradas = otsFiltradas.filter(ot => ot.rede === rede);
+    // Filtro por dia da semana (Sábado, Domingo, Festivo)
+    if (diaSemanaFiltro) {
+        otsFiltradas = otsFiltradas.filter(ot => {
+            const dataOT = new Date(ot.data);
+            const diaSemana = dataOT.getDay(); // 0 = Domingo, 6 = Sábado
+            const isFestivo = ot.otFestivo === true;
+            
+            switch (diaSemanaFiltro) {
+                case 'sabado':
+                    return diaSemana === 6;
+                case 'domingo':
+                    return diaSemana === 0;
+                case 'festivo':
+                    return isFestivo;
+                case 'fds': // Fins de semana (Sábado + Domingo)
+                    return diaSemana === 0 || diaSemana === 6;
+                case 'especial': // Todos especiais (Sáb + Dom + Festivo)
+                    return diaSemana === 0 || diaSemana === 6 || isFestivo;
+                default:
+                    return true;
+            }
+        });
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="10">Nenhuma ordem de trabalho encontrada</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1162,13 +1517,24 @@ function aplicarFiltros() {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
         
+        // Identificar se é dia especial para destacar na tabela
+        const diaSemana = data.getDay();
+        const isFestivo = ot.otFestivo === true;
+        let badgeDia = '';
+        if (isFestivo) {
+            badgeDia = '<span style="background:#9c27b0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">🎉 FESTIVO</span>';
+        } else if (diaSemana === 0) {
+            badgeDia = '<span style="background:#e91e63;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">DOM</span>';
+        } else if (diaSemana === 6) {
+            badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
+        }
+        
         tr.innerHTML = `
-            <td>${data.toLocaleDateString('pt-BR')}</td>
+            <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td><small>${ot.tipoServico}</small></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td><small>${ot.categoria || '-'}</small></td>
-            <td><span class="badge-rede">${ot.rede || '-'}</span></td>
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${ot.macEquipamento}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1206,7 +1572,7 @@ function pesquisarPorMAC() {
     });
     
     if (resultados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="10">Nenhum equipamento encontrado com este MAC</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="9">Nenhum equipamento encontrado com este MAC</td></tr>';
         return;
     }
     
@@ -1231,7 +1597,6 @@ function pesquisarPorMAC() {
             <td><small>${ot.tipoServico}</small></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td><small>${ot.categoria || '-'}</small></td>
-            <td><span class="badge-rede">${ot.rede || '-'}</span></td>
             <td>${formatarTipoTrabalho(ot.tipoTrabalho)}</td>
             <td><small>${equipamentosTexto}</small></td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1309,7 +1674,16 @@ function gerarPDF() {
 
     // IMPORTANTE: este PDF deve refletir exatamente o que está na tabela (após apagar, filtrar, etc)
     const categoriaFiltro = document.getElementById('filtroCategoria').value;
-    const redeFiltro = document.getElementById('filtroRede').value;
+    const diaSemanaFiltro = document.getElementById('filtroDiaSemana')?.value || '';
+    
+    // Mapeamento do filtro de dia para texto legível
+    const diaSemanaTexto = {
+        'sabado': 'Sábados',
+        'domingo': 'Domingos',
+        'festivo': 'Festivos',
+        'fds': 'Fins de Semana',
+        'especial': 'Dias Especiais (Sáb+Dom+Festivo)'
+    };
 
     let otsMes = obterOTsVisiveisNaTabela();
     
@@ -1319,11 +1693,13 @@ function gerarPDF() {
     doc.setFontSize(11);
     doc.text(`Período: ${new Date(mesAtual + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`, 14, 28);
     
-    if (categoriaFiltro || redeFiltro) {
-        let filtros = 'Filtros: ';
-        if (categoriaFiltro) filtros += `Categoria: ${categoriaFiltro} `;
-        if (redeFiltro) filtros += `Rede: ${redeFiltro}`;
-        doc.text(filtros, 14, 34);
+    // Mostrar filtros aplicados
+    let filtrosTexto = [];
+    if (categoriaFiltro) filtrosTexto.push(`Categoria: ${categoriaFiltro}`);
+    if (diaSemanaFiltro) filtrosTexto.push(`Dias: ${diaSemanaTexto[diaSemanaFiltro] || diaSemanaFiltro}`);
+    
+    if (filtrosTexto.length > 0) {
+        doc.text(`Filtros: ${filtrosTexto.join(' | ')}`, 14, 34);
     }
     
     // Tabela (com Equipamentos)
@@ -1331,9 +1707,18 @@ function gerarPDF() {
         const equipamentos = (ot.equipamentos && ot.equipamentos.length > 0)
             ? ot.equipamentos.map(eq => (typeof eq === 'string') ? eq : (eq.mac || '')).filter(Boolean).join(', ')
             : (ot.macEquipamento || '-');
+        
+        // Adicionar indicador de dia especial
+        const dataOT = new Date(ot.data);
+        const diaSemana = dataOT.getDay();
+        const isFestivo = ot.otFestivo === true;
+        let diaIndicador = '';
+        if (isFestivo) diaIndicador = ' (FEST)';
+        else if (diaSemana === 0) diaIndicador = ' (DOM)';
+        else if (diaSemana === 6) diaIndicador = ' (SAB)';
 
         return [
-            new Date(ot.data).toLocaleDateString('pt-BR'),
+            dataOT.toLocaleDateString('pt-BR') + diaIndicador,
             ot.numeroOT,
             ot.tipoServico,
             ot.categoria || '-',
@@ -1346,19 +1731,19 @@ function gerarPDF() {
     
     if (temAutoTable) {
         doc.autoTable({
-            startY: categoriaFiltro || redeFiltro ? 40 : 35,
+            startY: filtrosTexto.length > 0 ? 40 : 35,
             head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Equipamentos', 'Observações', 'Valor']],
             body: tableData,
             theme: 'striped',
             headStyles: { fillColor: [102, 126, 234] },
             styles: { fontSize: 8 },
             columnStyles: {
-                0: { cellWidth: 18 },
+                0: { cellWidth: 22 },
                 1: { cellWidth: 20 },
                 2: { cellWidth: 35 },
                 3: { cellWidth: 30 },
                 4: { cellWidth: 20 },
-                5: { cellWidth: 55 },
+                5: { cellWidth: 50 },
                 6: { cellWidth: 45 },
                 7: { cellWidth: 22, fontStyle: 'bold' }
             }
@@ -1371,37 +1756,51 @@ function gerarPDF() {
     
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
-    // Prémios festivos: somar 1x por dia e listar datas
-    // Fonte principal: OTs do mês. Fallback: mapa premiosFestivosPorDia (para não "sumir" valor em casos antigos/importados)
-    const premiosPorDia = {};
+    
+    // PRÉMIOS DE SAÍDA: Sábado, Domingo e Festivo (1x por dia)
+    // Coletar prémios por dia (apenas 1x por dia, como nas OTs)
+    const premiosSaidaPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
-        const val = parseFloat(ot.premioFestivoAplicado) || 0;
-        if (val > 0 && !premiosPorDia[dataISO]) {
-            premiosPorDia[dataISO] = val;
+        if (premiosSaidaPorDia[dataISO]) return; // Já registrado para este dia
+        
+        const premioSab = parseFloat(ot.premioSabadoAplicado) || 0;
+        const premioDom = parseFloat(ot.premioDomingoAplicado) || 0;
+        const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
+        const totalDia = premioSab + premioDom + premioFest;
+        
+        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+            premiosSaidaPorDia[dataISO] = {
+                sabado: premioSab,
+                domingo: premioDom,
+                festivo: premioFest,
+                total: totalDia,
+                tipo: ot.otSabado ? 'Sáb' : (ot.otDomingo ? 'Dom' : (ot.otFestivo ? 'Festivo' : ''))
+            };
         }
     });
-    // Fallback: se o mês atual tiver dias registrados no mapa, incluir também
+    
+    // Fallback: verificar mapa premiosFestivosPorDia para dados antigos
     if (premiosFestivosPorDia) {
         Object.keys(premiosFestivosPorDia).forEach(d => {
             if (!d || typeof d !== 'string') return;
             if (d.substring(0, 7) !== mesAtual) return;
             const val = getPremioRegistradoNoDia(d);
-            if (val > 0 && !premiosPorDia[d]) {
-                premiosPorDia[d] = val;
+            if (val > 0 && !premiosSaidaPorDia[d]) {
+                premiosSaidaPorDia[d] = {
+                    sabado: 0,
+                    domingo: 0,
+                    festivo: val,
+                    total: val,
+                    tipo: 'Festivo'
+                };
             }
         });
     }
-    const diasPremio = Object.keys(premiosPorDia).sort();
-    const totalPremiosFestivos = diasPremio.reduce((sum, d) => sum + (parseFloat(premiosPorDia[d]) || 0), 0);
-
-    // Se houver festivos selecionados mas com valor 0, ainda assim listar os dias no PDF
-    // (mantém o comportamento que o usuário espera: mostrar quais dias foram marcados).
-    const diasFestivoMarcado = Array.from(new Set(
-        otsMes
-            .filter(ot => ot && ot.otFestivo)
-            .map(ot => getDataISO(ot.data))
-    )).sort();
+    
+    const diasPremio = Object.keys(premiosSaidaPorDia).sort();
+    const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
+    
     const totalPontos = otsMes.reduce((sum, ot) => {
         const pServ = parseFloat(ot.pontosServico) || 0;
         const pAdd = parseFloat(ot.pontosAdicional) || 0;
@@ -1414,32 +1813,35 @@ function gerarPDF() {
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    if (totalPremiosFestivos > 0 || diasFestivoMarcado.length > 0) {
+    
+    // Mostrar prémios de saída se houver
+    if (totalPremiosSaida > 0 || diasPremio.length > 0) {
         doc.setFontSize(11);
         doc.setFont(undefined, 'normal');
-        doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
+        doc.text(`Prémios de Saída (1x por dia): € ${totalPremiosSaida.toFixed(2)}`, 14, finalY + 14);
 
-        // Tabela separada: Data do Festivo + Valor (1x por dia)
-        // Se um dia foi marcado como festivo mas o valor do prémio é 0, listamos mesmo assim.
-        const diasParaListar = Array.from(new Set([...(diasPremio || []), ...(diasFestivoMarcado || [])])).sort();
-        const tableFestivos = diasParaListar.map(d => ([
-            formatarDataBRFromISODate(d),
-            `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
-        ]));
+        // Tabela separada: Data + Tipo + Valor (1x por dia)
+        const tablePremios = diasPremio.map(d => {
+            const p = premiosSaidaPorDia[d];
+            return [
+                formatarDataBRFromISODate(d),
+                p?.tipo || '-',
+                `€ ${(p?.total || 0).toFixed(2)}`
+            ];
+        });
 
         if (temAutoTable) {
             doc.autoTable({
                 startY: finalY + 18,
-                head: [['Data (Festivo)', 'Prémio do Dia']],
-                body: tableFestivos,
+                head: [['Data', 'Tipo', 'Prémio']],
+                body: tablePremios,
                 theme: 'striped',
                 headStyles: { fillColor: [102, 126, 234] },
                 styles: { fontSize: 9 },
                 columnStyles: {
-                    0: { cellWidth: 35 },
-                    1: { cellWidth: 30, fontStyle: 'bold' }
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 25 },
+                    2: { cellWidth: 25, fontStyle: 'bold' }
                 }
             });
             finalY = doc.lastAutoTable.finalY + 6;
@@ -1447,11 +1849,11 @@ function gerarPDF() {
             // Fallback sem tabela: listar datas/valores como texto
             let y = finalY + 20;
             doc.setFontSize(10);
-            doc.text('Datas Festivas:', 14, y);
+            doc.text('Prémios de Saída:', 14, y);
             y += 6;
-            diasParaListar.forEach(d => {
-                const v = (parseFloat(premiosPorDia[d]) || 0).toFixed(2);
-                doc.text(`${formatarDataBRFromISODate(d)} - € ${v}`, 14, y);
+            diasPremio.forEach(d => {
+                const p = premiosSaidaPorDia[d];
+                doc.text(`${formatarDataBRFromISODate(d)} (${p?.tipo || '-'}) - € ${(p?.total || 0).toFixed(2)}`, 14, y);
                 y += 5;
             });
             finalY = y;
@@ -1464,7 +1866,7 @@ function gerarPDF() {
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    const valorReceber = totalValor + totalPremiosFestivos;
+    const valorReceber = totalValor + totalPremiosSaida;
     doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
     doc.save(`relatorio-ot-${mesAtual}.pdf`);
@@ -1533,29 +1935,45 @@ function gerarPDFComEquipamentos() {
     
     // Resumo
     const totalValor = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
-    // Prémios festivos: somar 1x por dia e listar datas
-    // Fonte principal: OTs do mês. Fallback: mapa premiosFestivosPorDia (para não "sumir" valor em casos antigos/importados)
-    const premiosPorDia = {};
+    
+    // PRÉMIOS DE SAÍDA: Sábado, Domingo e Festivo (1x por dia)
+    const premiosSaidaPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
-        const val = parseFloat(ot.premioFestivoAplicado) || 0;
-        if (val > 0 && !premiosPorDia[dataISO]) {
-            premiosPorDia[dataISO] = val;
+        if (premiosSaidaPorDia[dataISO]) return;
+        
+        const premioSab = parseFloat(ot.premioSabadoAplicado) || 0;
+        const premioDom = parseFloat(ot.premioDomingoAplicado) || 0;
+        const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
+        const totalDia = premioSab + premioDom + premioFest;
+        
+        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+            premiosSaidaPorDia[dataISO] = {
+                sabado: premioSab,
+                domingo: premioDom,
+                festivo: premioFest,
+                total: totalDia,
+                tipo: ot.otSabado ? 'Sáb' : (ot.otDomingo ? 'Dom' : (ot.otFestivo ? 'Festivo' : ''))
+            };
         }
     });
-    // Fallback: se o mês atual tiver dias registrados no mapa, incluir também
+    
     if (premiosFestivosPorDia) {
         Object.keys(premiosFestivosPorDia).forEach(d => {
             if (!d || typeof d !== 'string') return;
             if (d.substring(0, 7) !== mesAtual) return;
             const val = getPremioRegistradoNoDia(d);
-            if (val > 0 && !premiosPorDia[d]) {
-                premiosPorDia[d] = val;
+            if (val > 0 && !premiosSaidaPorDia[d]) {
+                premiosSaidaPorDia[d] = {
+                    sabado: 0, domingo: 0, festivo: val,
+                    total: val, tipo: 'Festivo'
+                };
             }
         });
     }
-    const diasPremio = Object.keys(premiosPorDia).sort();
-    const totalPremiosFestivos = diasPremio.reduce((sum, d) => sum + (parseFloat(premiosPorDia[d]) || 0), 0);
+    
+    const diasPremio = Object.keys(premiosSaidaPorDia).sort();
+    const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
     const totalPontos = otsMes.reduce((sum, ot) => {
         const pServ = parseFloat(ot.pontosServico) || 0;
         const pAdd = parseFloat(ot.pontosAdicional) || 0;
@@ -1566,29 +1984,32 @@ function gerarPDFComEquipamentos() {
     doc.setFontSize(11);
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
     doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    if (totalPremiosFestivos > 0) {
+    
+    if (totalPremiosSaida > 0 || diasPremio.length > 0) {
         doc.setFontSize(11);
         doc.setFont(undefined, 'normal');
-        doc.text(`Prémios Festivos (extras): € ${totalPremiosFestivos.toFixed(2)}`, 14, finalY + 14);
+        doc.text(`Prémios de Saída (1x por dia): € ${totalPremiosSaida.toFixed(2)}`, 14, finalY + 14);
 
-        // Tabela separada: Data do Festivo + Valor (1x por dia)
-        const tableFestivos = diasPremio.map(d => ([
-            formatarDataBRFromISODate(d),
-            `€ ${(parseFloat(premiosPorDia[d]) || 0).toFixed(2)}`
-        ]));
+        const tablePremios = diasPremio.map(d => {
+            const p = premiosSaidaPorDia[d];
+            return [
+                formatarDataBRFromISODate(d),
+                p?.tipo || '-',
+                `€ ${(p?.total || 0).toFixed(2)}`
+            ];
+        });
 
         doc.autoTable({
             startY: finalY + 18,
-            head: [['Data (Festivo)', 'Prémio do Dia']],
-            body: tableFestivos,
+            head: [['Data', 'Tipo', 'Prémio']],
+            body: tablePremios,
             theme: 'striped',
             headStyles: { fillColor: [39, 174, 96] },
             styles: { fontSize: 9 },
             columnStyles: {
-                0: { cellWidth: 35 },
-                1: { cellWidth: 30, fontStyle: 'bold' }
+                0: { cellWidth: 30 },
+                1: { cellWidth: 25 },
+                2: { cellWidth: 25, fontStyle: 'bold' }
             }
         });
         finalY = doc.lastAutoTable.finalY + 6;
@@ -1600,7 +2021,7 @@ function gerarPDFComEquipamentos() {
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    const valorReceber = totalValor + totalPremiosFestivos;
+    const valorReceber = totalValor + totalPremiosSaida;
     doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
     // doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);

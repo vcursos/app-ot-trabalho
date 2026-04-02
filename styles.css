@@ -583,6 +583,21 @@ tbody tr:hover {
     font-style: italic;
 }
 
+.btn-edit {
+    background: #f39c12;
+    color: white;
+    padding: 5.4px 10.8px;
+    font-size: 12.6px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+.btn-edit:hover {
+    background: #e67e22;
+}
+
 .btn-delete {
     background: #e74c3c;
     color: white;

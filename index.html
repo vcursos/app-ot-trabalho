@@ -20,7 +20,7 @@
                 <img src="logo.png" alt="Logo" class="brand-logo">
                 <h1>Controle de Ordens de Trabalho</h1>
                 <button id="btnInstallApp" type="button" class="btn-secondary" style="margin-left:auto; display:none;" onclick="instalarApp()">⬇️ Instalar</button>
-                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="window.location.href='configuracao-tabelas.html'">⚙️ Tabelas</button>
+                <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="window.location.href='configuracao-tabelas.html'">⚙️ Opções</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="exportarBackup()">💾 Backup</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="importarBackup()">📥 Importar</button>
                 <button type="button" class="btn-secondary" style="margin-left:10px; font-size:14.4px; padding:10.8px 27px;" onclick="abrirAjuda()">❓ Ajuda</button>
@@ -81,7 +81,7 @@
 
                     <div class="form-group">
                         <label>Tipo de Serviço</label>
-                        <select id="tipoServico">
+                        <select id="tipoServico" onchange="atualizarValorServico()">
                             <option value="">Selecione o serviço...</option>
                         </select>
                     </div>
@@ -92,24 +92,25 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Rede</label>
-                        <input type="text" id="redeServico" readonly placeholder="Tipo de rede">
-                    </div>
-
-                    <div class="form-group">
                         <label>Valor do Serviço (€)</label>
                         <input type="text" id="valorServico" readonly placeholder="0.00">
                     </div>
 
                     <div class="form-group">
-                        <label>Adicional (Opcional)</label>
-                        <select id="adicionalServico">
-                            <option value="">Nenhum adicional</option>
-                        </select>
+                        <label>Adicionais (Opcional)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="adicionalServico" style="flex: 1;">
+                                <option value="">Selecione um adicional</option>
+                            </select>
+                            <button type="button" class="btn-secondary" onclick="adicionarAdicional()" style="padding: 8px 16px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                                ➕ Adicionar
+                            </button>
+                        </div>
+                        <div id="listaAdicionais" style="margin-top: 8px;"></div>
                     </div>
 
                     <div class="form-group">
-                        <label>Valor Adicional (€)</label>
+                        <label>Valor Total Adicionais (€)</label>
                         <input type="text" id="valorAdicional" readonly placeholder="0.00">
                     </div>
 
@@ -117,21 +118,32 @@
                         <label>Multiplicador</label>
                         <select id="multiplicadorServico" onchange="calcularValorTotal()">
                             <option value="normal">Normal (1x)</option>
-                            <option value="domingoFeriado">Domingo/Feriado (1.5x)</option>
                             <option value="dobrado">Dobrado (2x)</option>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <label>Festivo</label>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label class="switch-label">
+                        <label>Prémios de Saída (1x por dia)</label>
+                        <div style="display:flex; flex-direction:column; gap:8px; background: #f8f9fa; padding: 10px; border-radius: 8px;">
+                            <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="otSabado" onchange="calcularValorTotal()">
+                                <span class="switch-ui" aria-hidden="true"></span>
+                                <span>🅂 Sábado</span>
+                                <span id="badgeSabado" class="badge-sabado" style="display:none; background:#ff9800; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">SÁB ✓</span>
+                            </label>
+                            <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="otDomingo" onchange="calcularValorTotal()">
+                                <span class="switch-ui" aria-hidden="true"></span>
+                                <span>🅳 Domingo</span>
+                                <span id="badgeDomingo" class="badge-domingo" style="display:none; background:#e91e63; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">DOM ✓</span>
+                            </label>
+                            <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otFestivo" onchange="calcularValorTotal()">
                                 <span class="switch-ui" aria-hidden="true"></span>
-                                <span>Aplicar prémio do dia (festivo)</span>
-                                <span id="badgeFestivo" class="badge-festivo" style="display:none;">FESTIVO ✓</span>
+                                <span>🎉 Festivo</span>
+                                <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">FESTIVO ✓</span>
                             </label>
-                            <div id="previewPremioFestivo" style="font-size: 12px; color: #666;"></div>
+                            <div id="previewPremios" style="font-size: 11px; color: #666; margin-top: 4px;"></div>
                         </div>
                     </div>
 
@@ -189,11 +201,13 @@
                         <option value="AVERIAS + POSTVENTAS B2C">AVERIAS + POSTVENTAS B2C</option>
                         <option value="INSTALACIONES HFC">INSTALACIONES HFC</option>
                     </select>
-                    <select id="filtroRede" onchange="aplicarFiltros()">
-                        <option value="">Todas Redes</option>
-                        <option value="Propia">Própria</option>
-                        <option value="MOVISTAR">MOVISTAR</option>
-                        <option value="AMBAS">AMBAS</option>
+                    <select id="filtroDiaSemana" onchange="aplicarFiltros()">
+                        <option value="">Todos os Dias</option>
+                        <option value="sabado">🅂 Sábados</option>
+                        <option value="domingo">🅳 Domingos</option>
+                        <option value="festivo">🎉 Festivos</option>
+                        <option value="fds">📅 Fins de Semana (Sáb+Dom)</option>
+                        <option value="especial">⭐ Todos Especiais (Sáb+Dom+Festivo)</option>
                     </select>
                     <div class="filter-actions">
                         <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
@@ -210,7 +224,6 @@
                             <th>Serviço</th>
                             <th>Adicional</th>
                             <th>Categoria</th>
-                            <th>Rede</th>
                             <th>Tipo</th>
                             <th>Equipamentos</th>
                             <th>Valor</th>
@@ -219,7 +232,7 @@
                     </thead>
                     <tbody id="corpoTabela">
                         <tr class="empty-state">
-                            <td colspan="10">Nenhuma ordem de trabalho registrada</td>
+                            <td colspan="9">Nenhuma ordem de trabalho registrada</td>
                         </tr>
                     </tbody>
                 </table>

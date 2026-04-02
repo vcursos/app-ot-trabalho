@@ -27,9 +27,14 @@ const tabelasPadrao = {
 // Multiplicadores padrão
 const multiplicadoresPadrao = {
     normal: 1.0,
-    domingoFeriado: 1.5,
     dobrado: 2.0,
-    premioFestivo: 0
+    bonusDomingo: 1.0,   // Multiplicador (1.0 = sem alteração, 1.5 = +50%, 2.0 = dobro)
+    bonusFeriado: 1.0,   // Multiplicador (1.0 = sem alteração)
+    premioSabado: 0,
+    premioDomingo: 0,
+    premioFestivo: 0,
+    // Retrocompatibilidade
+    domingoFeriado: 1.5
 };
 
 // Carregar ou inicializar tabelas
@@ -79,17 +84,33 @@ function salvarMultiplicadoresNoStorage(mult) {
     localStorage.setItem('multiplicadores', JSON.stringify(mult));
 }
 
-// Inicializar página
+// Inicializar página (apenas se estiver na página de configuração)
 document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se estamos na página de configuração
+    const multNormalEl = document.getElementById('multNormal');
+    if (!multNormalEl) return; // Não estamos na página de configuração, sair
+    
     const tabelas = carregarTabelas();
     const mult = carregarMultiplicadores();
     
     // Carregar multiplicadores nos inputs
-    document.getElementById('multDomingoFeriado').value = mult.domingoFeriado;
-    document.getElementById('multDobrado').value = mult.dobrado;
-    document.getElementById('multNormal').value = mult.normal;
-    const inputPremio = document.getElementById('premioFestivo');
-    if (inputPremio) inputPremio.value = mult.premioFestivo ?? 0;
+    multNormalEl.value = mult.normal;
+    const multDobradoEl = document.getElementById('multDobrado');
+    if (multDobradoEl) multDobradoEl.value = mult.dobrado;
+    
+    // Multiplicadores automáticos (domingo/feriado) - padrão 1.0
+    const inputBonusDomingo = document.getElementById('bonusDomingo');
+    if (inputBonusDomingo) inputBonusDomingo.value = mult.bonusDomingo ?? 1.0;
+    const inputBonusFeriado = document.getElementById('bonusFeriado');
+    if (inputBonusFeriado) inputBonusFeriado.value = mult.bonusFeriado ?? 1.0;
+    
+    // Prémios de saída
+    const inputPremioSabado = document.getElementById('premioSabado');
+    if (inputPremioSabado) inputPremioSabado.value = mult.premioSabado ?? 0;
+    const inputPremioDomingo = document.getElementById('premioDomingo');
+    if (inputPremioDomingo) inputPremioDomingo.value = mult.premioDomingo ?? 0;
+    const inputPremioFestivo = document.getElementById('premioFestivo');
+    if (inputPremioFestivo) inputPremioFestivo.value = mult.premioFestivo ?? 0;
     
     // Renderizar todas as tabelas
     renderizarTabela('instalacoes', tabelas.instalacoes);
@@ -238,13 +259,18 @@ function salvarTabela(categoria) {
 function salvarMultiplicadores() {
     const mult = {
         normal: 1.0,
-        domingoFeriado: parseFloat(document.getElementById('multDomingoFeriado').value) || 1.5,
         dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0,
-        premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0
+        bonusDomingo: parseFloat(document.getElementById('bonusDomingo')?.value) || 1.0,
+        bonusFeriado: parseFloat(document.getElementById('bonusFeriado')?.value) || 1.0,
+        premioSabado: parseFloat(document.getElementById('premioSabado')?.value) || 0,
+        premioDomingo: parseFloat(document.getElementById('premioDomingo')?.value) || 0,
+        premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0,
+        // Retrocompatibilidade
+        domingoFeriado: 1.5
     };
     
     salvarMultiplicadoresNoStorage(mult);
-    alert('Multiplicadores salvos com sucesso! ✅');
+    alert('Configurações salvas com sucesso! ✅');
 }
 
 // Exportar tabela para JSON

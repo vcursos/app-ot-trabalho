@@ -1,5 +1,5 @@
 // Aumente a versão quando publicar alterações para garantir atualização do PWA instalado
-const CACHE_NAME = 'ot-app-cache-v8';
+const CACHE_NAME = 'ot-app-cache-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,17 @@ const ASSETS = [
   './logo.png',
   './manifest.webmanifest'
 ];
+
+// Scripts críticos: SEMPRE buscar da rede primeiro (evita sessão "perdida" por cache antigo)
+const NETWORK_FIRST = [
+  'script1.js',
+  'syncFirebase.js',
+  'index.html'
+];
+
+function isNetworkFirst(url) {
+  return NETWORK_FIRST.some(name => url.includes(name));
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -35,6 +46,23 @@ self.addEventListener('fetch', (event) => {
   // Apenas GET deve ser tratado via cache
   if (req.method !== 'GET') return;
 
+  // Scripts críticos: network-first (sempre pega versão nova, fallback pro cache se offline)
+  if (isNetworkFirst(req.url)) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const resClone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Outros assets: cache-first (mais rápido para CSS, imagens, etc.)
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchPromise = fetch(req)
