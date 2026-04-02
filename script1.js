@@ -401,6 +401,83 @@ function atualizarUIFestivoPorDia() {
     }
 }
 
+// ── Registar callbacks de sync NO TOPO (fora do DOMContentLoaded) ────────────
+// O módulo syncFirebase.js (type="module") aguarda window.__syncCallbacks.
+// Tem de existir ANTES do módulo correr — não pode estar dentro do DOMContentLoaded
+// porque a ordem de execução entre módulos e DOMContentLoaded é imprevisível.
+window.__syncCallbacks = {
+    onRemoteApplied: () => {
+        try {
+            ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
+            historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
+            premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
+        } catch {}
+        try {
+            atualizarTabela();
+            atualizarResumos();
+            atualizarUIFestivoPorDia();
+            if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+            if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
+            if (typeof recarregarServicos === 'function') recarregarServicos();
+        } catch {}
+    },
+    onStatus: (st) => {
+        if (!st || !st.state) return;
+        if (st.state === 'not-configured') {
+            atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+            setBotoesAuthHabilitados(true);
+            return;
+        }
+        if (st.state === 'logged-out') {
+            if (!st.explicit) {
+                const hasCached = !!localStorage.getItem('__syncSessionUid');
+                if (hasCached) return;
+            }
+            try { localStorage.removeItem('__syncSessionUid'); localStorage.removeItem('__syncSessionEmail'); } catch {}
+            atualizarUIStatusSync('Sync: desligado (sem login)');
+            setBotoesAuthHabilitados(true);
+            setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+            setBotoesEntrarVisiveis(true);
+            setGoogleControlVisivel(true);
+            setBotaoSairVisivel(false);
+            setBotaoForcarSyncVisivel(false);
+            setBotaoSalvarVisivel(false);
+            return;
+        }
+        if (st.state === 'ready') {
+            const email = st.email ? ` | ${st.email}` : '';
+            const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+            atualizarUIStatusSync(label);
+            setBotoesAuthHabilitados(true);
+            setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+            setBotoesEntrarVisiveis(false);
+            setGoogleControlVisivel(false);
+            setBotaoSairVisivel(true);
+            setBotaoForcarSyncVisivel(true);
+            setBotaoSalvarVisivel(true);
+            return;
+        }
+        if (st.state === 'syncing') {
+            atualizarUIStatusSync('🔄 Sincronizando...');
+            return;
+        }
+        if (st.state === 'pushed' || st.state === 'sync-ok') {
+            atualizarUIStatusSync('✅ Sync: ok');
+            return;
+        }
+        if (st.state === 'remote-applied') {
+            atualizarUIStatusSync('✅ Dados restaurados');
+            return;
+        }
+        if (String(st.state).includes('error')) {
+            atualizarUIStatusSync('⚠️ Sync: erro (ver console)');
+            setBotoesAuthHabilitados(true);
+            return;
+        }
+    }
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     // Não bloquear os botões de login: se ficarem "disabled", o clique não dispara.
@@ -442,89 +519,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Listener para atualizar valor quando serviço for selecionado
     document.getElementById('tipoServico').addEventListener('change', atualizarValorServico);
-
-    // Registar callbacks de sync ANTES do módulo syncFirebase.js inicializar.
-    // O módulo (carregado como <script type="module">) aguarda window.__syncCallbacks
-    // e cria window.__firebaseSync automaticamente — sem nenhum import() dinâmico.
-    window.__syncCallbacks = {
-        onRemoteApplied: () => {
-            // Recarregar variáveis globais a partir do localStorage atualizado
-            try {
-                ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
-                historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
-                premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
-            } catch {}
-
-            try {
-                atualizarTabela();
-                atualizarResumos();
-                atualizarUIFestivoPorDia();
-                if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
-                // Recarregar serviços (tabelas e multiplicadores podem ter mudado)
-                if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
-                if (typeof recarregarServicos === 'function') recarregarServicos();
-            } catch {}
-        },
-        onStatus: (st) => {
-            if (!st || !st.state) return;
-            if (st.state === 'not-configured') {
-                atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
-                setBotoesAuthHabilitados(true);
-                return;
-            }
-            if (st.state === 'logged-out') {
-                // explicit:true = logout real (signOut chamado) → sempre mostrar botão Entrar.
-                // Sem explicit: pode ser emissão prematura do Firebase enquanto verifica sessão.
-                // Nesse caso ignorar se existir cache para evitar flash de "deslogado".
-                if (!st.explicit) {
-                    const hasCached = !!localStorage.getItem('__syncSessionUid');
-                    if (hasCached) return; // Firebase ainda a validar; aguardar 'ready'
-                }
-                // Logout confirmado: limpar cache e mostrar UI deslogada
-                try { localStorage.removeItem('__syncSessionUid'); localStorage.removeItem('__syncSessionEmail'); } catch {}
-                atualizarUIStatusSync('Sync: desligado (sem login)');
-                setBotoesAuthHabilitados(true);
-                setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                setBotoesEntrarVisiveis(true);
-                setGoogleControlVisivel(true);
-                setBotaoSairVisivel(false);
-                setBotaoForcarSyncVisivel(false);
-                setBotaoSalvarVisivel(false);
-                return;
-            }
-            if (st.state === 'ready') {
-                const email = st.email ? ` | ${st.email}` : '';
-                // fromCache: true = restauração rápida antes do Firebase confirmar
-                const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
-                atualizarUIStatusSync(label);
-                setBotoesAuthHabilitados(true);
-                setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                setBotoesEntrarVisiveis(false);
-                setGoogleControlVisivel(false);
-                setBotaoSairVisivel(true);
-                setBotaoForcarSyncVisivel(true);
-                setBotaoSalvarVisivel(true);
-                return;
-            }
-            if (st.state === 'syncing') {
-                atualizarUIStatusSync('🔄 Sincronizando...');
-                return;
-            }
-            if (st.state === 'pushed' || st.state === 'sync-ok') {
-                atualizarUIStatusSync('✅ Sync: ok');
-                return;
-            }
-            if (st.state === 'remote-applied') {
-                atualizarUIStatusSync('✅ Dados restaurados');
-                return;
-            }
-            if (String(st.state).includes('error')) {
-                atualizarUIStatusSync('⚠️ Sync: erro (ver console)');
-                setBotoesAuthHabilitados(true);
-                return;
-            }
-        }
-    };
 }); // fim DOMContentLoaded
 
 

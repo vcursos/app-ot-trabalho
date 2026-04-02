@@ -316,12 +316,12 @@ export class FirebaseSync {
             this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
           } catch {}
           this._startRealtimeListener();
-          // Pull automático quando Firebase recupera sessão em segundo plano
-          // (importante no Android onde a sessão pode ser restaurada depois do init).
-          try {
-            await this._pullRemoteOnLogin();
-            await this._pushLocalIfNewer('session-restored');
-          } catch {}
+          // Pull automático quando Firebase recupera sessão em segundo plano.
+          // Nota: onAuthStateChanged não é async — disparar sem await para não bloquear.
+          Promise.resolve()
+            .then(() => this._pullRemoteOnLogin())
+            .then(() => this._pushLocalIfNewer('session-restored'))
+            .catch(() => {});
         }
       });
     });
