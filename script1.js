@@ -1297,13 +1297,20 @@ function atualizarTabela(filtrarMes = null) {
         const tipoCell = subtexto
             ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
             : tipoLabel;
+
+        // Coluna "Tipo de Serviço": tipologia descritiva + rede como subtexto
+        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
+        const redeTexto = ot.rede || '';
+        const servicoCell = redeTexto
+            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
+            : `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${equipamentosTexto}</small></td>
+            <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td>
                 <button class="btn-edit" onclick="editarOT(${ot.id})" title="Editar">✏️</button>
@@ -1618,13 +1625,19 @@ function aplicarFiltros() {
         const tipoCell = subtexto
             ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
             : tipoLabel;
+
+        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
+        const redeTexto = ot.rede || '';
+        const servicoCell = redeTexto
+            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
+            : `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${ot.macEquipamento || '-'}</small></td>
+            <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
         `;
@@ -1684,13 +1697,19 @@ function pesquisarPorMAC() {
         const tipoCell = subtexto
             ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
             : tipoLabel;
+
+        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
+        const redeTexto = ot.rede || '';
+        const servicoCell = redeTexto
+            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
+            : `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
-            <td><small>${equipamentosTexto}</small></td>
+            <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
             <td><button class="btn-delete" onclick="deletarOT(${ot.id})">🗑️</button></td>
         `;
