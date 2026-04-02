@@ -693,3 +693,53 @@ export class FirebaseSync {
     }
   }
 }
+
+// ── Auto-inicialização ────────────────────────────────────────────────────────
+// Este módulo é carregado como <script type="module"> no index.html.
+// O script1.js (não-módulo) regista os callbacks em window.__syncCallbacks ANTES
+// do DOMContentLoaded. Aqui criamos window.__firebaseSync e chamamos init().
+// Desta forma o script1.js NUNCA precisa de usar import() dinâmico.
+(async function autoInitFirebaseSync() {
+  try {
+    // Aguardar até window.__syncCallbacks estar disponível (script1.js já registou)
+    // Máx 5s; se não aparecer, usamos callbacks vazios (só inicializa o sync base).
+    let callbacks = null;
+    for (let i = 0; i < 50; i++) {
+      if (window.__syncCallbacks) { callbacks = window.__syncCallbacks; break; }
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    const onRemoteApplied = callbacks?.onRemoteApplied || (() => {});
+    const onStatus = callbacks?.onStatus || (() => {});
+
+    window.__firebaseSync = new FirebaseSync({
+      enabled: true,
+      onRemoteApplied,
+      onStatus
+    });
+
+    await window.__firebaseSync.init();
+
+    // Registar auto-save ao sair/minimizar (feito aqui porque document já está disponível)
+    if (typeof document !== 'undefined') {
+      const autoSave = () => {
+        try { window.salvarAgora?.(true); } catch {}
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') autoSave();
+      });
+      window.addEventListener('beforeunload', autoSave);
+      window.addEventListener('pagehide', autoSave);
+    }
+
+    // Sinalizar que o sync está pronto para quem esteja à espera
+    try { window.__syncReady = true; } catch {}
+  } catch (e) {
+    console.warn('[syncFirebase] auto-init falhou:', e);
+    try {
+      if (window.__syncCallbacks?.onStatus) {
+        window.__syncCallbacks.onStatus({ state: 'init-error', error: String(e?.message || e) });
+      }
+    } catch {}
+  }
+})();

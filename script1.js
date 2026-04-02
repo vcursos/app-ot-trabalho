@@ -429,116 +429,86 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listener para atualizar valor quando serviço for selecionado
     document.getElementById('tipoServico').addEventListener('change', atualizarValorServico);
 
-    // Iniciar sync (se configurado) depois que a UI básica estiver pronta
-    (async function iniciarSyncFirebase() {
-        try {
-            // Import dinâmico do módulo de sync
-            const mod = await import('./js/syncFirebase.js');
-            if (!mod || !mod.FirebaseSync) return;
+    // Registar callbacks de sync ANTES do módulo syncFirebase.js inicializar.
+    // O módulo (carregado como <script type="module">) aguarda window.__syncCallbacks
+    // e cria window.__firebaseSync automaticamente — sem nenhum import() dinâmico.
+    window.__syncCallbacks = {
+        onRemoteApplied: () => {
+            // Recarregar variáveis globais a partir do localStorage atualizado
+            try {
+                ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
+                historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
+                premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
+            } catch {}
 
-            window.__firebaseSync = new mod.FirebaseSync({
-                enabled: true,
-                onRemoteApplied: () => {
-                    // Recarregar variáveis globais a partir do localStorage atualizado
-                    try {
-                        ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
-                        historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
-                        premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
-                    } catch {}
-
-                    try {
-                        atualizarTabela();
-                        atualizarResumos();
-                        atualizarUIFestivoPorDia();
-                        if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
-                        // Recarregar serviços (tabelas e multiplicadores podem ter mudado)
-                        if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
-                        if (typeof recarregarServicos === 'function') recarregarServicos();
-                    } catch {}
-                },
-                onStatus: (st) => {
-                    if (!st || !st.state) return;
-                    if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
-                        setBotoesAuthHabilitados(true);
-                        return;
-                    }
-                    if (st.state === 'logged-out') {
-                        // Só mostrar "sem login" se não houver sessão cached.
-                        // Enquanto o Firebase ainda está a verificar (IndexedDB),
-                        // pode emitir logged-out antes de confirmar. A cache evita o flash.
-                        const hasCached = !!localStorage.getItem('__syncSessionUid');
-                        if (hasCached) return; // Firebase ainda está a validar; aguardar 'ready'
-                        atualizarUIStatusSync('Sync: desligado (sem login)');
-                        setBotoesAuthHabilitados(true);
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(true);
-                        setGoogleControlVisivel(true);
-                        setBotaoSairVisivel(false);
-                        setBotaoForcarSyncVisivel(false);
-                        setBotaoSalvarVisivel(false);
-                        return;
-                    }
-                    if (st.state === 'ready') {
-                        const email = st.email ? ` | ${st.email}` : '';
-                        // fromCache: true = restauração rápida antes do Firebase confirmar
-                        const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
-                        atualizarUIStatusSync(label);
-                        setBotoesAuthHabilitados(true);
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(false);
-                        setGoogleControlVisivel(false);
-                        setBotaoSairVisivel(true);
-                        setBotaoForcarSyncVisivel(true);
-                        setBotaoSalvarVisivel(true);
-                        return;
-                    }
-                    if (st.state === 'syncing') {
-                        atualizarUIStatusSync('🔄 Sincronizando...');
-                        return;
-                    }
-                    if (st.state === 'pushed' || st.state === 'sync-ok') {
-                        atualizarUIStatusSync('✅ Sync: ok');
-                        return;
-                    }
-                    if (st.state === 'remote-applied') {
-                        atualizarUIStatusSync('✅ Dados restaurados');
-                        return;
-                    }
-                    if (String(st.state).includes('error')) {
-                        atualizarUIStatusSync('⚠️ Sync: erro (ver console)');
-                        setBotoesAuthHabilitados(true);
-                        return;
-                    }
-                }
-            });
-
-            await window.__firebaseSync.init();
-
-            // ── AUTO-SAVE ────────────────────────────────────────────
-            // 1) Ao minimizar/trocar de aba (visibilitychange)
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    salvarAgora(true); // silencioso
-                }
-            });
-            // 2) Ao fechar o browser/app (beforeunload)
-            window.addEventListener('beforeunload', () => {
-                salvarAgora(true); // silencioso
-            });
-            // 3) Em PWA iOS (pagehide é mais fiável que beforeunload)
-            window.addEventListener('pagehide', () => {
-                salvarAgora(true); // silencioso
-            });
-            // ─────────────────────────────────────────────────────────
-
-        } catch (e) {
-            console.warn('Sync Firebase não iniciou:', e);
-            atualizarUIStatusSync('Sync: indisponível');
-            setBotoesAuthHabilitados(true);
+            try {
+                atualizarTabela();
+                atualizarResumos();
+                atualizarUIFestivoPorDia();
+                if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+                // Recarregar serviços (tabelas e multiplicadores podem ter mudado)
+                if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
+                if (typeof recarregarServicos === 'function') recarregarServicos();
+            } catch {}
+        },
+        onStatus: (st) => {
+            if (!st || !st.state) return;
+            if (st.state === 'not-configured') {
+                atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
+                setBotoesAuthHabilitados(true);
+                return;
+            }
+            if (st.state === 'logged-out') {
+                // Só mostrar "sem login" se não houver sessão cached.
+                // Enquanto o Firebase ainda está a verificar (IndexedDB),
+                // pode emitir logged-out antes de confirmar. A cache evita o flash.
+                const hasCached = !!localStorage.getItem('__syncSessionUid');
+                if (hasCached) return; // Firebase ainda está a validar; aguardar 'ready'
+                atualizarUIStatusSync('Sync: desligado (sem login)');
+                setBotoesAuthHabilitados(true);
+                setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+                setBotoesEntrarVisiveis(true);
+                setGoogleControlVisivel(true);
+                setBotaoSairVisivel(false);
+                setBotaoForcarSyncVisivel(false);
+                setBotaoSalvarVisivel(false);
+                return;
+            }
+            if (st.state === 'ready') {
+                const email = st.email ? ` | ${st.email}` : '';
+                // fromCache: true = restauração rápida antes do Firebase confirmar
+                const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+                atualizarUIStatusSync(label);
+                setBotoesAuthHabilitados(true);
+                setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
+                setBotoesEntrarVisiveis(false);
+                setGoogleControlVisivel(false);
+                setBotaoSairVisivel(true);
+                setBotaoForcarSyncVisivel(true);
+                setBotaoSalvarVisivel(true);
+                return;
+            }
+            if (st.state === 'syncing') {
+                atualizarUIStatusSync('🔄 Sincronizando...');
+                return;
+            }
+            if (st.state === 'pushed' || st.state === 'sync-ok') {
+                atualizarUIStatusSync('✅ Sync: ok');
+                return;
+            }
+            if (st.state === 'remote-applied') {
+                atualizarUIStatusSync('✅ Dados restaurados');
+                return;
+            }
+            if (String(st.state).includes('error')) {
+                atualizarUIStatusSync('⚠️ Sync: erro (ver console)');
+                setBotoesAuthHabilitados(true);
+                return;
+            }
         }
-    })();
-});
+    };
+}); // fim DOMContentLoaded
+
 
 function getHojeISO() {
     return getDataISO(new Date());
