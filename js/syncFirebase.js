@@ -58,7 +58,9 @@ const STORAGE_KEYS = [
   'registrosLogistica',
   'premiosFestivosPorDia',
   'historicoOTPorMes',
-  'configuracaoVeiculo'
+  'configuracaoVeiculo',
+  'tabelasCustomizadas',   // ← tabelas de preços configuradas
+  'multiplicadores'        // ← multiplicadores e prémios configurados
 ];
 
 function safeParse(json, fallback) {
@@ -73,7 +75,16 @@ function safeParse(json, fallback) {
 function getLocalSnapshot() {
   const snap = {};
   for (const k of STORAGE_KEYS) {
-    snap[k] = safeParse(localStorage.getItem(k), k === 'configuracaoVeiculo' ? null : (k.endsWith('PorMes') ? {} : []));
+    // Determinar fallback correto por tipo de dados
+    let fallback;
+    if (k === 'configuracaoVeiculo' || k === 'tabelasCustomizadas' || k === 'multiplicadores') {
+      fallback = null;
+    } else if (k.endsWith('PorMes') || k.endsWith('PorDia')) {
+      fallback = {};
+    } else {
+      fallback = [];
+    }
+    snap[k] = safeParse(localStorage.getItem(k), fallback);
   }
   return snap;
 }

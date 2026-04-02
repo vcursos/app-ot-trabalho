@@ -39,6 +39,38 @@ function setBotaoForcarSyncVisivel(visivel) {
     } catch {}
 }
 
+function setBotaoSalvarVisivel(visivel) {
+    try {
+        const el = document.getElementById('btnSyncSalvar');
+        if (el) el.style.display = visivel ? 'inline-flex' : 'none';
+    } catch {}
+}
+
+// Salvar dados agora (manual ou auto-save)
+window.salvarAgora = async function(silencioso = false) {
+    try {
+        if (window.__firebaseSync && typeof window.__firebaseSync.pushLocal === 'function') {
+            const uid = window.__firebaseSync.getUserInfo?.()?.uid;
+            if (!uid) {
+                if (!silencioso) alert('Precisa de estar com sessão iniciada (Google) para guardar na nuvem.');
+                return;
+            }
+            const btn = document.getElementById('btnSyncSalvar');
+            if (btn) { btn.textContent = '⏳ A guardar...'; btn.disabled = true; }
+            await window.__firebaseSync.pushLocal('manual-save');
+            if (btn) { btn.textContent = '✅ Guardado!'; btn.disabled = false; }
+            setTimeout(() => { if (btn) btn.textContent = '💾 Salvar'; }, 2000);
+            if (!silencioso) atualizarUIStatusSync('✅ Dados guardados na nuvem');
+        } else {
+            if (!silencioso) alert('Sincronização não disponível. Os dados estão guardados localmente.');
+        }
+    } catch (e) {
+        console.error('Erro ao guardar:', e);
+        const btn = document.getElementById('btnSyncSalvar');
+        if (btn) { btn.textContent = '💾 Salvar'; btn.disabled = false; }
+    }
+};
+
 function setBotoesEntrarVisiveis(visivel) {
     try {
         const ids = ['btnSyncGoogle'];
@@ -65,6 +97,7 @@ function aplicarUIPosLogin() {
         setGoogleControlVisivel(false);
         setBotaoSairVisivel(true);
         setBotaoForcarSyncVisivel(true);
+        setBotaoSalvarVisivel(true);
     } catch {}
 }
 
@@ -478,6 +511,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         atualizarResumos();
                         atualizarUIFestivoPorDia();
                         if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+                        // Recarregar serviços (tabelas e multiplicadores podem ter mudado)
+                        if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
+                        if (typeof recarregarServicos === 'function') recarregarServicos();
                     } catch {}
                 },
                 onStatus: (st) => {
@@ -495,6 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         setGoogleControlVisivel(true);
                         setBotaoSairVisivel(false);
                         setBotaoForcarSyncVisivel(false);
+                        setBotaoSalvarVisivel(false);
                         return;
                     }
                     if (st.state === 'ready') {
@@ -506,6 +543,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         setGoogleControlVisivel(false);
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
+                        setBotaoSalvarVisivel(true);
                         return;
                     }
                     if (st.state === 'syncing') {
@@ -529,6 +567,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             await window.__firebaseSync.init();
+
+            // ── AUTO-SAVE ────────────────────────────────────────────
+            // 1) Ao minimizar/trocar de aba (visibilitychange)
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') {
+                    salvarAgora(true); // silencioso
+                }
+            });
+            // 2) Ao fechar o browser/app (beforeunload)
+            window.addEventListener('beforeunload', () => {
+                salvarAgora(true); // silencioso
+            });
+            // 3) Em PWA iOS (pagehide é mais fiável que beforeunload)
+            window.addEventListener('pagehide', () => {
+                salvarAgora(true); // silencioso
+            });
+            // ─────────────────────────────────────────────────────────
+
         } catch (e) {
             console.warn('Sync Firebase não iniciou:', e);
             atualizarUIStatusSync('Sync: indisponível');
