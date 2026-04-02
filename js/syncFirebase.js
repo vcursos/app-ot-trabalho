@@ -304,7 +304,9 @@ export class FirebaseSync {
         if (!this._uid) {
           this._unsub?.();
           this._unsub = null;
-          this.onStatus({ state: 'logged-out' });
+          // explicit:true → já não há cache (foi limpa antes do signOut),
+          // então script1.js sempre mostra botão Entrar.
+          this.onStatus({ state: 'logged-out', explicit: true });
           return;
         }
 
@@ -562,17 +564,19 @@ export class FirebaseSync {
 
   async sair() {
     if (!this._initialized) return;
+    // Limpar cache ANTES do signOut para que o onAuthStateChanged
+    // emita logged-out sem ser ignorado pelo "hasCached" do script1.js.
+    saveSessionCache(null);
     try {
       await signOut(this._auth);
     } catch {}
-    // Volta a ficar DESLOGADO (sem criar conta anônima)
+    // Volta a ficar DESLOGADO
     this._uid = null;
     this._isAnonymous = false;
     this._unsub?.();
     this._unsub = null;
-    // Limpar cache de sessão para que ao recarregar não mostre falso estado logado
-    saveSessionCache(null);
-    this.onStatus({ state: 'logged-out' });
+    // explicit:true → o script1.js SEMPRE mostra botão Entrar, sem verificar cache
+    this.onStatus({ state: 'logged-out', explicit: true });
   }
 
   _computeHash(obj) {

@@ -169,9 +169,23 @@ window.syncEntrarGoogle = async function() {
 window.syncSair = async function() {
     try {
         try { console.log('[sync-ui] clique Sair'); } catch {}
-        if (!window.__firebaseSync) return;
-        await window.__firebaseSync.sair();
-        alert('Saiu da conta.');
+        // Forçar UI de "deslogado" imediatamente (sem esperar callbacks)
+        setBotoesEntrarVisiveis(true);
+        setGoogleControlVisivel(true);
+        setBotaoSairVisivel(false);
+        setBotaoForcarSyncVisivel(false);
+        setBotaoSalvarVisivel(false);
+        atualizarUIStatusSync('Sync: a sair...');
+        // Limpar cache local de sessão imediatamente
+        try { localStorage.removeItem('__syncSessionUid'); localStorage.removeItem('__syncSessionEmail'); } catch {}
+
+        const sync = window.__firebaseSync;
+        if (!sync) {
+            atualizarUIStatusSync('Sync: desligado (sem login)');
+            return;
+        }
+        await sync.sair();
+        atualizarUIStatusSync('Sync: desligado (sem login)');
     } catch (e) {
         console.error(e);
         alert('Falha ao sair: ' + (e?.message || e));
@@ -459,11 +473,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             if (st.state === 'logged-out') {
-                // Só mostrar "sem login" se não houver sessão cached.
-                // Enquanto o Firebase ainda está a verificar (IndexedDB),
-                // pode emitir logged-out antes de confirmar. A cache evita o flash.
-                const hasCached = !!localStorage.getItem('__syncSessionUid');
-                if (hasCached) return; // Firebase ainda está a validar; aguardar 'ready'
+                // explicit:true = logout real (signOut chamado) → sempre mostrar botão Entrar.
+                // Sem explicit: pode ser emissão prematura do Firebase enquanto verifica sessão.
+                // Nesse caso ignorar se existir cache para evitar flash de "deslogado".
+                if (!st.explicit) {
+                    const hasCached = !!localStorage.getItem('__syncSessionUid');
+                    if (hasCached) return; // Firebase ainda a validar; aguardar 'ready'
+                }
+                // Logout confirmado: limpar cache e mostrar UI deslogada
+                try { localStorage.removeItem('__syncSessionUid'); localStorage.removeItem('__syncSessionEmail'); } catch {}
                 atualizarUIStatusSync('Sync: desligado (sem login)');
                 setBotoesAuthHabilitados(true);
                 setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
