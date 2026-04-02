@@ -132,93 +132,14 @@ function mostrarPromptLoginSeNecessario() {
 try { console.log('[sync-ui] handlers carregados (Google-only)'); } catch {}
 
 async function garantirSyncPronto() {
-    try {
+    // __firebaseSync é sempre criado no DOMContentLoaded (iniciarSyncFirebase).
+    // Aguardar até estar pronto (máx 6 s) sem usar import() dinâmico,
+    // que falha em alguns Android WebViews com "Unexpected reserved word".
+    for (let i = 0; i < 60; i++) {
         if (window.__firebaseSync) return window.__firebaseSync;
-
-        // Import dinâmico (mesmo fluxo usado no DOMContentLoaded)
-        const mod = await import('./js/syncFirebase.js');
-        if (!mod || !mod.FirebaseSync) {
-            throw new Error('Módulo de sync não encontrado.');
-        }
-
-        window.__firebaseSync = new mod.FirebaseSync({
-            enabled: true,
-            onRemoteApplied: () => {
-                try {
-                    ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
-                    historicoOTPorMes = JSON.parse(localStorage.getItem('historicoOTPorMes')) || {};
-                    premiosFestivosPorDia = JSON.parse(localStorage.getItem('premiosFestivosPorDia')) || {};
-                } catch {}
-
-                try {
-                    atualizarTabela();
-                    atualizarResumos();
-                    atualizarUIFestivoPorDia();
-                    if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
-                } catch {}
-            },
-            onStatus: (st) => {
-                try {
-                    if (!st || !st.state) return;
-                    if (st.state === 'not-configured') {
-                        atualizarUIStatusSync('Sync: desativado (Firebase não configurado)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(true);
-                        setBotaoSairVisivel(false);
-                        return;
-                    }
-                    if (st.state === 'logged-out') {
-                        const hasCached = !!localStorage.getItem('__syncSessionUid');
-                        if (hasCached) return;
-                        atualizarUIStatusSync('Sync: desligado (sem login)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(true);
-                        setBotaoSairVisivel(false);
-                        setBotaoForcarSyncVisivel(false);
-                        setGoogleControlVisivel(true);
-                        mostrarPromptLoginSeNecessario();
-                        return;
-                    }
-                    if (st.state === 'ready') {
-                        const email = st.email ? ` | ${st.email}` : '';
-                        const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
-                        atualizarUIStatusSync(label);
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(false);
-                        setBotaoSairVisivel(true);
-                        setBotaoForcarSyncVisivel(true);
-                        setBotaoSalvarVisivel(true);
-                        setGoogleControlVisivel(false);
-                        return;
-                    }
-                    if (st.state === 'pushed') {
-                        atualizarUIStatusSync('✅ Sync: ok');
-                        return;
-                    }
-                    if (st.state === 'remote-applied') {
-                        atualizarUIStatusSync('✅ Dados restaurados');
-                        return;
-                    }
-                    if (st.state === 'redirect-error') {
-                        atualizarUIStatusSync('Sync: erro no redirect (ver console)');
-                        setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        setBotoesEntrarVisiveis(true);
-                        setBotaoSairVisivel(false);
-                        return;
-                    }
-                    if (String(st.state).includes('error')) {
-                        atualizarUIStatusSync('Sync: erro (ver console)');
-                    }
-                } catch {}
-            }
-        });
-
-        await window.__firebaseSync.init();
-        return window.__firebaseSync;
-    } catch (e) {
-        console.warn('Falha ao iniciar sync:', e);
-        throw e;
+        await new Promise(r => setTimeout(r, 100));
     }
+    throw new Error('Sync não inicializado. Tente recarregar a página.');
 }
 
 window.syncEntrarGoogle = async function() {
