@@ -77,11 +77,15 @@ function carregarMultiplicadores() {
 // Salvar tabelas
 function salvarTabelasNoStorage(tabelas) {
     localStorage.setItem('tabelasCustomizadas', JSON.stringify(tabelas));
+    // Notificar sync (se disponível nesta página via módulo)
+    try { if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar(); } catch {}
 }
 
 // Salvar multiplicadores
 function salvarMultiplicadoresNoStorage(mult) {
     localStorage.setItem('multiplicadores', JSON.stringify(mult));
+    // Notificar sync (se disponível nesta página via módulo)
+    try { if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar(); } catch {}
 }
 
 // Inicializar página (apenas se estiver na página de configuração)

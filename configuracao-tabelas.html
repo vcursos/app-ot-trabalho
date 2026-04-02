@@ -331,6 +331,14 @@
             <a href="index.html" class="btn-voltar">← Voltar</a>
         </div>
 
+        <!-- Barra de sincronização com Firebase -->
+        <div id="syncBarTabelas" style="background:#f0f4ff;border:1px solid #c5d0f5;border-radius:10px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span id="syncStatusTabelas" style="font-size:13px;color:#555;flex:1;min-width:140px;">🔄 A verificar sessão...</span>
+            <button id="btnSalvarTabelas" onclick="syncTabelasSalvar()" style="display:none;background:linear-gradient(135deg,#27ae60,#2ecc71);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600;">💾 Salvar na nuvem</button>
+            <button id="btnCarregarTabelas" onclick="syncTabelasCarregar()" style="display:none;background:linear-gradient(135deg,#2980b9,#3498db);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600;">🔄 Carregar da nuvem</button>
+            <small style="color:#888;font-size:11px;width:100%;">As tabelas e configurações são sincronizadas com a sua conta Google.</small>
+        </div>
+
         <div class="alert-info">
             💡 <strong>Dica:</strong> Configure aqui os serviços e valores que sua empresa utiliza. Você pode adicionar, editar ou remover itens. As mudanças são salvas automaticamente.
         </div>
@@ -526,5 +534,160 @@
     </div>
 
     <script src="js/config-tabelas.js"></script>
+    <script type="module">
+    // ── Sync Firebase para a página de Opções/Tabelas ─────────────────────────
+    import { FirebaseSync } from './js/syncFirebase.js';
+
+    let _sync = null;
+
+    function setStatus(msg) {
+        const el = document.getElementById('syncStatusTabelas');
+        if (el) el.textContent = msg;
+    }
+
+    function setBotoes(visivel) {
+        const s = document.getElementById('btnSalvarTabelas');
+        const c = document.getElementById('btnCarregarTabelas');
+        if (s) s.style.display = visivel ? 'inline-block' : 'none';
+        if (c) c.style.display = visivel ? 'inline-block' : 'none';
+    }
+
+    async function iniciarSync() {
+        // Restaurar UI imediatamente se há sessão cached
+        const cachedUid = localStorage.getItem('__syncSessionUid');
+        const cachedEmail = localStorage.getItem('__syncSessionEmail') || '';
+        if (cachedUid) {
+            setStatus(`🔄 A verificar sessão...`);
+            setBotoes(true);
+        }
+
+        _sync = new FirebaseSync({
+            enabled: true,
+            onRemoteApplied: () => {
+                // Recarregar tabelas na interface após sync remoto
+                try {
+                    const tabelas = JSON.parse(localStorage.getItem('tabelasCustomizadas'));
+                    if (tabelas) {
+                        if (typeof renderizarTabela === 'function') {
+                            if (tabelas.instalacoes) renderizarTabela('instalacoes', tabelas.instalacoes);
+                            if (tabelas.avarias) renderizarTabela('avarias', tabelas.avarias);
+                            if (tabelas.adicionais) renderizarTabela('adicionais', tabelas.adicionais);
+                        }
+                    }
+                    // Recarregar multiplicadores
+                    const mult = JSON.parse(localStorage.getItem('multiplicadores'));
+                    if (mult) {
+                        const fields = {
+                            multDobrado: mult.dobrado,
+                            bonusDomingo: mult.bonusDomingo,
+                            bonusFeriado: mult.bonusFeriado,
+                            premioSabado: mult.premioSabado,
+                            premioDomingo: mult.premioDomingo,
+                            premioFestivo: mult.premioFestivo
+                        };
+                        Object.entries(fields).forEach(([id, val]) => {
+                            const el = document.getElementById(id);
+                            if (el && val !== undefined) el.value = val;
+                        });
+                    }
+                    setStatus('✅ Dados carregados da nuvem');
+                } catch {}
+            },
+            onStatus: (st) => {
+                if (!st || !st.state) return;
+                if (st.state === 'logged-out') {
+                    const hasCached = !!localStorage.getItem('__syncSessionUid');
+                    if (!hasCached) {
+                        setStatus('⚠️ Sem sessão — faça login na página principal');
+                        setBotoes(false);
+                    }
+                    return;
+                }
+                if (st.state === 'ready') {
+                    const email = st.email ? ` (${st.email})` : '';
+                    const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+                    setStatus(label);
+                    setBotoes(true);
+                    return;
+                }
+                if (st.state === 'syncing') { setStatus('🔄 A sincronizar...'); return; }
+                if (st.state === 'pushed' || st.state === 'sync-ok') { setStatus('✅ Guardado na nuvem'); return; }
+                if (st.state === 'remote-applied') { setStatus('✅ Dados carregados da nuvem'); return; }
+                if (String(st.state).includes('error')) { setStatus('⚠️ Erro de sync (ver consola)'); }
+            }
+        });
+
+        await _sync.init();
+
+        // Auto-save ao sair da página
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') autoSalvar();
+        });
+        window.addEventListener('beforeunload', autoSalvar);
+        window.addEventListener('pagehide', autoSalvar);
+    }
+
+    function autoSalvar() {
+        try {
+            if (_sync && _sync.getUserInfo?.()?.uid) {
+                _sync.pushLocal('auto-save-tabelas');
+            }
+        } catch {}
+    }
+
+    // Funções globais para os botões
+    window.syncTabelasSalvar = async function() {
+        const btn = document.getElementById('btnSalvarTabelas');
+        try {
+            if (!_sync || !_sync.getUserInfo?.()?.uid) {
+                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                return;
+            }
+            if (btn) { btn.textContent = '⏳ A guardar...'; btn.disabled = true; }
+            await _sync.pushLocal('manual-save-tabelas');
+            if (btn) { btn.textContent = '✅ Guardado!'; btn.disabled = false; }
+            setTimeout(() => { if (btn) btn.textContent = '💾 Salvar na nuvem'; }, 2500);
+        } catch (e) {
+            alert('Erro ao guardar: ' + (e?.message || e));
+            if (btn) { btn.textContent = '💾 Salvar na nuvem'; btn.disabled = false; }
+        }
+    };
+
+    window.syncTabelasCarregar = async function() {
+        const btn = document.getElementById('btnCarregarTabelas');
+        try {
+            if (!_sync || !_sync.getUserInfo?.()?.uid) {
+                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                return;
+            }
+            if (btn) { btn.textContent = '⏳ A carregar...'; btn.disabled = true; }
+            await _sync.forceSync('manual-load-tabelas');
+            if (btn) { btn.textContent = '✅ Carregado!'; btn.disabled = false; }
+            setTimeout(() => { if (btn) btn.textContent = '🔄 Carregar da nuvem'; }, 2500);
+        } catch (e) {
+            alert('Erro ao carregar: ' + (e?.message || e));
+            if (btn) { btn.textContent = '🔄 Carregar da nuvem'; btn.disabled = false; }
+        }
+    };
+
+    // Iniciar
+    iniciarSync().catch(e => {
+        setStatus('⚠️ Sync indisponível');
+        console.warn('Sync tabelas:', e);
+    });
+
+    // Expor notificador para config-tabelas.js (script não-module) usar
+    window._syncTabelasNotificar = function() {
+        try {
+            if (_sync && _sync.getUserInfo?.()?.uid) {
+                _sync.pushLocal('tabela-alterada');
+                setStatus('💾 A guardar alterações...');
+                setTimeout(() => {
+                    setStatus('✅ Alterações guardadas na nuvem');
+                }, 1500);
+            }
+        } catch {}
+    };
+    </script>
 </body>
 </html>
