@@ -309,28 +309,30 @@ function importarTabela(categoria, inputElement) {
                 throw new Error('Formato inválido: esperado um array');
             }
             
-            // Validar campos
-            const camposObrigatorios = ['codigo', 'rede', 'descricao', 'valor'];
+            // Validar campos mínimos (rede é opcional — compatibilidade com ficheiros antigos)
+            const camposObrigatorios = ['codigo', 'descricao', 'valor'];
             const valido = dados.every(item => 
                 camposObrigatorios.every(campo => campo in item)
             );
             
             if (!valido) {
-                throw new Error('Formato inválido: campos obrigatórios faltando');
+                throw new Error('Formato inválido: campos obrigatórios (codigo, descricao, valor) faltando');
             }
 
-            // Garantir campo pontos
-            dados.forEach(item => {
-                if (!('pontos' in item)) item.pontos = 0;
-                item.valor = parseFloat(item.valor) || 0;
-                item.pontos = parseFloat(item.pontos) || 0;
-            });
+            // Normalizar e garantir todos os campos
+            const dadosFinal = dados.map(item => ({
+                codigo:    String(item.codigo    || '').trim(),
+                rede:      String(item.rede       || '').trim(),
+                descricao: String(item.descricao  || '').trim(),
+                valor:     parseFloat(item.valor)  || 0,
+                pontos:    parseFloat(item.pontos) || 0
+            }));
             
             // Salvar
             const tabelas = carregarTabelas();
-            tabelas[categoria] = dados;
+            tabelas[categoria] = dadosFinal;
             salvarTabelasNoStorage(tabelas);
-            renderizarTabela(categoria, dados);
+            renderizarTabela(categoria, dadosFinal);
             
             alert('Tabela importada com sucesso! ✅');
         } catch (error) {
@@ -410,30 +412,42 @@ function importarTabelaExcel(categoria, inputElement) {
                 throw new Error('Arquivo vazio ou formato inválido');
             }
             
-            // Validar campos obrigatórios
-            const camposObrigatorios = ['codigo', 'rede', 'descricao', 'valor'];
-            const valido = dados.every(item => 
-                camposObrigatorios.every(campo => campo in item)
+            // Normalizar campos: XLSX omite colunas vazias, e os cabeçalhos podem
+            // ter variações (maiúsculas, espaços). Normalizar tudo antes de validar.
+            const norm = s => String(s || '').trim().toLowerCase();
+            const dadosNorm = dados.map(row => {
+                const r = {};
+                for (const k of Object.keys(row)) r[norm(k)] = row[k];
+                return r;
+            });
+
+            // Validar campos obrigatórios mínimos (codigo, descricao, valor)
+            // 'rede' é opcional — se faltar, preenche com ''
+            const camposObrigatorios = ['codigo', 'descricao', 'valor'];
+            const valido = dadosNorm.every(item =>
+                camposObrigatorios.every(campo => campo in item && item[campo] !== undefined && item[campo] !== '')
             );
-            
+
             if (!valido) {
-                throw new Error('Formato inválido: campos obrigatórios (codigo, rede, descricao, valor) estão faltando');
+                throw new Error('Formato inválido: campos obrigatórios (codigo, descricao, valor) estão faltando');
             }
 
-            // Garantir campo pontos
-            dados.forEach(item => {
-                if (!('pontos' in item)) item.pontos = 0;
-                item.valor = parseFloat(item.valor) || 0;
-                item.pontos = parseFloat(item.pontos) || 0;
-            });
+            // Construir array final com todos os campos normalizados e com defaults
+            const dadosFinal = dadosNorm.map(item => ({
+                codigo:   String(item.codigo   || '').trim(),
+                rede:     String(item.rede      || '').trim(),
+                descricao:String(item.descricao || '').trim(),
+                valor:    parseFloat(item.valor)  || 0,
+                pontos:   parseFloat(item.pontos) || 0
+            }));
             
             // Salvar
             const tabelas = carregarTabelas();
-            tabelas[categoria] = dados;
+            tabelas[categoria] = dadosFinal;
             salvarTabelasNoStorage(tabelas);
-            renderizarTabela(categoria, dados);
+            renderizarTabela(categoria, dadosFinal);
             
-            alert(`✅ Tabela importada com sucesso! ${dados.length} serviços carregados.`);
+            alert(`✅ Tabela importada com sucesso! ${dadosFinal.length} serviços carregados.`);
         } catch (error) {
             alert('❌ Erro ao importar Excel: ' + error.message);
         }
