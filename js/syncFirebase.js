@@ -98,6 +98,32 @@ function applySnapshotToLocalStorage(snapshot) {
   }
 }
 
+// ── Persistência de sessão visível ──────────────────────────────────────────
+// Guarda uid/email no localStorage para que ao recarregar a página (ou navegar
+// entre páginas) a UI mostre imediatamente o estado "logado", sem esperar o
+// Firebase validar a sessão (~1-3 s). Quando o Firebase confirma, actualiza.
+function saveSessionCache(uid, email) {
+  try {
+    if (uid) {
+      localStorage.setItem('__syncSessionUid', uid);
+      localStorage.setItem('__syncSessionEmail', email || '');
+    } else {
+      localStorage.removeItem('__syncSessionUid');
+      localStorage.removeItem('__syncSessionEmail');
+    }
+  } catch {}
+}
+
+function loadSessionCache() {
+  try {
+    const uid = localStorage.getItem('__syncSessionUid') || null;
+    const email = localStorage.getItem('__syncSessionEmail') || '';
+    return uid ? { uid, email } : null;
+  } catch {
+    return null;
+  }
+}
+
 function mergePreferNewest(localSnap, remoteSnap) {
   // Estratégia simples e previsível:
   // - Se remoto tem updatedAt mais novo => aplicar remoto.
@@ -181,6 +207,14 @@ export class FirebaseSync {
 
     this.onStatus({ state: 'initializing' });
 
+    // ── Restaurar UI imediatamente com cache de sessão anterior ───────────
+    // Evita o "flash" de deslogado ao navegar entre páginas.
+    const cached = loadSessionCache();
+    if (cached) {
+      this.onStatus({ state: 'ready', uid: cached.uid, email: cached.email, fromCache: true });
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     this._app = initializeApp(firebaseConfig);
     this._auth = getAuth(this._app);
     this._db = getFirestore(this._app);
@@ -238,6 +272,13 @@ export class FirebaseSync {
         const prevUid = this._uid;
         this._uid = user?.uid || null;
         this._isAnonymous = !!user?.isAnonymous;
+
+        // Guardar/limpar cache de sessão para restauração rápida de UI
+        if (this._uid) {
+          saveSessionCache(this._uid, user?.email || '');
+        } else {
+          saveSessionCache(null);
+        }
 
         // Primeiro evento: só sinaliza que já sabemos se existe sessão.
         if (first) {
@@ -370,6 +411,7 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+    saveSessionCache(this._uid, u.email || '');
 
     // Puxa dados da conta antes de fazer qualquer push.
     await this._pullRemoteOnLogin();
@@ -407,6 +449,7 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+    saveSessionCache(this._uid, u.email || '');
 
     await this._pullRemoteOnLogin();
 
@@ -432,6 +475,7 @@ export class FirebaseSync {
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
+    saveSessionCache(this._uid, u.email || '');
 
     await this._pullRemoteOnLogin();
 
@@ -452,17 +496,22 @@ export class FirebaseSync {
       }
 
       const localData = getLocalSnapshot();
-      const localWrap = { meta: { updatedAt: new Date().toISOString() }, data: localData };
+      // Usar o timestamp do último push guardado, não "agora".
+      // Sem este fix, o localWrap sempre parecia mais recente que o remoto.
+      const localUpdatedAt = localStorage.getItem('__syncLocalUpdatedAt') || null;
+      const localWrap = { meta: { updatedAt: localUpdatedAt || '1970-01-01T00:00:00.000Z' }, data: localData };
       const merged = mergePreferNewest(localWrap, remote);
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-      // Regra simples:
-      // - Se remoto tem dados e local está vazio => aplicar remoto.
-      // - Senão, aplicar o mais novo por updatedAt.
+      // Aplicar remoto se:
+      // - Remoto tem dados e local está vazio
+      // - Remoto é mais recente que o último push local
       const shouldApplyRemote = (remoteHas && !localHas) || (merged === remote);
       if (shouldApplyRemote) {
         applySnapshotToLocalStorage(remote.data || {});
+        // Atualizar o timestamp para o do remoto (para não aplicar de novo desnecessariamente)
+        try { localStorage.setItem('__syncLocalUpdatedAt', remote?.meta?.updatedAt || new Date().toISOString()); } catch {}
         this.onRemoteApplied(remote.data || {});
         this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
       }
@@ -503,6 +552,8 @@ export class FirebaseSync {
     this._isAnonymous = false;
     this._unsub?.();
     this._unsub = null;
+    // Limpar cache de sessão para que ao recarregar não mostre falso estado logado
+    saveSessionCache(null);
     this.onStatus({ state: 'logged-out' });
   }
 
@@ -562,9 +613,10 @@ export class FirebaseSync {
     if (!this._initialized || !this._uid) return;
 
     const data = getLocalSnapshot();
+    const now = new Date().toISOString();
     const payload = {
       meta: {
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
         updatedReason: reason,
         serverUpdatedAt: serverTimestamp()
       },
@@ -577,7 +629,9 @@ export class FirebaseSync {
 
     try {
       await setDoc(this._docRef(), payload, { merge: true });
-      this.onStatus({ state: 'pushed', at: payload.meta.updatedAt, reason });
+      // Guardar o timestamp do push para uso na comparação de merge
+      try { localStorage.setItem('__syncLocalUpdatedAt', now); } catch {}
+      this.onStatus({ state: 'pushed', at: now, reason });
     } catch (e) {
       console.warn('Falha ao enviar remoto:', e);
       this.onStatus({ state: 'push-error', error: this._formatError(e) });

@@ -168,6 +168,8 @@ async function garantirSyncPronto() {
                         return;
                     }
                     if (st.state === 'logged-out') {
+                        const hasCached = !!localStorage.getItem('__syncSessionUid');
+                        if (hasCached) return;
                         atualizarUIStatusSync('Sync: desligado (sem login)');
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(true);
@@ -179,22 +181,22 @@ async function garantirSyncPronto() {
                     }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
-                        atualizarUIStatusSync(`Sync: ativo${email} (UID ${String(st.uid).slice(0, 6)}…)`);
+                        const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+                        atualizarUIStatusSync(label);
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
-                        // Após autenticar: não mostrar novamente opções de login.
                         setBotoesEntrarVisiveis(false);
                         setBotaoSairVisivel(true);
                         setBotaoForcarSyncVisivel(true);
-                        // Esconde também os controles individuais (garantia extra)
+                        setBotaoSalvarVisivel(true);
                         setGoogleControlVisivel(false);
                         return;
                     }
                     if (st.state === 'pushed') {
-                        atualizarUIStatusSync('Sync: ok');
+                        atualizarUIStatusSync('✅ Sync: ok');
                         return;
                     }
                     if (st.state === 'remote-applied') {
-                        atualizarUIStatusSync('Sync: atualizado');
+                        atualizarUIStatusSync('✅ Dados restaurados');
                         return;
                     }
                     if (st.state === 'redirect-error') {
@@ -469,6 +471,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Não bloquear os botões de login: se ficarem "disabled", o clique não dispara.
     // O fluxo de sync já lida com init sob demanda.
     setBotoesAuthHabilitados(true);
+
+    // ── Restaurar UI de sessão imediatamente (evitar flash "deslogado") ──────
+    // Antes do Firebase carregar (~1-3s), mostrar já o estado logado se existia sessão.
+    try {
+        const cachedUid = localStorage.getItem('__syncSessionUid');
+        const cachedEmail = localStorage.getItem('__syncSessionEmail') || '';
+        if (cachedUid) {
+            setBotoesEntrarVisiveis(false);
+            setGoogleControlVisivel(false);
+            setBotaoSairVisivel(true);
+            setBotaoForcarSyncVisivel(true);
+            setBotaoSalvarVisivel(true);
+            atualizarUIStatusSync(`🔄 A verificar sessão...`);
+        }
+    } catch {}
+    // ─────────────────────────────────────────────────────────────────────────
+
     popularTodosServicos();
     popularAdicionais();
     atualizarTabela();
@@ -524,6 +543,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     if (st.state === 'logged-out') {
+                        // Só mostrar "sem login" se não houver sessão cached.
+                        // Enquanto o Firebase ainda está a verificar (IndexedDB),
+                        // pode emitir logged-out antes de confirmar. A cache evita o flash.
+                        const hasCached = !!localStorage.getItem('__syncSessionUid');
+                        if (hasCached) return; // Firebase ainda está a validar; aguardar 'ready'
                         atualizarUIStatusSync('Sync: desligado (sem login)');
                         setBotoesAuthHabilitados(true);
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
@@ -536,7 +560,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     if (st.state === 'ready') {
                         const email = st.email ? ` | ${st.email}` : '';
-                        atualizarUIStatusSync(`✅ Sync ativo${email}`);
+                        // fromCache: true = restauração rápida antes do Firebase confirmar
+                        const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+                        atualizarUIStatusSync(label);
                         setBotoesAuthHabilitados(true);
                         setAuthPanelsVisibilidade({ mostrarAuthPanel: true });
                         setBotoesEntrarVisiveis(false);
