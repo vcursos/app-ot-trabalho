@@ -1534,7 +1534,7 @@ function atualizarResumos() {
     if (descPct > 0) {
         document.getElementById('valorDia').innerHTML =
             `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts` +
-            `<br><small style="color:#e74c3c;font-size:11px;">Líquido (-${descPct}%): € ${valorDiaLiquido.toFixed(2)}</small>`;
+            `<br><small style="color:rgba(255,255,255,0.85);font-size:11px;">Líquido (-${descPct}%): € ${valorDiaLiquido.toFixed(2)}</small>`;
     } else {
         document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts`;
     }
@@ -1542,7 +1542,7 @@ function atualizarResumos() {
     if (descPct > 0) {
         document.getElementById('valorMes').innerHTML =
             `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts` +
-            `<br><small style="color:#e74c3c;font-size:11px;">Líquido (-${descPct}%): € ${valorMesLiquido.toFixed(2)}</small>`;
+            `<br><small style="color:rgba(255,255,255,0.85);font-size:11px;">Líquido (-${descPct}%): € ${valorMesLiquido.toFixed(2)}</small>`;
     } else {
         document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts`;
     }
