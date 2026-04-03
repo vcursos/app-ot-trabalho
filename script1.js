@@ -419,6 +419,9 @@ window.__syncCallbacks = {
             if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
             if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
             if (typeof recarregarServicos === 'function') recarregarServicos();
+            // Recarregar tipos de trabalho e serviços após sync remoto
+            if (typeof carregarTiposTrabalho === 'function') carregarTiposTrabalho();
+            if (typeof popularTodosServicos === 'function') popularTodosServicos();
         } catch {}
     },
     onStatus: (st) => {

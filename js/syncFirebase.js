@@ -60,7 +60,8 @@ const STORAGE_KEYS = [
   'historicoOTPorMes',
   'configuracaoVeiculo',
   'tabelasCustomizadas',   // ← tabelas de preços configuradas
-  'multiplicadores'        // ← multiplicadores e prémios configurados
+  'multiplicadores',       // ← multiplicadores e prémios configurados
+  'tiposTrabalhoCustom'    // ← tipos de trabalho personalizados
 ];
 
 function safeParse(json, fallback) {

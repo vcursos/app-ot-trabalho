@@ -698,13 +698,16 @@
                             bonusFeriado: mult.bonusFeriado,
                             premioSabado: mult.premioSabado,
                             premioDomingo: mult.premioDomingo,
-                            premioFestivo: mult.premioFestivo
+                            premioFestivo: mult.premioFestivo,
+                            descontoPercentual: mult.descontoPercentual
                         };
                         Object.entries(fields).forEach(([id, val]) => {
                             const el = document.getElementById(id);
                             if (el && val !== undefined) el.value = val;
                         });
                     }
+                    // Recarregar tipos de trabalho personalizados
+                    if (typeof renderizarTiposTrabalho === 'function') renderizarTiposTrabalho();
                     setStatus('✅ Dados carregados da nuvem');
                 } catch {}
             },
