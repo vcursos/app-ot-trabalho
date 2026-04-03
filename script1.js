@@ -502,6 +502,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     popularTodosServicos();
     popularAdicionais();
+    carregarTiposTrabalho();
     atualizarTabela();
     atualizarResumos();
     definirDataAtual();
@@ -939,6 +940,9 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
 
 function limparFormulario() {
     document.getElementById('formOT').reset();
+    // Repor data com hoje (o reset() limpa o campo de data)
+    const campoData = document.getElementById('dataOT');
+    if (campoData) campoData.value = getHojeISO();
     limparCamposServico();
     
     // Resetar multiplicador para normal
@@ -988,6 +992,38 @@ function popularTodosServicos() {
     } else {
         console.error('Sistema de serviços customizados não carregado!');
     }
+}
+
+// Carrega os tipos de trabalho do localStorage (padrão + personalizados) no select #tipoTrabalho
+function carregarTiposTrabalho() {
+    const select = document.getElementById('tipoTrabalho');
+    if (!select) return;
+
+    const PADRAO = [
+        { id: 'instalacao', nome: 'Instalação' },
+        { id: 'avaria',     nome: 'Avaria' },
+        { id: 'migracao',   nome: 'Migração' }
+    ];
+
+    let tipos = PADRAO;
+    try {
+        const saved = localStorage.getItem('tiposTrabalhoCustom');
+        if (saved) {
+            const arr = JSON.parse(saved);
+            if (arr && arr.length > 0) tipos = arr;
+        }
+    } catch { tipos = PADRAO; }
+
+    const valorAtual = select.value;
+    select.innerHTML = '<option value="">Selecione...</option>';
+    tipos.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.nome;
+        select.appendChild(opt);
+    });
+    // Restaurar valor se ainda existir
+    if (valorAtual) select.value = valorAtual;
 }
 
 function popularAdicionais() {
@@ -1168,7 +1204,7 @@ function atualizarTabela(filtrarMes = null) {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1195,22 +1231,20 @@ function atualizarTabela(filtrarMes = null) {
 
         // Mostrar tipo de trabalho com serviço e categoria como subtexto
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
-        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
-        const tipoCell = subtexto
-            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
-            : tipoLabel;
+        const tipoCell = tipoLabel || '-';
 
-        // Coluna "Tipo de Serviço": tipologia descritiva + rede como subtexto
-        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
-        const redeTexto = ot.rede || '';
-        const servicoCell = redeTexto
-            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
-            : `<small>${tipologiaTexto}</small>`;
+        // Coluna Código: código do serviço (ex: INST01)
+        const codigoTexto = ot.tipoServico || '-';
+
+        // Coluna "Tipo de Serviço": tipologia/descrição do serviço
+        const tipologiaTexto = ot.tipologia || '-';
+        const servicoCell = `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
+            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1225,13 +1259,23 @@ function atualizarTabela(filtrarMes = null) {
 }
 
 function formatarTipoTrabalho(tipo) {
-    const tipos = {
+    const fixos = {
         'instalacao': '🔧 Instalação',
         'avaria': '⚙️ Avaria',
-        'manutencao': '⚙️ Avaria', // Manter compatibilidade com registros antigos
+        'manutencao': '⚙️ Avaria', // compatibilidade com registros antigos
         'migracao': '🔄 Migração'
     };
-    return tipos[tipo] || tipo;
+    if (fixos[tipo]) return fixos[tipo];
+    // Verificar nos tipos personalizados guardados
+    try {
+        const saved = localStorage.getItem('tiposTrabalhoCustom');
+        if (saved) {
+            const arr = JSON.parse(saved);
+            const encontrado = arr && arr.find(t => t.id === tipo || t.nome === tipo);
+            if (encontrado) return '🏷️ ' + encontrado.nome;
+        }
+    } catch {}
+    return tipo || '-';
 }
 
 function removerOTDoHistorico(id) {
@@ -1321,8 +1365,14 @@ function editarOT(id) {
     // Preencher o formulário com os dados da OT
     document.getElementById('dataOT').value = ot.data ? ot.data.substring(0, 10) : '';
     document.getElementById('numeroOT').value = ot.numeroOT || '';
-    document.getElementById('tipoTrabalho').value = ot.tipoTrabalho || '';
     document.getElementById('observacoes').value = ot.observacoes || '';
+
+    // Tipo de Trabalho: garantir que o select está populado antes de atribuir
+    const selectTipoTrab = document.getElementById('tipoTrabalho');
+    if (selectTipoTrab) {
+        carregarTiposTrabalho();
+        selectTipoTrab.value = ot.tipoTrabalho || '';
+    }
 
     // Tipo de Serviço: garantir que o select está populado antes de atribuir
     // (pode estar vazio se a página acabou de carregar)
@@ -1332,7 +1382,23 @@ function editarOT(id) {
             // Popular selects se ainda estiverem vazios
             if (typeof popularTodosServicos === 'function') popularTodosServicos();
         }
-        selectServico.value = ot.tipoServico || '';
+        // As options têm value = JSON.stringify({item, tipologia, ...})
+        // ot.tipoServico guarda apenas o código (ex: "INST01")
+        // Procurar a option cujo item corresponde ao código guardado
+        let encontrou = false;
+        for (let i = 0; i < selectServico.options.length; i++) {
+            const opt = selectServico.options[i];
+            if (!opt.value) continue;
+            try {
+                const svc = JSON.parse(opt.value);
+                if (svc.item === ot.tipoServico) {
+                    selectServico.selectedIndex = i;
+                    encontrou = true;
+                    break;
+                }
+            } catch (e) { /* ignorar options inválidas */ }
+        }
+        if (!encontrou) selectServico.value = '';
         // Disparar evento change para atualizar valor/pontos
         selectServico.dispatchEvent(new Event('change'));
     }
@@ -1515,7 +1581,7 @@ function aplicarFiltros() {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1536,21 +1602,17 @@ function aplicarFiltros() {
         }
 
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
-        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
-        const tipoCell = subtexto
-            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
-            : tipoLabel;
+        const tipoCell = tipoLabel || '-';
 
-        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
-        const redeTexto = ot.rede || '';
-        const servicoCell = redeTexto
-            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
-            : `<small>${tipologiaTexto}</small>`;
+        const codigoTexto = ot.tipoServico || '-';
+        const tipologiaTexto = ot.tipologia || '-';
+        const servicoCell = `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
+            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1588,7 +1650,7 @@ function pesquisarPorMAC() {
     });
     
     if (resultados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhum equipamento encontrado com este MAC</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhum equipamento encontrado com este MAC</td></tr>';
         return;
     }
     
@@ -1608,21 +1670,17 @@ function pesquisarPorMAC() {
             : (ot.macEquipamento || '-');
 
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
-        const subtexto = [ot.tipoServico, ot.categoria].filter(Boolean).join(' · ');
-        const tipoCell = subtexto
-            ? `${tipoLabel}<br><small style="color:#888;font-size:10px;">${subtexto}</small>`
-            : tipoLabel;
+        const tipoCell = tipoLabel || '-';
 
-        const tipologiaTexto = ot.tipologia || ot.tipoServico || '-';
-        const redeTexto = ot.rede || '';
-        const servicoCell = redeTexto
-            ? `<small>${tipologiaTexto}</small><br><small style="color:#888;font-size:10px;">${redeTexto}</small>`
-            : `<small>${tipologiaTexto}</small>`;
+        const codigoTexto = ot.tipoServico || '-';
+        const tipologiaTexto = ot.tipologia || '-';
+        const servicoCell = `<small>${tipologiaTexto}</small>`;
         
         tr.innerHTML = `
             <td>${data.toLocaleDateString('pt-BR')}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
+            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>

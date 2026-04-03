@@ -396,6 +396,7 @@
             <button class="config-tab active" onclick="mostrarCategoria('instalacoes', this)">🔧 Instalações</button>
             <button class="config-tab" onclick="mostrarCategoria('avarias', this)">⚠️ Avarias</button>
             <button class="config-tab" onclick="mostrarCategoria('adicionais', this)">➕ Adicionais</button>
+            <button class="config-tab" onclick="mostrarCategoria('tipos-trabalho', this)">🏷️ Tipos de Trabalho</button>
         </div>
 
         <!-- Seção: Instalações -->
@@ -481,6 +482,22 @@
                 </table>
             </div>
         </div>
+
+        <!-- Seção: Tipos de Trabalho -->
+        <div id="cat-tipos-trabalho" class="config-section">
+            <h2>🏷️ Tipos de Trabalho</h2>
+            <p style="color:#666;font-size:14px;margin-bottom:16px;">
+                Configure os tipos de trabalho disponíveis no formulário da OT (ex: Instalação, Avaria, Migração). Pode adicionar novos nomes ou eliminar os existentes.
+            </p>
+            <div class="table-controls" style="margin-bottom:16px;">
+                <input type="text" id="novoTipoTrabalhoInput" placeholder="Nome do tipo (ex: Pré-Venda)" style="padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;min-width:220px;">
+                <button class="btn-small btn-add" onclick="adicionarTipoTrabalho()">➕ Adicionar</button>
+            </div>
+            <div id="listaTiposTrabalho" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
+                <!-- Renderizado por JS -->
+            </div>
+            <p style="font-size:12px;color:#999;margin-top:16px;">💡 Os tipos padrão (Instalação, Avaria, Migração) são restaurados automaticamente se a lista ficar vazia.</p>
+        </div>
     </div>
 
     <!-- Modal de Edição (Mobile) -->
@@ -519,6 +536,99 @@
     </div>
 
     <script src="js/config-tabelas.js"></script>
+    <script>
+    // ── Tipos de Trabalho Personalizáveis ────────────────────────────────────
+    const TIPOS_TRABALHO_PADRAO = [
+        { id: 'instalacao', nome: 'Instalação', fixo: true },
+        { id: 'avaria',     nome: 'Avaria',     fixo: true },
+        { id: 'migracao',   nome: 'Migração',   fixo: true }
+    ];
+
+    function carregarTiposTrabalhoConfig() {
+        const saved = localStorage.getItem('tiposTrabalhoCustom');
+        if (!saved) return [...TIPOS_TRABALHO_PADRAO];
+        try {
+            const arr = JSON.parse(saved);
+            if (!arr || arr.length === 0) return [...TIPOS_TRABALHO_PADRAO];
+            return arr;
+        } catch { return [...TIPOS_TRABALHO_PADRAO]; }
+    }
+
+    function salvarTiposTrabalhoConfig(arr) {
+        localStorage.setItem('tiposTrabalhoCustom', JSON.stringify(arr));
+        if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar();
+    }
+
+    function renderizarTiposTrabalho() {
+        const container = document.getElementById('listaTiposTrabalho');
+        if (!container) return;
+        const tipos = carregarTiposTrabalhoConfig();
+        container.innerHTML = '';
+        tipos.forEach((tipo, idx) => {
+            const chip = document.createElement('div');
+            chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;background:#f0f4ff;border:1.5px solid #667eea;border-radius:20px;padding:8px 14px;font-size:15px;font-weight:600;color:#333;';
+            chip.innerHTML = `<span>${tipo.nome}</span>`;
+            if (!tipo.fixo) {
+                const btnDel = document.createElement('button');
+                btnDel.textContent = '✕';
+                btnDel.title = 'Eliminar';
+                btnDel.style.cssText = 'background:#e74c3c;color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;';
+                btnDel.onclick = () => eliminarTipoTrabalho(idx);
+                chip.appendChild(btnDel);
+            } else {
+                const lock = document.createElement('span');
+                lock.textContent = '🔒';
+                lock.style.fontSize = '11px';
+                lock.title = 'Tipo padrão (não pode ser eliminado)';
+                chip.appendChild(lock);
+            }
+            container.appendChild(chip);
+        });
+    }
+
+    function adicionarTipoTrabalho() {
+        const input = document.getElementById('novoTipoTrabalhoInput');
+        const nome = input ? input.value.trim() : '';
+        if (!nome) { alert('Escreva um nome para o tipo de trabalho.'); return; }
+        const tipos = carregarTiposTrabalhoConfig();
+        if (tipos.some(t => t.nome.toLowerCase() === nome.toLowerCase())) {
+            alert('Já existe um tipo com esse nome.'); return;
+        }
+        const id = 'custom_' + Date.now();
+        tipos.push({ id, nome, fixo: false });
+        salvarTiposTrabalhoConfig(tipos);
+        renderizarTiposTrabalho();
+        if (input) input.value = '';
+    }
+
+    function eliminarTipoTrabalho(idx) {
+        const tipos = carregarTiposTrabalhoConfig();
+        if (tipos[idx] && tipos[idx].fixo) { alert('Os tipos padrão não podem ser eliminados.'); return; }
+        if (!confirm(`Eliminar "${tipos[idx].nome}"?`)) return;
+        tipos.splice(idx, 1);
+        if (tipos.length === 0) {
+            salvarTiposTrabalhoConfig([...TIPOS_TRABALHO_PADRAO]);
+        } else {
+            salvarTiposTrabalhoConfig(tipos);
+        }
+        renderizarTiposTrabalho();
+    }
+
+    // Inicializar ao carregar
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar tipos padrão se não existirem
+        if (!localStorage.getItem('tiposTrabalhoCustom')) {
+            salvarTiposTrabalhoConfig([...TIPOS_TRABALHO_PADRAO]);
+        }
+        renderizarTiposTrabalho();
+
+        // Enter no input
+        const inp = document.getElementById('novoTipoTrabalhoInput');
+        if (inp) inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); adicionarTipoTrabalho(); }
+        });
+    });
+    </script>
     <script type="module">
     // ── Sync Firebase para a página de Opções/Tabelas ─────────────────────────
     import { FirebaseSync } from './js/syncFirebase.js';
