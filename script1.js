@@ -541,9 +541,9 @@ function sincronizarDataOTComDispositivo() {
     campo.max = hoje;
 
     // Reaplicar estado do festivo quando mudar a data
+    // Permite datas retroativas: só bloqueia datas futuras
     campo.addEventListener('change', function() {
         const hojeAgora = getHojeISO();
-        // Se o usuário tentar colocar futuro, corrigir
         if (campo.value && campo.value > hojeAgora) {
             campo.value = hojeAgora;
         }
@@ -551,14 +551,13 @@ function sincronizarDataOTComDispositivo() {
         atualizarUIFestivoPorDia();
     });
 
-    // Se virar o dia com o app aberto, atualiza automaticamente (sem sobrescrever se o usuário estiver vendo data antiga)
+    // Se virar o dia com o app aberto, atualiza apenas o atributo max.
+    // NÃO sobrescreve o valor — o utilizador pode estar a preencher uma data retroativa.
     setInterval(function() {
         const hojeAgora = getHojeISO();
         if (campo.max !== hojeAgora) campo.max = hojeAgora;
-
-        // Só ajusta o campo se ele estiver vazio OU ainda estiver no dia anterior
-        // (não força mudança quando o usuário abriu mês/dia antigos para conferir)
-        if (!campo.value || campo.value < hojeAgora) {
+        // Só preenche se o campo estiver mesmo vazio
+        if (!campo.value) {
             campo.value = hojeAgora;
             atualizarUIFestivoPorDia();
         }
@@ -1324,6 +1323,19 @@ function editarOT(id) {
     document.getElementById('numeroOT').value = ot.numeroOT || '';
     document.getElementById('tipoTrabalho').value = ot.tipoTrabalho || '';
     document.getElementById('observacoes').value = ot.observacoes || '';
+
+    // Tipo de Serviço: garantir que o select está populado antes de atribuir
+    // (pode estar vazio se a página acabou de carregar)
+    const selectServico = document.getElementById('tipoServico');
+    if (selectServico) {
+        if (selectServico.options.length <= 1) {
+            // Popular selects se ainda estiverem vazios
+            if (typeof popularTodosServicos === 'function') popularTodosServicos();
+        }
+        selectServico.value = ot.tipoServico || '';
+        // Disparar evento change para atualizar valor/pontos
+        selectServico.dispatchEvent(new Event('change'));
+    }
     
     // Categoria
     const categoriaEl = document.getElementById('categoriaServico');
@@ -1716,13 +1728,23 @@ function gerarPDF() {
         doc.text(`Filtros: ${filtrosTexto.join(' | ')}`, 14, 34);
     }
     
-    // Tabela (com Equipamentos)
+    // Tabela — espelha exactamente o que está visível em "Ordens de Trabalho"
     const tableData = otsMes.map(ot => {
+        // Equipamentos (omitir coluna se todos vazios — tratado depois com hasEquip)
         const equipamentos = (ot.equipamentos && ot.equipamentos.length > 0)
             ? ot.equipamentos.map(eq => (typeof eq === 'string') ? eq : (eq.mac || '')).filter(Boolean).join(', ')
-            : (ot.macEquipamento || '-');
-        
-        // Adicionar indicador de dia especial
+            : (ot.macEquipamento || '');
+
+        // Adicionais
+        const adicionaisTexto = (ot.adicionais && ot.adicionais.length > 0)
+            ? ot.adicionais.map(a => {
+                const nome = typeof a === 'string' ? a : (a.nome || a.descricao || '');
+                const val  = (typeof a === 'object' && a.valor) ? ` €${parseFloat(a.valor).toFixed(2)}` : '';
+                return nome + val;
+              }).filter(Boolean).join(', ')
+            : '';
+
+        // Indicador de dia especial
         const dataOT = new Date(ot.data);
         const diaSemana = dataOT.getDay();
         const isFestivo = ot.otFestivo === true;
@@ -1731,41 +1753,68 @@ function gerarPDF() {
         else if (diaSemana === 0) diaIndicador = ' (DOM)';
         else if (diaSemana === 6) diaIndicador = ' (SAB)';
 
-        return [
-            dataOT.toLocaleDateString('pt-BR') + diaIndicador,
-            ot.numeroOT,
-            ot.tipoServico,
-            ot.categoria || '-',
-            formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦]/g, ''),
-            equipamentos || '-',
-            ot.observacoes || '-',
-            `€ ${ot.valorServico.toFixed(2)}`
-        ];
+        // Tipo de Trabalho + Tipo de Serviço (espelha as duas colunas da tabela)
+        const tipoTrabalhoTexto = formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦🔌]/g, '').trim();
+        const tipoServicoTexto  = ot.tipologia || ot.tipoServico || '-';
+
+        return {
+            data:        dataOT.toLocaleDateString('pt-BR') + diaIndicador,
+            ot:          ot.numeroOT || '-',
+            tipoTrab:    tipoTrabalhoTexto || '-',
+            tipoServ:    tipoServicoTexto,
+            adicionais:  adicionaisTexto,
+            equipamentos,
+            observacoes: ot.observacoes || '',
+            valor:       `€ ${ot.valorServico.toFixed(2)}`
+        };
     });
+
+    // Verificar se alguma OT tem equipamentos ou observações (só incluir colunas se existirem dados)
+    const hasEquip  = tableData.some(r => r.equipamentos);
+    const hasObs    = tableData.some(r => r.observacoes);
+    const hasAdic   = tableData.some(r => r.adicionais);
+
+    // Construir colunas dinâmicas
+    const head = ['Data', 'OT', 'Tipo de Trabalho', 'Tipo de Serviço'];
+    if (hasAdic)  head.push('Adicionais');
+    if (hasEquip) head.push('Equipamentos');
+    if (hasObs)   head.push('Observações');
+    head.push('Valor');
+
+    const body = tableData.map(r => {
+        const row = [r.data, r.ot, r.tipoTrab, r.tipoServ];
+        if (hasAdic)  row.push(r.adicionais);
+        if (hasEquip) row.push(r.equipamentos);
+        if (hasObs)   row.push(r.observacoes);
+        row.push(r.valor);
+        return row;
+    });
+
+    // Larguras das colunas (total ~270mm em landscape A4)
+    const colWidths = {};
+    let col = 0;
+    colWidths[col++] = { cellWidth: 24 }; // Data
+    colWidths[col++] = { cellWidth: 22 }; // OT
+    colWidths[col++] = { cellWidth: 30 }; // Tipo de Trabalho
+    colWidths[col++] = { cellWidth: 50 }; // Tipo de Serviço
+    if (hasAdic)  colWidths[col++] = { cellWidth: 40 }; // Adicionais
+    if (hasEquip) colWidths[col++] = { cellWidth: 40 }; // Equipamentos
+    if (hasObs)   colWidths[col++] = { cellWidth: 50 }; // Observações
+    colWidths[col++] = { cellWidth: 22, fontStyle: 'bold' }; // Valor
     
     if (temAutoTable) {
         doc.autoTable({
             startY: filtrosTexto.length > 0 ? 40 : 35,
-            head: [['Data', 'OT', 'Serviço', 'Categoria', 'Tipo', 'Equipamentos', 'Observações', 'Valor']],
-            body: tableData,
+            head: [head],
+            body,
             theme: 'striped',
             headStyles: { fillColor: [102, 126, 234] },
-            styles: { fontSize: 8 },
-            columnStyles: {
-                0: { cellWidth: 22 },
-                1: { cellWidth: 20 },
-                2: { cellWidth: 35 },
-                3: { cellWidth: 30 },
-                4: { cellWidth: 20 },
-                5: { cellWidth: 50 },
-                6: { cellWidth: 45 },
-                7: { cellWidth: 22, fontStyle: 'bold' }
-            }
+            styles: { fontSize: 8, overflow: 'linebreak', cellPadding: 2 },
+            columnStyles: colWidths
         });
     } else {
-        // Fallback (mobile): sem tabela, mas pelo menos mostra totais e festivo
         doc.setFontSize(10);
-        doc.text('Tabela não suportada neste dispositivo (autoTable indisponível).', 14, categoriaFiltro || redeFiltro ? 44 : 38);
+        doc.text('Tabela não suportada neste dispositivo (autoTable indisponível).', 14, filtrosTexto.length > 0 ? 44 : 38);
     }
     
     // Resumo
