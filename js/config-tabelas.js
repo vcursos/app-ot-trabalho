@@ -155,18 +155,11 @@ function renderizarTabela(categoria, dados) {
         const pontos = parseFloat(item.pontos) || 0;
         tr.innerHTML = `
             <td onclick="abrirModal('${categoria}', ${index})" style="display: none;">
-                <span class="texto-mobile codigo-oculto">
-                    ${item.codigo}
-                </span>
                 <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
-                <span class="texto-mobile">
-                    <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Descrição:</div>
-                    <span style="display:inline-block;background:#e8f0fe;color:#1a56db;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px;font-family:monospace;letter-spacing:0.5px;">${item.codigo}</span>
-                    <strong style="font-size: 15px;">${item.descricao}</strong>
-                </span>
-                <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
+                <span style="display:inline-block;background:#e8f0fe;color:#1a56db;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px;font-family:monospace;letter-spacing:0.5px;vertical-align:middle;">${item.codigo}</span><strong style="font-size:15px;vertical-align:middle;">${item.descricao}</strong>
+                <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}" style="display:none;">
             </td>
             <td onclick="abrirModal('${categoria}', ${index})">
                 <span class="texto-mobile">
@@ -623,9 +616,12 @@ function aplicarEdicao() {
     
     const tabelas = carregarTabelas();
     
+    // Preservar campos originais que não estão no modal (ex: rede)
+    const itemOriginal = (modalIndexAtual >= 0) ? (tabelas[modalCategoriaAtual][modalIndexAtual] || {}) : {};
+
     const novoItem = {
+        ...itemOriginal,
         codigo: document.getElementById('modal-codigo').value,
-        rede: '',
         descricao: document.getElementById('modal-descricao').value,
         valor: parseFloat(document.getElementById('modal-valor').value) || 0,
         pontos: parseFloat(document.getElementById('modal-pontos')?.value) || 0,
