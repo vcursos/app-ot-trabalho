@@ -531,15 +531,12 @@ function sincronizarDataOTComDispositivo() {
     const campo = document.getElementById('dataOT');
     if (!campo) return;
 
-    const hoje = getHojeISO();
-
-    // Ao abrir: se vazio, preenche com hoje
-    if (!campo.value) {
-        campo.value = hoje;
-    }
+    // Preencher SEMPRE com hoje ao iniciar (não apenas se vazio)
+    // Assim fica sincronizado com o dispositivo ao abrir o formulário
+    campo.value = getHojeISO();
 
     // Bloquear datas futuras (data do dispositivo é o máximo)
-    campo.max = hoje;
+    campo.max = getHojeISO();
 
     // Reaplicar estado do festivo quando mudar a data
     // Permite datas retroativas: só bloqueia datas futuras
@@ -1490,6 +1487,19 @@ function cancelarEdicao() {
     document.getElementById('formOT').style.boxShadow = '';
 }
 
+function obterDescontoPercentual() {
+    try {
+        const mult = JSON.parse(localStorage.getItem('multiplicadores') || '{}');
+        return parseFloat(mult.descontoPercentual) || 0;
+    } catch { return 0; }
+}
+
+function aplicarDesconto(valor) {
+    const pct = obterDescontoPercentual();
+    if (!pct) return valor;
+    return valor * (1 - pct / 100);
+}
+
 function atualizarResumos() {
     const hoje = new Date().toDateString();
     const mesAtual = new Date().getMonth();
@@ -1515,11 +1525,27 @@ function atualizarResumos() {
         const pAdd = parseFloat(ot.pontosAdicional) || 0;
         return sum + pServ + pAdd;
     }, 0);
+
+    const descPct = obterDescontoPercentual();
+    const valorDiaLiquido = aplicarDesconto(valorDia);
+    const valorMesLiquido = aplicarDesconto(valorMes);
     
     document.getElementById('qtdDia').textContent = otsDia.length;
-    document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts`;
+    if (descPct > 0) {
+        document.getElementById('valorDia').innerHTML =
+            `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts` +
+            `<br><small style="color:#e74c3c;font-size:11px;">Líquido (-${descPct}%): € ${valorDiaLiquido.toFixed(2)}</small>`;
+    } else {
+        document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts`;
+    }
     document.getElementById('qtdMes').textContent = otsMes.length;
-    document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts`;
+    if (descPct > 0) {
+        document.getElementById('valorMes').innerHTML =
+            `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts` +
+            `<br><small style="color:#e74c3c;font-size:11px;">Líquido (-${descPct}%): € ${valorMesLiquido.toFixed(2)}</small>`;
+    } else {
+        document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts`;
+    }
 }
 
 function filtrarPorMes() {
@@ -1747,7 +1773,7 @@ function garantirAutoTablePronto(doc) {
     return false;
 }
 
-function gerarPDF() {
+function gerarPDF(comDesconto = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
 
@@ -1988,9 +2014,21 @@ function gerarPDF() {
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     const valorReceber = totalValor + totalPremiosSaida;
-    doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
+    if (comDesconto) {
+        const descPct = obterDescontoPercentual();
+        const valorLiquido = aplicarDesconto(valorReceber);
+        doc.text(`VALOR BRUTO: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(11);
+        doc.text(`Desconto do chefe (${descPct}%): - € ${(valorReceber - valorLiquido).toFixed(2)}`, 14, finalY + 20);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(14);
+        doc.text(`VALOR LÍQUIDO A RECEBER: € ${valorLiquido.toFixed(2)}`, 14, finalY + 28);
+    } else {
+        doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
+    }
     
-    doc.save(`relatorio-ot-${mesAtual}.pdf`);
+    doc.save(`relatorio-ot-${mesAtual}${comDesconto ? '-liquido' : ''}.pdf`);
 }
 
 // Gerar PDF com Equipamentos

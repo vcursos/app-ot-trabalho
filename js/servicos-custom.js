@@ -24,7 +24,8 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'INSTALACIONES'
+                categoria: 'INSTALACIONES',
+                tipoTrabalho: item.tipoTrabalho || 'instalacao'
             });
         });
     }
@@ -38,7 +39,8 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'AVERIAS + POSTVENTAS'
+                categoria: 'AVERIAS + POSTVENTAS',
+                tipoTrabalho: item.tipoTrabalho || 'avaria'
             });
         });
     }
@@ -52,7 +54,8 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'ADICIONALES'
+                categoria: 'ADICIONALES',
+                tipoTrabalho: item.tipoTrabalho || ''
             });
         });
     }
@@ -391,6 +394,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (categoriaEl) categoriaEl.value = servico.categoria || '';
                     if (redeEl) redeEl.value = servico.red || '';
                     if (valorEl) valorEl.value = (parseFloat(servico.valor) || 0).toFixed(2);
+
+                    // Auto-preencher Tipo de Trabalho se o serviço tiver associação
+                    if (servico.tipoTrabalho) {
+                        const selectTrab = document.getElementById('tipoTrabalho');
+                        if (selectTrab) selectTrab.value = servico.tipoTrabalho;
+                    }
+
                     calcularValorTotalComMultiplicador();
                 } catch (e) {
                     console.error('Erro ao processar serviço:', e);

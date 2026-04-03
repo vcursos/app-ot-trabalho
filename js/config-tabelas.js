@@ -33,6 +33,7 @@ const multiplicadoresPadrao = {
     premioSabado: 0,
     premioDomingo: 0,
     premioFestivo: 0,
+    descontoPercentual: 0,  // % de desconto do chefe
     // Retrocompatibilidade
     domingoFeriado: 1.5
 };
@@ -115,6 +116,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputPremioDomingo) inputPremioDomingo.value = mult.premioDomingo ?? 0;
     const inputPremioFestivo = document.getElementById('premioFestivo');
     if (inputPremioFestivo) inputPremioFestivo.value = mult.premioFestivo ?? 0;
+
+    // Desconto
+    const inputDesconto = document.getElementById('descontoPercentual');
+    if (inputDesconto) inputDesconto.value = mult.descontoPercentual ?? 0;
     
     // Renderizar todas as tabelas
     renderizarTabela('instalacoes', tabelas.instalacoes);
@@ -269,6 +274,7 @@ function salvarMultiplicadores() {
         premioSabado: parseFloat(document.getElementById('premioSabado')?.value) || 0,
         premioDomingo: parseFloat(document.getElementById('premioDomingo')?.value) || 0,
         premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0,
+        descontoPercentual: parseFloat(document.getElementById('descontoPercentual')?.value) || 0,
         // Retrocompatibilidade
         domingoFeriado: 1.5
     };
@@ -515,6 +521,13 @@ function abrirModal(categoria, index) {
     document.getElementById('modal-valor').value = item.valor;
     const pontosInput = document.getElementById('modal-pontos');
     if (pontosInput) pontosInput.value = parseFloat(item.pontos) || 0;
+
+    // Tipo de Trabalho associado
+    const tipoTrabSelect = document.getElementById('modal-tipo-trabalho');
+    if (tipoTrabSelect) {
+        _preencherOptionsTipoTrabalho(tipoTrabSelect);
+        tipoTrabSelect.value = item.tipoTrabalho || '';
+    }
     
     // Alterar texto do botão para "Salvar Alterações"
     document.getElementById('btn-aplicar-modal').textContent = '✅ Salvar Alterações';
@@ -542,6 +555,14 @@ function abrirModalNovoServico(categoria) {
     document.getElementById('modal-valor').value = '0.00';
     const pontosInput = document.getElementById('modal-pontos');
     if (pontosInput) pontosInput.value = '0';
+
+    // Tipo de trabalho: pré-selecionar com base na categoria
+    const tipoTrabSelect = document.getElementById('modal-tipo-trabalho');
+    if (tipoTrabSelect) {
+        _preencherOptionsTipoTrabalho(tipoTrabSelect);
+        const preSelecao = { instalacoes: 'instalacao', avarias: 'avaria', adicionais: '' };
+        tipoTrabSelect.value = preSelecao[categoria] || '';
+    }
     
     // Alterar texto do botão para "Adicionar Serviço"
     document.getElementById('btn-aplicar-modal').textContent = '➕ Adicionar Serviço';
@@ -561,6 +582,38 @@ function fecharModal() {
     modalCategoriaAtual = '';
     modalIndexAtual = -1;
     if (document.getElementById('modal-pontos')) document.getElementById('modal-pontos').value = '';
+    if (document.getElementById('modal-tipo-trabalho')) document.getElementById('modal-tipo-trabalho').value = '';
+}
+
+// Preencher options do select Tipo de Trabalho no modal (inclui personalizados)
+function _preencherOptionsTipoTrabalho(select) {
+    const PADRAO = [
+        { id: '', nome: '— Não especificado —' },
+        { id: 'instalacao', nome: '🔧 Instalação' },
+        { id: 'avaria', nome: '⚙️ Avaria' },
+        { id: 'migracao', nome: '🔄 Migração' }
+    ];
+    let tipos = PADRAO;
+    try {
+        const saved = localStorage.getItem('tiposTrabalhoCustom');
+        if (saved) {
+            const arr = JSON.parse(saved);
+            if (arr && arr.length > 0) {
+                tipos = [{ id: '', nome: '— Não especificado —' }].concat(
+                    arr.map(t => ({ id: t.id, nome: t.nome }))
+                );
+            }
+        }
+    } catch {}
+    const valorAtual = select.value;
+    select.innerHTML = '';
+    tipos.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.nome;
+        select.appendChild(opt);
+    });
+    select.value = valorAtual;
 }
 
 // Aplicar edição do modal
@@ -574,7 +627,8 @@ function aplicarEdicao() {
         rede: '',
         descricao: document.getElementById('modal-descricao').value,
         valor: parseFloat(document.getElementById('modal-valor').value) || 0,
-        pontos: parseFloat(document.getElementById('modal-pontos')?.value) || 0
+        pontos: parseFloat(document.getElementById('modal-pontos')?.value) || 0,
+        tipoTrabalho: document.getElementById('modal-tipo-trabalho')?.value || ''
     };
     
     if (modalIndexAtual === -1) {

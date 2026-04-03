@@ -388,6 +388,15 @@
             </div>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">💡 <strong>Festivo:</strong> Aplica-se em dias festivos (feriados nacionais/regionais)</p>
             
+            <h3 style="margin-top: 25px;">✂️ Desconto do Chefe (%)</h3>
+            <div class="mult-grid">
+                <div class="mult-item">
+                    <label>Percentagem de Desconto (%)</label>
+                    <input type="number" id="descontoPercentual" step="0.1" min="0" max="100" value="0" placeholder="Ex: 24">
+                    <small style="color:#666;">O valor a receber real será o total bruto menos esta percentagem. Ex: 24% significa que recebe 76% do total.</small>
+                </div>
+            </div>
+            
             <button class="btn-small btn-save" style="margin-top: 15px;" onclick="salvarMultiplicadores()">💾 Salvar Configurações</button>
         </div>
 
@@ -526,6 +535,17 @@
             <div class="modal-field">
                 <label>Pontos</label>
                 <input type="number" id="modal-pontos" step="0.1" min="0" placeholder="Ex: 1">
+            </div>
+
+            <div class="modal-field">
+                <label>Tipo de Trabalho (associado a este serviço)</label>
+                <select id="modal-tipo-trabalho" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:16px;box-sizing:border-box;">
+                    <option value="">— Não especificado —</option>
+                    <option value="instalacao">🔧 Instalação</option>
+                    <option value="avaria">⚙️ Avaria</option>
+                    <option value="migracao">🔄 Migração</option>
+                </select>
+                <small style="color:#666;font-size:12px;">Ao selecionar este serviço na tela principal, o Tipo de Trabalho será preenchido automaticamente.</small>
             </div>
             
             <div class="modal-actions">
