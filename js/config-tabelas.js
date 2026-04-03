@@ -150,34 +150,43 @@ function renderizarTabela(categoria, dados) {
     const tbody = document.getElementById('tbody-' + categoria);
     tbody.innerHTML = '';
     
-    dados.forEach((item, index) => {
+    // Ordenar por código (ex: INST01 < INST02 < INST10)
+    const dadosOrdenados = [...dados].sort((a, b) => {
+        const ca = (a.codigo || '').toUpperCase();
+        const cb = (b.codigo || '').toUpperCase();
+        return ca.localeCompare(cb, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    dadosOrdenados.forEach((item, index) => {
+        // Índice real no array original para editar/remover corretamente
+        const indexReal = dados.indexOf(item);
         const tr = document.createElement('tr');
         const pontos = parseFloat(item.pontos) || 0;
         tr.innerHTML = `
-            <td onclick="abrirModal('${categoria}', ${index})" style="display: none;">
-                <input type="text" value="${item.codigo}" data-field="codigo" data-index="${index}">
+            <td onclick="abrirModal('${categoria}', ${indexReal})" style="display: none;">
+                <input type="text" value="${item.codigo}" data-field="codigo" data-index="${indexReal}">
             </td>
-            <td onclick="abrirModal('${categoria}', ${index})">
+            <td onclick="abrirModal('${categoria}', ${indexReal})">
                 <span style="display:inline-block;background:#e8f0fe;color:#1a56db;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px;font-family:monospace;letter-spacing:0.5px;vertical-align:middle;">${item.codigo}</span><strong style="font-size:15px;vertical-align:middle;">${item.descricao}</strong>
-                <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}" style="display:none;">
+                <input type="text" value="${item.descricao}" data-field="descricao" data-index="${indexReal}" style="display:none;">
             </td>
-            <td onclick="abrirModal('${categoria}', ${index})">
+            <td onclick="abrirModal('${categoria}', ${indexReal})">
                 <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Valor:</div>
                     <strong style="font-size: 15px;">€${parseFloat(item.valor).toFixed(2)}</strong>
                 </span>
-                <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${index}">
+                <input type="number" step="0.01" value="${item.valor}" data-field="valor" data-index="${indexReal}">
             </td>
-            <td onclick="abrirModal('${categoria}', ${index})" style="min-width: 110px;">
+            <td onclick="abrirModal('${categoria}', ${indexReal})" style="min-width: 110px;">
                 <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Pontos:</div>
                     <strong style="font-size: 15px;">${pontos.toFixed(1)}</strong>
                 </span>
-                <input type="number" step="0.1" min="0" value="${pontos}" data-field="pontos" data-index="${index}" style="width: 100%;">
+                <input type="number" step="0.1" min="0" value="${pontos}" data-field="pontos" data-index="${indexReal}" style="width: 100%;">
             </td>
             <td style="white-space: nowrap;">
-                <button class="btn-small btn-edit-mobile" onclick="event.stopPropagation(); abrirModal('${categoria}', ${index})" style="margin-right: 5px;">✏️</button>
-                <button class="btn-small btn-remove" onclick="event.stopPropagation(); removerLinha('${categoria}', ${index})">🗑️</button>
+                <button class="btn-small btn-edit-mobile" onclick="event.stopPropagation(); abrirModal('${categoria}', ${indexReal})" style="margin-right: 5px;">✏️</button>
+                <button class="btn-small btn-remove" onclick="event.stopPropagation(); removerLinha('${categoria}', ${indexReal})">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);

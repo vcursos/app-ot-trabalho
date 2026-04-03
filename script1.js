@@ -1201,7 +1201,7 @@ function atualizarTabela(filtrarMes = null) {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1230,9 +1230,6 @@ function atualizarTabela(filtrarMes = null) {
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
         const tipoCell = tipoLabel || '-';
 
-        // Coluna Código: código do serviço (ex: INST01)
-        const codigoTexto = ot.tipoServico || '-';
-
         // Coluna "Tipo de Serviço": tipologia/descrição do serviço
         const tipologiaTexto = ot.tipologia || '-';
         const servicoCell = `<small>${tipologiaTexto}</small>`;
@@ -1241,7 +1238,6 @@ function atualizarTabela(filtrarMes = null) {
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
-            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1607,7 +1603,7 @@ function aplicarFiltros() {
     }
     
     if (otsFiltradas.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma ordem de trabalho encontrada neste mês</td></tr>';
         return;
     }
     
@@ -1630,7 +1626,6 @@ function aplicarFiltros() {
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
         const tipoCell = tipoLabel || '-';
 
-        const codigoTexto = ot.tipoServico || '-';
         const tipologiaTexto = ot.tipologia || '-';
         const servicoCell = `<small>${tipologiaTexto}</small>`;
         
@@ -1638,7 +1633,6 @@ function aplicarFiltros() {
             <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
-            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
@@ -1676,7 +1670,7 @@ function pesquisarPorMAC() {
     });
     
     if (resultados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="8">Nenhum equipamento encontrado com este MAC</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhum equipamento encontrado com este MAC</td></tr>';
         return;
     }
     
@@ -1698,7 +1692,6 @@ function pesquisarPorMAC() {
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
         const tipoCell = tipoLabel || '-';
 
-        const codigoTexto = ot.tipoServico || '-';
         const tipologiaTexto = ot.tipologia || '-';
         const servicoCell = `<small>${tipologiaTexto}</small>`;
         
@@ -1706,7 +1699,6 @@ function pesquisarPorMAC() {
             <td>${data.toLocaleDateString('pt-BR')}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
-            <td><span style="font-family:monospace;font-size:12px;background:#f0f4ff;padding:2px 6px;border-radius:4px;color:#667eea;font-weight:600;">${codigoTexto}</span></td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
             <td>${servicoCell}</td>
             <td><strong style="color: #27ae60;">€ ${ot.valorServico.toFixed(2)}</strong></td>
