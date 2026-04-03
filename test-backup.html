@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Backup/Import Functionality</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Backup/Import with Service Configurations</h1>
+    
+    <div class="test-section">
+        <h2>1. Setup Test Data</h2>
+        <button onclick="setupTestData()">Setup Test Data in localStorage</button>
+        <div id="setup-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Check Current Data</h2>
+        <button onclick="checkCurrentData()">Check localStorage Data</button>
+        <div id="check-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Export (Simulated)</h2>
+        <button onclick="testExport()">Simulate Export</button>
+        <div id="export-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Test Import Backward Compatibility</h2>
+        <button onclick="testOldBackup()">Test Old Backup (without configs)</button>
+        <button onclick="testNewBackup()">Test New Backup (with configs)</button>
+        <div id="import-result" class="result"></div>
+    </div>
+
+    <script>
+        function setupTestData() {
+            const result = document.getElementById('setup-result');
+            try {
+                // Setup some test data
+                const testOTs = [
+                    { id: 1, data: '2024-01-15T00:00:00', numeroOT: 'OT001', valorServico: 44.00 }
+                ];
+                
+                const testTables = {
+                    instalacoes: [
+                        { codigo: 'INST01', rede: 'AMBAS', descricao: 'Test Service', valor: 50.00, pontos: 1 }
+                    ],
+                    avarias: [],
+                    adicionais: []
+                };
+                
+                const testMult = {
+                    normal: 1.0,
+                    domingoFeriado: 1.5,
+                    dobrado: 2.0,
+                    premioFestivo: 75
+                };
+                
+                localStorage.setItem('ordensTrabalho', JSON.stringify(testOTs));
+                localStorage.setItem('registrosLogistica', JSON.stringify([]));
+                localStorage.setItem('historicoOTPorMes', JSON.stringify({}));
+                localStorage.setItem('premiosFestivosPorDia', JSON.stringify({}));
+                localStorage.setItem('tabelasCustomizadas', JSON.stringify(testTables));
+                localStorage.setItem('multiplicadores', JSON.stringify(testMult));
+                
+                result.className = 'result success';
+                result.textContent = '✅ Test data successfully set up in localStorage';
+            } catch (e) {
+                result.className = 'result error';
+                result.textContent = '❌ Error: ' + e.message;
+            }
+        }
+        
+        function checkCurrentData() {
+            const result = document.getElementById('check-result');
+            try {
+                const data = {
+                    ordensTrabalho: JSON.parse(localStorage.getItem('ordensTrabalho') || '[]'),
+                    registrosLogistica: JSON.parse(localStorage.getItem('registrosLogistica') || '[]'),
+                    tabelasCustomizadas: JSON.parse(localStorage.getItem('tabelasCustomizadas') || 'null'),
+                    multiplicadores: JSON.parse(localStorage.getItem('multiplicadores') || 'null')
+                };
+                
+                result.className = 'result';
+                result.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                result.className = 'result error';
+                result.textContent = '❌ Error: ' + e.message;
+            }
+        }
+        
+        function testExport() {
+            const result = document.getElementById('export-result');
+            try {
+                // Simulate the export function
+                const payload = {
+                    geradoEm: new Date().toISOString(),
+                    versao: 1,
+                    ordensTrabalho: JSON.parse(localStorage.getItem('ordensTrabalho') || '[]'),
+                    registrosLogistica: JSON.parse(localStorage.getItem('registrosLogistica') || '[]'),
+                    historicoOTPorMes: JSON.parse(localStorage.getItem('historicoOTPorMes') || '{}'),
+                    premiosFestivosPorDia: JSON.parse(localStorage.getItem('premiosFestivosPorDia') || '{}'),
+                    configuracaoVeiculo: JSON.parse(localStorage.getItem('configuracaoVeiculo') || 'null'),
+                    tabelasCustomizadas: JSON.parse(localStorage.getItem('tabelasCustomizadas') || 'null'),
+                    multiplicadores: JSON.parse(localStorage.getItem('multiplicadores') || 'null')
+                };
+                
+                // Check if service configs are included
+                const hasConfigs = payload.tabelasCustomizadas !== null && payload.multiplicadores !== null;
+                
+                result.className = 'result ' + (hasConfigs ? 'success' : 'error');
+                result.textContent = (hasConfigs ? '✅ SUCCESS: ' : '❌ FAIL: ') + 
+                    'Export includes service configurations\n\n' + 
+                    JSON.stringify(payload, null, 2);
+            } catch (e) {
+                result.className = 'result error';
+                result.textContent = '❌ Error: ' + e.message;
+            }
+        }
+        
+        function testOldBackup() {
+            const result = document.getElementById('import-result');
+            try {
+                // Simulate old backup without service configs
+                const oldBackup = {
+                    geradoEm: '2024-01-01T00:00:00.000Z',
+                    versao: 1,
+                    ordensTrabalho: [
+                        { id: 2, data: '2024-01-20T00:00:00', numeroOT: 'OT002', valorServico: 30.00 }
+                    ],
+                    registrosLogistica: [],
+                    historicoOTPorMes: {},
+                    premiosFestivosPorDia: {}
+                    // Note: no tabelasCustomizadas or multiplicadores
+                };
+                
+                // Save current configs to check they are preserved
+                const currentTables = localStorage.getItem('tabelasCustomizadas');
+                const currentMult = localStorage.getItem('multiplicadores');
+                
+                // Simulate import (simplified)
+                const novasTabelas = (oldBackup.tabelasCustomizadas && typeof oldBackup.tabelasCustomizadas === 'object') ? oldBackup.tabelasCustomizadas : null;
+                const novosMultiplicadores = (oldBackup.multiplicadores && typeof oldBackup.multiplicadores === 'object') ? oldBackup.multiplicadores : null;
+                
+                // Check backward compatibility: configs should NOT be modified when not present in backup
+                const configsPreserved = (novasTabelas === null && novosMultiplicadores === null);
+                const configsStillExist = (localStorage.getItem('tabelasCustomizadas') === currentTables && 
+                                          localStorage.getItem('multiplicadores') === currentMult);
+                
+                result.className = 'result ' + (configsPreserved && configsStillExist ? 'success' : 'error');
+                result.textContent = (configsPreserved && configsStillExist ? '✅ PASS: ' : '❌ FAIL: ') + 
+                    'Backward compatibility test\n\n' +
+                    'Old backup (without configs) does not overwrite existing configs:\n' +
+                    '- novasTabelas: ' + novasTabelas + '\n' +
+                    '- novosMultiplicadores: ' + novosMultiplicadores + '\n' +
+                    '- Existing configs preserved: ' + configsStillExist;
+            } catch (e) {
+                result.className = 'result error';
+                result.textContent = '❌ Error: ' + e.message;
+            }
+        }
+        
+        function testNewBackup() {
+            const result = document.getElementById('import-result');
+            try {
+                // Simulate new backup WITH service configs
+                const newBackup = {
+                    geradoEm: '2024-01-15T00:00:00.000Z',
+                    versao: 1,
+                    ordensTrabalho: [
+                        { id: 3, data: '2024-01-25T00:00:00', numeroOT: 'OT003', valorServico: 60.00 }
+                    ],
+                    registrosLogistica: [],
+                    historicoOTPorMes: {},
+                    premiosFestivosPorDia: {},
+                    tabelasCustomizadas: {
+                        instalacoes: [
+                            { codigo: 'INST99', rede: 'Test', descricao: 'Imported Service', valor: 99.00, pontos: 5 }
+                        ],
+                        avarias: [],
+                        adicionais: []
+                    },
+                    multiplicadores: {
+                        normal: 1.0,
+                        domingoFeriado: 2.0,
+                        dobrado: 3.0,
+                        premioFestivo: 100
+                    }
+                };
+                
+                // Simulate import
+                const novasTabelas = (newBackup.tabelasCustomizadas && typeof newBackup.tabelasCustomizadas === 'object') ? newBackup.tabelasCustomizadas : null;
+                const novosMultiplicadores = (newBackup.multiplicadores && typeof newBackup.multiplicadores === 'object') ? newBackup.multiplicadores : null;
+                
+                // Simulate saving to localStorage (for test only)
+                if (novasTabelas) {
+                    localStorage.setItem('tabelasCustomizadas', JSON.stringify(novasTabelas));
+                }
+                if (novosMultiplicadores) {
+                    localStorage.setItem('multiplicadores', JSON.stringify(novosMultiplicadores));
+                }
+                
+                // Verify data was restored
+                const restoredTables = JSON.parse(localStorage.getItem('tabelasCustomizadas'));
+                const restoredMult = JSON.parse(localStorage.getItem('multiplicadores'));
+                
+                const tablesMatch = JSON.stringify(restoredTables) === JSON.stringify(newBackup.tabelasCustomizadas);
+                const multMatch = JSON.stringify(restoredMult) === JSON.stringify(newBackup.multiplicadores);
+                
+                result.className = 'result ' + (tablesMatch && multMatch ? 'success' : 'error');
+                result.textContent = (tablesMatch && multMatch ? '✅ PASS: ' : '❌ FAIL: ') + 
+                    'New backup import test\n\n' +
+                    'Service configs correctly restored:\n' +
+                    '- Tables match: ' + tablesMatch + '\n' +
+                    '- Multiplicadores match: ' + multMatch + '\n\n' +
+                    'Restored data:\n' + JSON.stringify({ tabelasCustomizadas: restoredTables, multiplicadores: restoredMult }, null, 2);
+            } catch (e) {
+                result.className = 'result error';
+                result.textContent = '❌ Error: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
