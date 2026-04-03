@@ -163,6 +163,7 @@ function renderizarTabela(categoria, dados) {
             <td onclick="abrirModal('${categoria}', ${index})">
                 <span class="texto-mobile">
                     <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Descrição:</div>
+                    <span style="display:inline-block;background:#e8f0fe;color:#1a56db;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px;font-family:monospace;letter-spacing:0.5px;">${item.codigo}</span>
                     <strong style="font-size: 15px;">${item.descricao}</strong>
                 </span>
                 <input type="text" value="${item.descricao}" data-field="descricao" data-index="${index}">
