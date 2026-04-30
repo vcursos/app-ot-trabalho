@@ -1267,6 +1267,7 @@ function atualizarTabela(filtrarMes = null) {
         // Identificar se é dia especial para destacar na tabela
         const diaSemana = data.getDay();
         const isFestivo = ot.otFestivo === true;
+        const isForaHora = ot.otForaHora === true;
         let badgeDia = '';
         if (isFestivo) {
             badgeDia = '<span style="background:#9c27b0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">🎉 FESTIVO</span>';
@@ -1274,6 +1275,9 @@ function atualizarTabela(filtrarMes = null) {
             badgeDia = '<span style="background:#e91e63;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">DOM</span>';
         } else if (diaSemana === 6) {
             badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
+        }
+        if (isForaHora) {
+            badgeDia += '<span style="background:#2196f3;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">⏱️ FORA HORA</span>';
         }
 
         // Mostrar tipo de trabalho com serviço e categoria como subtexto
@@ -1648,6 +1652,8 @@ function aplicarFiltros() {
                     return diaSemana === 0 || diaSemana === 6;
                 case 'especial': // Todos especiais (Sáb + Dom + Festivo)
                     return diaSemana === 0 || diaSemana === 6 || isFestivo;
+                case 'foraHora': // OT Fora de Hora
+                    return ot.otForaHora === true;
                 default:
                     return true;
             }
@@ -1666,6 +1672,7 @@ function aplicarFiltros() {
         // Identificar se é dia especial para destacar na tabela
         const diaSemana = data.getDay();
         const isFestivo = ot.otFestivo === true;
+        const isForaHora = ot.otForaHora === true;
         let badgeDia = '';
         if (isFestivo) {
             badgeDia = '<span style="background:#9c27b0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">🎉 FESTIVO</span>';
@@ -1673,6 +1680,9 @@ function aplicarFiltros() {
             badgeDia = '<span style="background:#e91e63;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">DOM</span>';
         } else if (diaSemana === 6) {
             badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
+        }
+        if (isForaHora) {
+            badgeDia += '<span style="background:#2196f3;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">⏱️ FORA HORA</span>';
         }
 
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
@@ -1746,9 +1756,24 @@ function pesquisarPorMAC() {
 
         const tipologiaTexto = ot.tipologia || '-';
         const servicoCell = `<small>${tipologiaTexto}</small>`;
+
+        const diaSemana = data.getDay();
+        const isFestivo = ot.otFestivo === true;
+        const isForaHora = ot.otForaHora === true;
+        let badgeDia = '';
+        if (isFestivo) {
+            badgeDia = '<span style="background:#9c27b0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">🎉 FESTIVO</span>';
+        } else if (diaSemana === 0) {
+            badgeDia = '<span style="background:#e91e63;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">DOM</span>';
+        } else if (diaSemana === 6) {
+            badgeDia = '<span style="background:#ff9800;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">SÁB</span>';
+        }
+        if (isForaHora) {
+            badgeDia += '<span style="background:#2196f3;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">⏱️ FORA HORA</span>';
+        }
         
         tr.innerHTML = `
-            <td>${data.toLocaleDateString('pt-BR')}</td>
+            <td>${data.toLocaleDateString('pt-BR')}${badgeDia}</td>
             <td><strong>${ot.numeroOT}</strong></td>
             <td>${tipoCell}</td>
             <td><small>${ot.adicional ? ot.adicional : '-'}</small></td>
