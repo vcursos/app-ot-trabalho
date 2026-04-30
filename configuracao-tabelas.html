@@ -385,6 +385,16 @@
                     <label>Prémio Festivo (€)</label>
                     <input type="number" id="premioFestivo" step="0.01" value="0" placeholder="Ex: 100">
                 </div>
+                <div class="mult-item">
+                    <label>Bônus OT Fora de Hora</label>
+                    <select id="bonusOTForaHoraTipo" style="width:100%; margin-bottom:6px; padding:8px; border:1px solid #ddd; border-radius:6px;">
+                        <option value="valor">Valor fixo (€ por OT)</option>
+                        <option value="percentagem">Percentagem (% do valor da OT)</option>
+                        <option value="multiplicador">Multiplicador (x do valor da OT)</option>
+                    </select>
+                    <input type="number" id="bonusOTForaHora" step="0.01" min="0" value="0" placeholder="Ex: 10">
+                    <small style="color:#666;">Bônus aplicado por OT fechada fora da hora normal</small>
+                </div>
             </div>
             <p style="font-size: 12px; color: #666; margin-top: 10px;">💡 <strong>Festivo:</strong> Aplica-se em dias festivos (feriados nacionais/regionais)</p>
             
@@ -699,7 +709,9 @@
                             premioSabado: mult.premioSabado,
                             premioDomingo: mult.premioDomingo,
                             premioFestivo: mult.premioFestivo,
-                            descontoPercentual: mult.descontoPercentual
+                            descontoPercentual: mult.descontoPercentual,
+                            bonusOTForaHora: mult.bonusOTForaHora,
+                            bonusOTForaHoraTipo: mult.bonusOTForaHoraTipo
                         };
                         Object.entries(fields).forEach(([id, val]) => {
                             const el = document.getElementById(id);
