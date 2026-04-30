@@ -2097,8 +2097,6 @@ function gerarPDF(comDesconto = false) {
 
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
     const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
     if (comDesconto) {
         const descPct = obterDescontoPercentual();
@@ -2263,8 +2261,6 @@ function gerarPDFComEquipamentos() {
         finalY = finalY + 14;
     }
 
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
