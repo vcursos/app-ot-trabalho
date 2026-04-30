@@ -162,7 +162,9 @@ function obterMultiplicadores() {
             bonusFeriado: 1.0,    // Multiplicador (1.0 = sem alteração)
             premioSabado: 0,
             premioDomingo: 0,
-            premioFestivo: 0
+            premioFestivo: 0,
+            bonusOTForaHora: 0,
+            bonusOTForaHoraTipo: 'valor'
         };
     }
     const parsed = JSON.parse(mult);
@@ -175,6 +177,8 @@ function obterMultiplicadores() {
         premioSabado: 0,
         premioDomingo: 0,
         premioFestivo: 0,
+        bonusOTForaHora: 0,
+        bonusOTForaHoraTipo: 'valor',
         ...parsed
     };
 }
@@ -274,6 +278,26 @@ function calcularValorTotalComMultiplicador() {
             premiosAplicados.push(`x${multFeriado}`);
         }
     }
+
+    // BÔNUS POR OT FORA DE HORA - apenas mostrar no preview, aparece separado no PDF
+    const checkForaHora = document.getElementById('otForaHora');
+    if (checkForaHora && checkForaHora.checked) {
+        const bonusValor = parseFloat(mult.bonusOTForaHora) || 0;
+        const bonusTipo = mult.bonusOTForaHoraTipo || 'valor';
+        if (bonusValor > 0) {
+            let bonusCalculado = 0;
+            if (bonusTipo === 'valor') {
+                bonusCalculado = bonusValor;
+                premiosAplicados.push(`⏱️ Fora Hora: €${bonusCalculado.toFixed(2)} (PDF)`);
+            } else if (bonusTipo === 'percentagem') {
+                bonusCalculado = valorFinal * bonusValor / 100;
+                premiosAplicados.push(`⏱️ Fora Hora: ${bonusValor}%=€${bonusCalculado.toFixed(2)} (PDF)`);
+            } else if (bonusTipo === 'multiplicador') {
+                bonusCalculado = valorFinal * bonusValor;
+                premiosAplicados.push(`⏱️ Fora Hora: x${bonusValor}=€${bonusCalculado.toFixed(2)} (PDF)`);
+            }
+        }
+    }
     
     // NÃO somar prémios ao valor final - prémios aparecem apenas no PDF
     // valorFinal = valorFinal + premioTotal; (REMOVIDO)
@@ -334,14 +358,17 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeForaHora = document.getElementById('badgeForaHora');
+    const checkForaHora = document.getElementById('otForaHora');
     const previewEl = document.getElementById('previewPremios');
     
     // Mostrar/esconder badges
     if (badgeSabado) badgeSabado.style.display = (checkSabado && checkSabado.checked) ? 'inline' : 'none';
     if (badgeDomingo) badgeDomingo.style.display = (checkDomingo && checkDomingo.checked) ? 'inline' : 'none';
     if (badgeFestivo) badgeFestivo.style.display = (checkFestivo && checkFestivo.checked) ? 'inline' : 'none';
+    if (badgeForaHora) badgeForaHora.style.display = (checkForaHora && checkForaHora.checked) ? 'inline' : 'none';
     
-    // Desabilitar checkboxes se prémio já foi aplicado no dia
+    // Desabilitar checkboxes de prémio diário se prémio já foi aplicado no dia
     if (premioJaAplicado) {
         if (checkSabado) { checkSabado.disabled = true; checkSabado.checked = false; }
         if (checkDomingo) { checkDomingo.disabled = true; checkDomingo.checked = false; }
@@ -351,18 +378,28 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
         if (checkDomingo) checkDomingo.disabled = false;
         if (checkFestivo) checkFestivo.disabled = false;
     }
+    // O bônus "Fora de Hora" é por OT — nunca é bloqueado pelo prémio diário
+    if (checkForaHora) checkForaHora.disabled = false;
     
     // Atualizar preview
     if (previewEl) {
         if (premioJaAplicado) {
-            previewEl.innerHTML = '<span style="color:#ff9800;">⚠️ Prémio de saída já aplicado hoje</span>';
+            const foraHoraMsg = (checkForaHora && checkForaHora.checked && (parseFloat(mult.bonusOTForaHora) || 0) > 0)
+                ? ' | ⏱️ Fora Hora ativo'
+                : '';
+            previewEl.innerHTML = `<span style="color:#ff9800;">⚠️ Prémio de saída já aplicado hoje</span>${foraHoraMsg}`;
         } else if (premiosAplicados.length > 0) {
             previewEl.innerHTML = `<span style="color:#27ae60;">✓ ${premiosAplicados.join(' + ')}</span>`;
         } else {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
             const fest = parseFloat(mult.premioFestivo) || 0;
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}`;
+            const bfh = parseFloat(mult.bonusOTForaHora) || 0;
+            const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
+            const bfhLabel = bfh > 0
+                ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
+                : '';
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
         }
     }
 }

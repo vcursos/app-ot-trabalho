@@ -363,12 +363,14 @@ function atualizarUIFestivoPorDia() {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxForaHora = document.getElementById('otForaHora');
     const previewEl = document.getElementById('previewPremios');
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeForaHora = document.getElementById('badgeForaHora');
 
-    const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioSabado: 0, premioDomingo: 0, premioFestivo: 0 };
+    const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioSabado: 0, premioDomingo: 0, premioFestivo: 0, bonusOTForaHora: 0, bonusOTForaHoraTipo: 'valor' };
     
     // Considera a data selecionada no formulário (se existir)
     const dataFormEl = document.getElementById('dataOT');
@@ -376,7 +378,11 @@ function atualizarUIFestivoPorDia() {
     const hojeISO = getDataISO(dataBase);
     const jaAplicado = premioJaAplicadoNoDia(hojeISO);
 
-    // Desabilitar todos os checkboxes se já foi aplicado prémio hoje
+    // O bônus "Fora de Hora" é por OT — nunca é bloqueado pelo prémio diário
+    if (checkboxForaHora) checkboxForaHora.disabled = false;
+    if (badgeForaHora) badgeForaHora.style.display = (checkboxForaHora && checkboxForaHora.checked) ? 'inline' : 'none';
+
+    // Desabilitar checkboxes de prémio diário se já foi aplicado prémio hoje
     if (jaAplicado) {
         if (checkboxSabado) { checkboxSabado.checked = false; checkboxSabado.disabled = true; }
         if (checkboxDomingo) { checkboxDomingo.checked = false; checkboxDomingo.disabled = true; }
@@ -386,7 +392,12 @@ function atualizarUIFestivoPorDia() {
         if (badgeFestivo) badgeFestivo.style.display = 'none';
         if (previewEl) {
             const val = parseFloat(premiosFestivosPorDia[hojeISO]?.valor) || 0;
-            previewEl.innerHTML = `<span style="color:#ff9800;">⚠️ Prémio €${val.toFixed(2)} já aplicado em ${formatarDataBRFromISODate(hojeISO)}</span>`;
+            const bfh = parseFloat(mult.bonusOTForaHora) || 0;
+            const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
+            const bfhLabel = bfh > 0
+                ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')} (por OT)`
+                : '';
+            previewEl.innerHTML = `<span style="color:#ff9800;">⚠️ Prémio €${val.toFixed(2)} já aplicado em ${formatarDataBRFromISODate(hojeISO)}</span>${bfhLabel}`;
         }
     } else {
         if (checkboxSabado) checkboxSabado.disabled = false;
@@ -396,7 +407,12 @@ function atualizarUIFestivoPorDia() {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
             const fest = parseFloat(mult.premioFestivo) || 0;
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}`;
+            const bfh = parseFloat(mult.bonusOTForaHora) || 0;
+            const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
+            const bfhLabel = bfh > 0
+                ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
+                : '';
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
         }
     }
 }
@@ -788,6 +804,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxForaHora = document.getElementById('otForaHora');
     
     const dataFormEl = document.getElementById('dataOT');
     const dataOTISO = (dataFormEl && dataFormEl.value) ? dataFormEl.value : getDataISO();
@@ -805,10 +822,12 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const marcadoSabado = !!(checkboxSabado && checkboxSabado.checked);
     const marcadoDomingo = !!(checkboxDomingo && checkboxDomingo.checked);
     const marcadoFestivo = !!(checkboxFestivo && checkboxFestivo.checked);
+    const marcadoForaHora = !!(checkboxForaHora && checkboxForaHora.checked);
     
     let premioSabadoAplicado = 0;
     let premioDomingoAplicado = 0;
     let premioFestivoAplicado = 0;
+    let bonusForaHoraAplicado = 0;
     
     if (permitirAplicarHoje) {
         if (marcadoSabado) {
@@ -819,6 +838,21 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         }
         if (marcadoFestivo) {
             premioFestivoAplicado = parseFloat(mult?.premioFestivo) || 0;
+        }
+    }
+
+    // Bônus por OT Fora de Hora — aplica por OT (sem restrição de 1x por dia)
+    if (marcadoForaHora) {
+        const bfhValor = parseFloat(mult?.bonusOTForaHora) || 0;
+        const bfhTipo = mult?.bonusOTForaHoraTipo || 'valor';
+        if (bfhValor > 0) {
+            if (bfhTipo === 'valor') {
+                bonusForaHoraAplicado = bfhValor;
+            } else if (bfhTipo === 'percentagem') {
+                bonusForaHoraAplicado = valorTotalFinal * bfhValor / 100;
+            } else if (bfhTipo === 'multiplicador') {
+                bonusForaHoraAplicado = valorTotalFinal * bfhValor;
+            }
         }
     }
     
@@ -852,9 +886,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 otSabado: marcadoSabado,
                 otDomingo: marcadoDomingo,
                 otFestivo: marcadoFestivo,
+                otForaHora: marcadoForaHora,
                 premioSabadoAplicado: marcadoSabado ? premioSabadoAplicado : 0,
                 premioDomingoAplicado: marcadoDomingo ? premioDomingoAplicado : 0,
                 premioFestivoAplicado: marcadoFestivo ? premioFestivoAplicado : 0,
+                bonusForaHoraAplicado: marcadoForaHora ? bonusForaHoraAplicado : 0,
                 diaSemana: diaSemana,
                 equipamentos: [...equipamentosTemp],
                 tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
@@ -905,10 +941,12 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         otSabado: (marcadoSabado && permitirAplicarHoje),
         otDomingo: (marcadoDomingo && permitirAplicarHoje),
         otFestivo: (marcadoFestivo && permitirAplicarHoje),
+        otForaHora: marcadoForaHora,
         // Valores dos prémios aplicados
         premioSabadoAplicado: premioSabadoAplicado,
         premioDomingoAplicado: premioDomingoAplicado,
         premioFestivoAplicado: premioFestivoAplicado,
+        bonusForaHoraAplicado: bonusForaHoraAplicado,
         diaSemana: diaSemana, // Guardar dia da semana para referência
         equipamentos: [...equipamentosTemp], // Copiar array de equipamentos
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
@@ -955,17 +993,21 @@ function limparFormulario() {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxForaHora = document.getElementById('otForaHora');
     if (checkboxSabado) checkboxSabado.checked = false;
     if (checkboxDomingo) checkboxDomingo.checked = false;
     if (checkboxFestivo) checkboxFestivo.checked = false;
+    if (checkboxForaHora) checkboxForaHora.checked = false;
     
     // Esconder badges
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeForaHora = document.getElementById('badgeForaHora');
     if (badgeSabado) badgeSabado.style.display = 'none';
     if (badgeDomingo) badgeDomingo.style.display = 'none';
     if (badgeFestivo) badgeFestivo.style.display = 'none';
+    if (badgeForaHora) badgeForaHora.style.display = 'none';
 
     // Atualizar preview do prémio
     calcularValorTotal();
@@ -1074,6 +1116,11 @@ function calcularValorTotal() {
         const badgeFestivo = document.getElementById('badgeFestivo');
         if (badgeFestivo) {
             badgeFestivo.style.display = (checkboxFestivo && checkboxFestivo.checked) ? 'inline-flex' : 'none';
+        }
+        const checkboxForaHora = document.getElementById('otForaHora');
+        const badgeForaHora = document.getElementById('badgeForaHora');
+        if (badgeForaHora) {
+            badgeForaHora.style.display = (checkboxForaHora && checkboxForaHora.checked) ? 'inline-flex' : 'none';
         }
 
         // Festivo: NÃO somar no total do serviço
@@ -1419,9 +1466,11 @@ function editarOT(id) {
     const checkSabado = document.getElementById('otSabado');
     const checkDomingo = document.getElementById('otDomingo');
     const checkFestivo = document.getElementById('otFestivo');
+    const checkForaHora = document.getElementById('otForaHora');
     if (checkSabado) checkSabado.checked = !!ot.otSabado;
     if (checkDomingo) checkDomingo.checked = !!ot.otDomingo;
     if (checkFestivo) checkFestivo.checked = !!ot.otFestivo;
+    if (checkForaHora) checkForaHora.checked = !!ot.otForaHora;
     
     // Equipamentos
     equipamentosTemp = ot.equipamentos ? [...ot.equipamentos] : [];
@@ -1942,6 +1991,10 @@ function gerarPDF(comDesconto = false) {
     
     const diasPremio = Object.keys(premiosSaidaPorDia).sort();
     const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
+
+    // BÔNUS POR OT FORA DE HORA — soma por OT individual
+    const totalBonusForaHora = otsMes.reduce((sum, ot) => sum + (parseFloat(ot.bonusForaHoraAplicado) || 0), 0);
+    const otsForaHora = otsMes.filter(ot => ot.otForaHora && (parseFloat(ot.bonusForaHoraAplicado) || 0) > 0);
     
     const totalPontos = otsMes.reduce((sum, ot) => {
         const pServ = parseFloat(ot.pontosServico) || 0;
@@ -2004,11 +2057,47 @@ function gerarPDF(comDesconto = false) {
         finalY = finalY + 14;
     }
 
+    // Mostrar bônus OT Fora de Hora se houver
+    if (totalBonusForaHora > 0) {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`⏱️ Bônus Fora de Hora (${otsForaHora.length} OTs): € ${totalBonusForaHora.toFixed(2)}`, 14, finalY + 8);
+
+        const tableForaHora = otsForaHora.map(ot => [
+            formatarDataBRFromISODate(getDataISO(ot.data)),
+            ot.numeroOT || '-',
+            `€ ${(parseFloat(ot.bonusForaHoraAplicado) || 0).toFixed(2)}`
+        ]);
+
+        if (temAutoTable) {
+            doc.autoTable({
+                startY: finalY + 12,
+                head: [['Data', 'OT', 'Bônus Fora Hora']],
+                body: tableForaHora,
+                theme: 'striped',
+                headStyles: { fillColor: [33, 150, 243] },
+                styles: { fontSize: 9 },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 30 },
+                    2: { cellWidth: 35, fontStyle: 'bold' }
+                }
+            });
+            finalY = doc.lastAutoTable.finalY + 6;
+        } else {
+            let y = finalY + 14;
+            doc.setFontSize(10);
+            otsForaHora.forEach(ot => {
+                doc.text(`${formatarDataBRFromISODate(getDataISO(ot.data))} OT ${ot.numeroOT || '-'} - € ${(parseFloat(ot.bonusForaHoraAplicado) || 0).toFixed(2)}`, 14, y);
+                y += 5;
+            });
+            finalY = y;
+        }
+    }
+
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    const valorReceber = totalValor + totalPremiosSaida;
+    const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
     if (comDesconto) {
         const descPct = obterDescontoPercentual();
         const valorLiquido = aplicarDesconto(valorReceber);
@@ -2128,6 +2217,7 @@ function gerarPDFComEquipamentos() {
     
     const diasPremio = Object.keys(premiosSaidaPorDia).sort();
     const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
+    const totalBonusForaHora = otsMes.reduce((sum, ot) => sum + (parseFloat(ot.bonusForaHoraAplicado) || 0), 0);
     const totalPontos = otsMes.reduce((sum, ot) => {
         const pServ = parseFloat(ot.pontosServico) || 0;
         const pAdd = parseFloat(ot.pontosAdicional) || 0;
@@ -2173,9 +2263,7 @@ function gerarPDFComEquipamentos() {
 
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    const valorReceber = totalValor + totalPremiosSaida;
+    const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
     doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
     
     // doc.save(`relatorio-ot-equipamentos-${mesAtual}.pdf`);

@@ -34,6 +34,8 @@ const multiplicadoresPadrao = {
     premioDomingo: 0,
     premioFestivo: 0,
     descontoPercentual: 0,  // % de desconto do chefe
+    bonusOTForaHora: 0,          // Bônus por OT fechada fora da hora (por OT)
+    bonusOTForaHoraTipo: 'valor', // 'valor' (€ fixo), 'percentagem' (% do valor), 'multiplicador' (x do valor)
     // Retrocompatibilidade
     domingoFeriado: 1.5
 };
@@ -120,6 +122,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Desconto
     const inputDesconto = document.getElementById('descontoPercentual');
     if (inputDesconto) inputDesconto.value = mult.descontoPercentual ?? 0;
+
+    // Bônus por OT Fora de Hora
+    const inputBonusForaHora = document.getElementById('bonusOTForaHora');
+    if (inputBonusForaHora) inputBonusForaHora.value = mult.bonusOTForaHora ?? 0;
+    const selectBonusForaHoraTipo = document.getElementById('bonusOTForaHoraTipo');
+    if (selectBonusForaHoraTipo) selectBonusForaHoraTipo.value = mult.bonusOTForaHoraTipo ?? 'valor';
     
     // Renderizar todas as tabelas
     renderizarTabela('instalacoes', tabelas.instalacoes);
@@ -278,6 +286,8 @@ function salvarMultiplicadores() {
         premioDomingo: parseFloat(document.getElementById('premioDomingo')?.value) || 0,
         premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0,
         descontoPercentual: parseFloat(document.getElementById('descontoPercentual')?.value) || 0,
+        bonusOTForaHora: parseFloat(document.getElementById('bonusOTForaHora')?.value) || 0,
+        bonusOTForaHoraTipo: document.getElementById('bonusOTForaHoraTipo')?.value || 'valor',
         // Retrocompatibilidade
         domingoFeriado: 1.5
     };
