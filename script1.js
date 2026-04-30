@@ -545,7 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const formOT = document.getElementById('formOT');
     if (formOT) {
         formOT.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
                 e.preventDefault();
             }
         });
@@ -1457,6 +1457,9 @@ function editarOT(id) {
         // Se o serviço não foi encontrado no select, restaurar o valor base guardado
         if (!encontrou && valorServicoEl) {
             const baseGuardado = (ot.valorServicoBase !== undefined) ? ot.valorServicoBase : 0;
+            if (ot.valorServicoBase === undefined) {
+                console.warn('[editarOT] valorServicoBase não guardado na OT id=' + ot.id + '; usando 0 como fallback.');
+            }
             valorServicoEl.value = baseGuardado.toFixed(2);
         }
     }
