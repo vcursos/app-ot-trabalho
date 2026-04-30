@@ -539,6 +539,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Listener para atualizar valor quando serviço for selecionado
     document.getElementById('tipoServico').addEventListener('change', atualizarValorServico);
+
+    // Evitar que a tecla Enter em campos de texto submeta o formulário automaticamente
+    // (ex: leitor de código de barras que envia Enter no final da leitura)
+    const formOT = document.getElementById('formOT');
+    if (formOT) {
+        formOT.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.type !== 'submit') {
+                e.preventDefault();
+            }
+        });
+    }
 }); // fim DOMContentLoaded
 
 
@@ -682,13 +693,6 @@ function adicionarAdicional() {
     try {
         const adicionalInfo = JSON.parse(valorSelecionado);
         
-        // Verificar se já foi adicionado
-        const jaExiste = adicionaisTemp.some(a => a.item === adicionalInfo.item);
-        if (jaExiste) {
-            alert('Este adicional já foi adicionado.');
-            return;
-        }
-        
         adicionaisTemp.push(adicionalInfo);
         atualizarListaAdicionais();
         calcularValorTotal();
@@ -797,8 +801,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     // Pontos base
     const pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
     
-    // Valor total com multiplicador
-    const valorTotalFinal = parseFloat(document.getElementById('valorTotal').value) || (valorServicoBase + valorAdicionalBase);
+    // Valor total com multiplicador (usar 0 se o campo mostrar "0.00" — não ignorar zero)
+    const _valorTotalStr = document.getElementById('valorTotal').value;
+    const valorTotalFinal = (_valorTotalStr !== '' && !isNaN(parseFloat(_valorTotalStr)))
+        ? parseFloat(_valorTotalStr)
+        : (valorServicoBase + valorAdicionalBase);
 
     // Checkboxes de prémios de saída
     const checkboxSabado = document.getElementById('otSabado');
@@ -879,6 +886,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 adicional: adicionaisTexto,
                 adicionais: [...adicionaisTemp], // Array completo de adicionais
                 valorAdicional: valorAdicionalBase,
+                valorServicoBase: valorServicoBase, // Valor base do serviço (sem adicionais/multiplicador)
                 pontosServico: pontosServicoBase,
                 pontosAdicional: pontosAdicionalBase,
                 multiplicador: tipoMultiplicador,
@@ -933,6 +941,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         adicional: adicionaisTexto,
         adicionais: [...adicionaisTemp], // Array completo de adicionais
         valorAdicional: valorAdicionalBase,
+        valorServicoBase: valorServicoBase, // Valor base do serviço (sem adicionais/multiplicador)
         pontosServico: pontosServicoBase,
         pontosAdicional: pontosAdicionalBase,
         multiplicador: tipoMultiplicador,
@@ -1419,6 +1428,7 @@ function editarOT(id) {
 
     // Tipo de Serviço: garantir que o select está populado antes de atribuir
     // (pode estar vazio se a página acabou de carregar)
+    const valorServicoEl = document.getElementById('valorServico');
     const selectServico = document.getElementById('tipoServico');
     if (selectServico) {
         if (selectServico.options.length <= 1) {
@@ -1442,21 +1452,22 @@ function editarOT(id) {
             } catch (e) { /* ignorar options inválidas */ }
         }
         if (!encontrou) selectServico.value = '';
-        // Disparar evento change para atualizar valor/pontos
+        // Disparar evento change para atualizar valor/categoria
         selectServico.dispatchEvent(new Event('change'));
+        // Se o serviço não foi encontrado no select, restaurar o valor base guardado
+        if (!encontrou && valorServicoEl) {
+            const baseGuardado = (ot.valorServicoBase !== undefined) ? ot.valorServicoBase : 0;
+            valorServicoEl.value = baseGuardado.toFixed(2);
+        }
     }
     
     // Categoria
     const categoriaEl = document.getElementById('categoriaServico');
     if (categoriaEl) categoriaEl.value = ot.categoria || '';
     
-    // Valor do serviço (readonly, só para mostrar)
-    const valorServicoEl = document.getElementById('valorServico');
-    if (valorServicoEl) valorServicoEl.value = ot.pontosServico ? ot.pontosServico : '';
-    
-    // Valor total
+    // Valor total (usa o valor total guardado na OT)
     const valorTotalEl = document.getElementById('valorTotal');
-    if (valorTotalEl) valorTotalEl.value = ot.valorServico ? ot.valorServico.toFixed(2) : '';
+    if (valorTotalEl) valorTotalEl.value = (ot.valorServico !== undefined && ot.valorServico !== null) ? ot.valorServico.toFixed(2) : '';
     
     // Multiplicador
     const multiplicadorEl = document.getElementById('multiplicadorServico');

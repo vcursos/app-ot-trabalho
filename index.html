@@ -519,23 +519,24 @@
                         });
                     }
 
-                    // Se já existir uma atualização baixada, pedir para ativar já
+                    // Se já existir uma atualização baixada ao abrir o app, ativar automaticamente.
+                    // Isso garante que ao abrir o app ele já use a versão mais recente.
                     if (reg.waiting) {
                         showUpdateUI();
                         reg.waiting.postMessage({ type: 'SKIP_WAITING' });
                     }
 
-                    // Quando encontrar update, forçar ativação imediata
+                    // Quando encontrar update durante a sessão ativa: apenas mostrar a barra de
+                    // notificação. NÃO forçar ativação imediata — o utilizador pode estar a
+                    // preencher um formulário. A nova versão será ativada automaticamente na
+                    // próxima abertura do app (reg.waiting acima) ou quando clicar em "Atualizar app".
                     reg.addEventListener('updatefound', function() {
                         var newWorker = reg.installing;
                         if (!newWorker) return;
                         newWorker.addEventListener('statechange', function() {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // Nova versão pronta -> ativar já
-                                if (reg.waiting) {
-                                    showUpdateUI();
-                                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                }
+                                // Nova versão pronta — mostrar notificação sem recarregar agora
+                                showUpdateUI();
                             }
                         });
                     });
