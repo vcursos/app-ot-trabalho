@@ -292,7 +292,7 @@ function salvarTabela(categoria) {
 
 // Salvar multiplicadores
 function salvarMultiplicadores() {
-    // Preservar os multiplicadores customizados actuais
+    // Preservar os multiplicadores customizados atuais
     const multAtual = carregarMultiplicadores();
     const mult = {
         normal: 1.0,
@@ -328,7 +328,9 @@ function renderizarMultiplicadoresCustom() {
     lista.forEach((m, idx) => {
         const chip = document.createElement('div');
         chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;background:#f0f4ff;border:1.5px solid #667eea;border-radius:20px;padding:8px 14px;font-size:15px;font-weight:600;color:#333;margin:4px;';
-        chip.innerHTML = `<span>${m.nome} (${parseFloat(m.valor).toFixed(2)}x)</span>`;
+        const spanNome = document.createElement('span');
+        spanNome.textContent = `${m.nome} (${parseFloat(m.valor).toFixed(2)}x)`;
+        chip.appendChild(spanNome);
         const btnDel = document.createElement('button');
         btnDel.textContent = '✕';
         btnDel.title = 'Remover';

@@ -1435,7 +1435,7 @@ function editarOT(id) {
             } catch (e) { /* ignorar options inválidas */ }
         }
         if (!encontrou) selectServico.value = '';
-        // Disparar evento change para atualizar valor/pontos com base na tabela actual
+        // Disparar evento change para atualizar valor/pontos com base na tabela atual
         selectServico.dispatchEvent(new Event('change'));
     }
     
