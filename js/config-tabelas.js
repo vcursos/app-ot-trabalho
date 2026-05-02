@@ -36,6 +36,7 @@ const multiplicadoresPadrao = {
     descontoPercentual: 0,  // % de desconto do chefe
     bonusOTForaHora: 0,          // Bônus por OT fechada fora da hora (por OT)
     bonusOTForaHoraTipo: 'valor', // 'valor' (€ fixo), 'percentagem' (% do valor), 'multiplicador' (x do valor)
+    multiplicadoresCustom: [],   // Lista de multiplicadores personalizados [{id, nome, valor}]
     // Retrocompatibilidade
     domingoFeriado: 1.5
 };
@@ -73,7 +74,8 @@ function carregarMultiplicadores() {
     // Retrocompatibilidade: caso o storage antigo não tenha campos novos
     return {
         ...multiplicadoresPadrao,
-        ...parsed
+        ...parsed,
+        multiplicadoresCustom: Array.isArray(parsed.multiplicadoresCustom) ? parsed.multiplicadoresCustom : []
     };
 }
 
@@ -128,6 +130,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputBonusForaHora) inputBonusForaHora.value = mult.bonusOTForaHora ?? 0;
     const selectBonusForaHoraTipo = document.getElementById('bonusOTForaHoraTipo');
     if (selectBonusForaHoraTipo) selectBonusForaHoraTipo.value = mult.bonusOTForaHoraTipo ?? 'valor';
+
+    // Multiplicadores customizados
+    renderizarMultiplicadoresCustom();
+
+    // Enter no input de novo multiplicador customizado
+    const inpMultNome = document.getElementById('novoMultNome');
+    if (inpMultNome) inpMultNome.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); adicionarMultiplicadorCustom(); }
+    });
+    const inpMultValor = document.getElementById('novoMultValor');
+    if (inpMultValor) inpMultValor.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); adicionarMultiplicadorCustom(); }
+    });
     
     // Renderizar todas as tabelas
     renderizarTabela('instalacoes', tabelas.instalacoes);
@@ -277,6 +292,8 @@ function salvarTabela(categoria) {
 
 // Salvar multiplicadores
 function salvarMultiplicadores() {
+    // Preservar os multiplicadores customizados actuais
+    const multAtual = carregarMultiplicadores();
     const mult = {
         normal: 1.0,
         dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0,
@@ -288,12 +305,72 @@ function salvarMultiplicadores() {
         descontoPercentual: parseFloat(document.getElementById('descontoPercentual')?.value) || 0,
         bonusOTForaHora: parseFloat(document.getElementById('bonusOTForaHora')?.value) || 0,
         bonusOTForaHoraTipo: document.getElementById('bonusOTForaHoraTipo')?.value || 'valor',
+        multiplicadoresCustom: multAtual.multiplicadoresCustom || [],
         // Retrocompatibilidade
         domingoFeriado: 1.5
     };
     
     salvarMultiplicadoresNoStorage(mult);
     alert('Configurações salvas com sucesso! ✅');
+}
+
+// Renderizar lista de multiplicadores customizados
+function renderizarMultiplicadoresCustom() {
+    const container = document.getElementById('listaMultiplicadoresCustom');
+    if (!container) return;
+    const mult = carregarMultiplicadores();
+    const lista = mult.multiplicadoresCustom || [];
+    container.innerHTML = '';
+    if (lista.length === 0) {
+        container.innerHTML = '<span style="color:#999;font-size:13px;">Nenhum multiplicador personalizado adicionado.</span>';
+        return;
+    }
+    lista.forEach((m, idx) => {
+        const chip = document.createElement('div');
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;background:#f0f4ff;border:1.5px solid #667eea;border-radius:20px;padding:8px 14px;font-size:15px;font-weight:600;color:#333;margin:4px;';
+        chip.innerHTML = `<span>${m.nome} (${parseFloat(m.valor).toFixed(2)}x)</span>`;
+        const btnDel = document.createElement('button');
+        btnDel.textContent = '✕';
+        btnDel.title = 'Remover';
+        btnDel.style.cssText = 'background:#e74c3c;color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0;';
+        btnDel.onclick = () => removerMultiplicadorCustom(idx);
+        chip.appendChild(btnDel);
+        container.appendChild(chip);
+    });
+}
+
+// Adicionar multiplicador customizado
+function adicionarMultiplicadorCustom() {
+    const nomeEl = document.getElementById('novoMultNome');
+    const valorEl = document.getElementById('novoMultValor');
+    const nome = nomeEl ? nomeEl.value.trim() : '';
+    const valor = parseFloat(valorEl ? valorEl.value : 0);
+    if (!nome) { alert('Escreva um nome para o multiplicador.'); return; }
+    if (!valor || valor <= 0) { alert('Insira um valor válido para o multiplicador (ex: 1.5).'); return; }
+    const mult = carregarMultiplicadores();
+    const lista = mult.multiplicadoresCustom || [];
+    if (lista.some(m => m.nome.toLowerCase() === nome.toLowerCase())) {
+        alert('Já existe um multiplicador com esse nome.'); return;
+    }
+    const id = 'cmult_' + Date.now();
+    lista.push({ id, nome, valor });
+    mult.multiplicadoresCustom = lista;
+    salvarMultiplicadoresNoStorage(mult);
+    renderizarMultiplicadoresCustom();
+    if (nomeEl) nomeEl.value = '';
+    if (valorEl) valorEl.value = '';
+}
+
+// Remover multiplicador customizado
+function removerMultiplicadorCustom(idx) {
+    const mult = carregarMultiplicadores();
+    const lista = mult.multiplicadoresCustom || [];
+    if (!lista[idx]) return;
+    if (!confirm(`Remover "${lista[idx].nome}"?`)) return;
+    lista.splice(idx, 1);
+    mult.multiplicadoresCustom = lista;
+    salvarMultiplicadoresNoStorage(mult);
+    renderizarMultiplicadoresCustom();
 }
 
 // Exportar tabela para JSON

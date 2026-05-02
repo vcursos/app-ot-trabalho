@@ -682,13 +682,6 @@ function adicionarAdicional() {
     try {
         const adicionalInfo = JSON.parse(valorSelecionado);
         
-        // Verificar se já foi adicionado
-        const jaExiste = adicionaisTemp.some(a => a.item === adicionalInfo.item);
-        if (jaExiste) {
-            alert('Este adicional já foi adicionado.');
-            return;
-        }
-        
         adicionaisTemp.push(adicionalInfo);
         atualizarListaAdicionais();
         calcularValorTotal();
@@ -1442,25 +1435,29 @@ function editarOT(id) {
             } catch (e) { /* ignorar options inválidas */ }
         }
         if (!encontrou) selectServico.value = '';
-        // Disparar evento change para atualizar valor/pontos
+        // Disparar evento change para atualizar valor/pontos com base na tabela actual
         selectServico.dispatchEvent(new Event('change'));
     }
     
-    // Categoria
+    // Categoria (restaurar caso o serviço não tenha sido encontrado no select)
     const categoriaEl = document.getElementById('categoriaServico');
     if (categoriaEl) categoriaEl.value = ot.categoria || '';
     
-    // Valor do serviço (readonly, só para mostrar)
-    const valorServicoEl = document.getElementById('valorServico');
-    if (valorServicoEl) valorServicoEl.value = ot.pontosServico ? ot.pontosServico : '';
+    // Multiplicador (re-popular select com opções customizadas, depois definir o valor guardado)
+    const multiplicadorEl = document.getElementById('multiplicadorServico');
+    if (multiplicadorEl) {
+        if (typeof popularSelectMultiplicadores === 'function') {
+            popularSelectMultiplicadores(multiplicadorEl);
+        }
+        multiplicadorEl.value = ot.multiplicador || 'normal';
+    }
     
-    // Valor total
+    // Recalcular com multiplicador correcto já definido
+    calcularValorTotal();
+    
+    // Restaurar o valor total guardado (preserva o valor histórico registado)
     const valorTotalEl = document.getElementById('valorTotal');
     if (valorTotalEl) valorTotalEl.value = ot.valorServico ? ot.valorServico.toFixed(2) : '';
-    
-    // Multiplicador
-    const multiplicadorEl = document.getElementById('multiplicadorServico');
-    if (multiplicadorEl) multiplicadorEl.value = ot.multiplicador || 'normal';
     
     // Checkboxes de prémios
     const checkSabado = document.getElementById('otSabado');
@@ -1960,7 +1957,7 @@ function gerarPDF(comDesconto = false) {
         const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
         const totalDia = premioSab + premioDom + premioFest;
         
-        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+        if (totalDia > 0) {
             premiosSaidaPorDia[dataISO] = {
                 sabado: premioSab,
                 domingo: premioDom,
@@ -2190,7 +2187,7 @@ function gerarPDFComEquipamentos() {
         const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
         const totalDia = premioSab + premioDom + premioFest;
         
-        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+        if (totalDia > 0) {
             premiosSaidaPorDia[dataISO] = {
                 sabado: premioSab,
                 domingo: premioDom,

@@ -406,6 +406,23 @@
                     <small style="color:#666;">O valor a receber real será o total bruto menos esta percentagem. Ex: 24% significa que recebe 76% do total.</small>
                 </div>
             </div>
+
+            <h3 style="margin-top: 25px;">✖️ Multiplicadores Personalizados</h3>
+            <p style="font-size:13px;color:#666;margin:0 0 12px;">Adicione multiplicadores com nomes personalizados (ex: Triplo, Especial). Ficam disponíveis para seleccionar ao registar uma OT.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end;">
+                <div class="mult-item" style="flex:1;min-width:150px;">
+                    <label>Nome</label>
+                    <input type="text" id="novoMultNome" placeholder="Ex: Triplo" style="padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                </div>
+                <div class="mult-item" style="flex:1;min-width:120px;">
+                    <label>Valor (x)</label>
+                    <input type="number" id="novoMultValor" step="0.01" min="0.01" placeholder="Ex: 3.0" style="padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                </div>
+                <button class="btn-small btn-add" onclick="adicionarMultiplicadorCustom()" style="padding:10px 18px;height:42px;">➕ Adicionar</button>
+            </div>
+            <div id="listaMultiplicadoresCustom" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                <!-- Renderizado por JS -->
+            </div>
             
             <button class="btn-small btn-save" style="margin-top: 15px;" onclick="salvarMultiplicadores()">💾 Salvar Configurações</button>
         </div>

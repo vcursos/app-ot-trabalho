@@ -153,22 +153,7 @@ function popularSelectsServicos() {
 // Obter multiplicadores
 function obterMultiplicadores() {
     const mult = localStorage.getItem('multiplicadores');
-    if (!mult) {
-        return {
-            normal: 1.0,
-            domingoFeriado: 1.5,
-            dobrado: 2.0,
-            bonusDomingo: 1.0,    // Multiplicador (1.0 = sem alteração)
-            bonusFeriado: 1.0,    // Multiplicador (1.0 = sem alteração)
-            premioSabado: 0,
-            premioDomingo: 0,
-            premioFestivo: 0,
-            bonusOTForaHora: 0,
-            bonusOTForaHoraTipo: 'valor'
-        };
-    }
-    const parsed = JSON.parse(mult);
-    return {
+    const defaults = {
         normal: 1.0,
         domingoFeriado: 1.5,
         dobrado: 2.0,
@@ -179,7 +164,19 @@ function obterMultiplicadores() {
         premioFestivo: 0,
         bonusOTForaHora: 0,
         bonusOTForaHoraTipo: 'valor',
-        ...parsed
+        multiplicadoresCustom: []
+    };
+    if (!mult) return defaults;
+    const parsed = JSON.parse(mult);
+    // Flatten custom multipliers so they can be looked up by id (e.g. mult['cmult_123'] = 1.5)
+    const customFlat = {};
+    const customLista = Array.isArray(parsed.multiplicadoresCustom) ? parsed.multiplicadoresCustom : [];
+    customLista.forEach(m => { if (m && m.id) customFlat[m.id] = parseFloat(m.valor) || 1.0; });
+    return {
+        ...defaults,
+        ...parsed,
+        multiplicadoresCustom: customLista,
+        ...customFlat
     };
 }
 
@@ -188,6 +185,27 @@ function getDiaSemana(dataStr) {
     if (!dataStr) return null;
     const d = new Date(dataStr + 'T12:00:00');
     return d.getDay(); // 0=domingo, 6=sábado
+}
+
+// Popular o select de multiplicadores com os valores configurados (normal, dobrado + customizados)
+function popularSelectMultiplicadores(selectEl) {
+    if (!selectEl) return;
+    const mult = obterMultiplicadores();
+    const valorAtual = selectEl.value;
+    selectEl.innerHTML = `
+        <option value="normal">Normal (${parseFloat(mult.normal).toFixed(2)}x)</option>
+        <option value="dobrado">Dobrado (${parseFloat(mult.dobrado).toFixed(2)}x)</option>
+    `;
+    (mult.multiplicadoresCustom || []).forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.nome} (${parseFloat(m.valor).toFixed(2)}x)`;
+        selectEl.appendChild(opt);
+    });
+    // Restaurar selecção anterior se ainda existir
+    if (valorAtual && Array.from(selectEl.options).some(o => o.value === valorAtual)) {
+        selectEl.value = valorAtual;
+    }
 }
 
 // Aplicar multiplicador a um valor
@@ -307,14 +325,19 @@ function calcularValorTotalComMultiplicador() {
     // Atualizar UI dos checkboxes e preview
     atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados);
     
-    // Atualizar label do multiplicador para mostrar o valor
+    // Atualizar label do multiplicador para mostrar o valor correcto (inclui custom)
     if (multiplicadorEl) {
+        const customNomes = {};
+        (mult.multiplicadoresCustom || []).forEach(m => { if (m && m.id) customNomes[m.id] = m.nome; });
         const options = multiplicadorEl.options;
         for (let i = 0; i < options.length; i++) {
             const tipo = options[i].value;
             const valorMult = mult[tipo] || 1.0;
-            const label = tipo === 'normal' ? 'Normal' : 'Dobrado';
-            options[i].text = `${label} (${valorMult}x)`;
+            let label;
+            if (tipo === 'normal') label = 'Normal';
+            else if (tipo === 'dobrado') label = 'Dobrado';
+            else label = customNomes[tipo] || tipo;
+            options[i].text = `${label} (${parseFloat(valorMult).toFixed(2)}x)`;
         }
     }
     
@@ -411,11 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Atualizar multiplicadores no select com valores das Opções
     const multiplicadorEl = document.getElementById('multiplicadorServico');
     if (multiplicadorEl) {
-        const mult = obterMultiplicadores();
-        multiplicadorEl.innerHTML = `
-            <option value="normal">Normal (${mult.normal}x)</option>
-            <option value="dobrado">Dobrado (${mult.dobrado}x)</option>
-        `;
+        popularSelectMultiplicadores(multiplicadorEl);
     }
     
     // Listener para mudança de serviço
