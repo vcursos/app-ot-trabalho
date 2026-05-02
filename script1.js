@@ -1465,7 +1465,10 @@ function editarOT(id) {
         if (tipoServicoSelecionado) {
             try {
                 valorServicoBase = parseFloat(JSON.parse(tipoServicoSelecionado)?.valor) || 0;
-            } catch {}
+            } catch (e) {
+                // Se a option estiver inválida/corrompida, manter fallback seguro em 0.
+                console.warn('Não foi possível obter valor base do serviço na edição:', e);
+            }
         }
         valorServicoEl.value = valorServicoBase > 0 ? valorServicoBase.toFixed(2) : '';
     }

@@ -220,19 +220,24 @@ function renderizarSelectMultiplicadores() {
     const valorAtual = multiplicadorEl.value || 'normal';
     const mult = obterMultiplicadores();
     const extras = normalizarMultiplicadoresExtras(mult);
+    const opcoes = [
+        { value: 'normal', text: montarLabelMultiplicador('normal', mult.normal || 1) },
+        { value: 'dobrado', text: montarLabelMultiplicador('dobrado', mult.dobrado || 2) },
+        ...extras.map(v => {
+            const tipo = `custom_${v}`;
+            return { value: tipo, text: montarLabelMultiplicador(tipo, v) };
+        })
+    ];
 
-    let html = `
-        <option value="normal">${montarLabelMultiplicador('normal', mult.normal || 1)}</option>
-        <option value="dobrado">${montarLabelMultiplicador('dobrado', mult.dobrado || 2)}</option>
-    `;
-
-    extras.forEach(v => {
-        const tipo = `custom_${v}`;
-        html += `<option value="${tipo}">${montarLabelMultiplicador(tipo, v)}</option>`;
+    multiplicadorEl.textContent = '';
+    opcoes.forEach(op => {
+        const option = document.createElement('option');
+        option.value = op.value;
+        option.textContent = op.text;
+        multiplicadorEl.appendChild(option);
     });
 
-    multiplicadorEl.innerHTML = html;
-    multiplicadorEl.value = multiplicadorEl.querySelector(`option[value="${valorAtual}"]`) ? valorAtual : 'normal';
+    multiplicadorEl.value = opcoes.some(op => op.value === valorAtual) ? valorAtual : 'normal';
 }
 
 // Verificar se uma data é sábado (6) ou domingo (0)
