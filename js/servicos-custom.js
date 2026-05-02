@@ -100,7 +100,8 @@ function inicializarTabelasPadrao() {
     const multiplicadoresPadrao = {
         normal: 1.0,
         domingoFeriado: 1.5,
-        dobrado: 2.0
+        dobrado: 2.0,
+        extraMultiplicadores: []
     };
     localStorage.setItem('multiplicadores', JSON.stringify(multiplicadoresPadrao));
 }
@@ -158,6 +159,7 @@ function obterMultiplicadores() {
             normal: 1.0,
             domingoFeriado: 1.5,
             dobrado: 2.0,
+            extraMultiplicadores: [],
             bonusDomingo: 1.0,    // Multiplicador (1.0 = sem alteração)
             bonusFeriado: 1.0,    // Multiplicador (1.0 = sem alteração)
             premioSabado: 0,
@@ -172,6 +174,7 @@ function obterMultiplicadores() {
         normal: 1.0,
         domingoFeriado: 1.5,
         dobrado: 2.0,
+        extraMultiplicadores: [],
         bonusDomingo: 1.0,
         bonusFeriado: 1.0,
         premioSabado: 0,
@@ -181,6 +184,55 @@ function obterMultiplicadores() {
         bonusOTForaHoraTipo: 'valor',
         ...parsed
     };
+}
+
+function normalizarMultiplicadoresExtras(mult) {
+    const extras = Array.isArray(mult?.extraMultiplicadores) ? mult.extraMultiplicadores : [];
+    return [...new Set(extras
+        .map(v => parseFloat(v))
+        .filter(v => Number.isFinite(v) && v > 0 && v !== 1))];
+}
+
+function obterValorMultiplicador(tipo, mult) {
+    if (mult && Object.prototype.hasOwnProperty.call(mult, tipo)) {
+        const valor = parseFloat(mult[tipo]);
+        if (Number.isFinite(valor) && valor > 0) return valor;
+    }
+
+    if (typeof tipo === 'string' && tipo.startsWith('custom_')) {
+        const valorCustom = parseFloat(tipo.replace('custom_', ''));
+        if (Number.isFinite(valorCustom) && valorCustom > 0) return valorCustom;
+    }
+
+    return 1.0;
+}
+
+function montarLabelMultiplicador(tipo, valor) {
+    if (tipo === 'normal') return `Normal (${valor}x)`;
+    if (tipo === 'dobrado') return `Dobrado (${valor}x)`;
+    return `Multiplicador ${valor}x`;
+}
+
+function renderizarSelectMultiplicadores() {
+    const multiplicadorEl = document.getElementById('multiplicadorServico');
+    if (!multiplicadorEl) return;
+
+    const valorAtual = multiplicadorEl.value || 'normal';
+    const mult = obterMultiplicadores();
+    const extras = normalizarMultiplicadoresExtras(mult);
+
+    let html = `
+        <option value="normal">${montarLabelMultiplicador('normal', mult.normal || 1)}</option>
+        <option value="dobrado">${montarLabelMultiplicador('dobrado', mult.dobrado || 2)}</option>
+    `;
+
+    extras.forEach(v => {
+        const tipo = `custom_${v}`;
+        html += `<option value="${tipo}">${montarLabelMultiplicador(tipo, v)}</option>`;
+    });
+
+    multiplicadorEl.innerHTML = html;
+    multiplicadorEl.value = multiplicadorEl.querySelector(`option[value="${valorAtual}"]`) ? valorAtual : 'normal';
 }
 
 // Verificar se uma data é sábado (6) ou domingo (0)
@@ -222,7 +274,8 @@ function calcularValorTotalComMultiplicador() {
     
     // Aplicar multiplicador selecionado
     const mult = obterMultiplicadores();
-    let valorFinal = valorBase * (mult[tipoMult] || 1.0);
+    const valorMultiplicador = obterValorMultiplicador(tipoMult, mult);
+    let valorFinal = valorBase * valorMultiplicador;
     
     // Verificar se o prémio já foi aplicado neste dia
     const dataOT = dataOTEl ? dataOTEl.value : null;
@@ -288,13 +341,13 @@ function calcularValorTotalComMultiplicador() {
             let bonusCalculado = 0;
             if (bonusTipo === 'valor') {
                 bonusCalculado = bonusValor;
-                premiosAplicados.push(`⏱️ Fora Hora: €${bonusCalculado.toFixed(2)} (PDF)`);
+                premiosAplicados.push(`⏱️ Bônus Fora Hora: €${bonusCalculado.toFixed(2)} (PDF)`);
             } else if (bonusTipo === 'percentagem') {
                 bonusCalculado = valorFinal * bonusValor / 100;
-                premiosAplicados.push(`⏱️ Fora Hora: ${bonusValor}%=€${bonusCalculado.toFixed(2)} (PDF)`);
+                premiosAplicados.push(`⏱️ Bônus Fora Hora: ${bonusValor}%=€${bonusCalculado.toFixed(2)} (PDF)`);
             } else if (bonusTipo === 'multiplicador') {
                 bonusCalculado = valorFinal * bonusValor;
-                premiosAplicados.push(`⏱️ Fora Hora: x${bonusValor}=€${bonusCalculado.toFixed(2)} (PDF)`);
+                premiosAplicados.push(`⏱️ Bônus Fora Hora: x${bonusValor}=€${bonusCalculado.toFixed(2)} (PDF)`);
             }
         }
     }
@@ -312,9 +365,8 @@ function calcularValorTotalComMultiplicador() {
         const options = multiplicadorEl.options;
         for (let i = 0; i < options.length; i++) {
             const tipo = options[i].value;
-            const valorMult = mult[tipo] || 1.0;
-            const label = tipo === 'normal' ? 'Normal' : 'Dobrado';
-            options[i].text = `${label} (${valorMult}x)`;
+            const valorMult = obterValorMultiplicador(tipo, mult);
+            options[i].text = montarLabelMultiplicador(tipo, valorMult);
         }
     }
     
@@ -397,7 +449,7 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;
             const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
             const bfhLabel = bfh > 0
-                ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
+                ? ` | ⏱️ Bônus Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
                 : '';
             previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
         }
@@ -409,14 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
     popularSelectsServicos();
     
     // Atualizar multiplicadores no select com valores das Opções
-    const multiplicadorEl = document.getElementById('multiplicadorServico');
-    if (multiplicadorEl) {
-        const mult = obterMultiplicadores();
-        multiplicadorEl.innerHTML = `
-            <option value="normal">Normal (${mult.normal}x)</option>
-            <option value="dobrado">Dobrado (${mult.dobrado}x)</option>
-        `;
-    }
+    renderizarSelectMultiplicadores();
     
     // Listener para mudança de serviço
     const selectTipoServico = document.getElementById('tipoServico');
@@ -476,5 +521,6 @@ const servicosMOI = carregarServicosCustomizados();
 function recarregarServicos() {
     const servicos = carregarServicosCustomizados();
     popularSelectsServicos();
+    renderizarSelectMultiplicadores();
     return servicos;
 }

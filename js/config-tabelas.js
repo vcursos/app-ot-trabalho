@@ -28,6 +28,7 @@ const tabelasPadrao = {
 const multiplicadoresPadrao = {
     normal: 1.0,
     dobrado: 2.0,
+    extraMultiplicadores: [],
     bonusDomingo: 1.0,   // Multiplicador (1.0 = sem alteração, 1.5 = +50%, 2.0 = dobro)
     bonusFeriado: 1.0,   // Multiplicador (1.0 = sem alteração)
     premioSabado: 0,
@@ -104,6 +105,11 @@ document.addEventListener('DOMContentLoaded', function() {
     multNormalEl.value = mult.normal;
     const multDobradoEl = document.getElementById('multDobrado');
     if (multDobradoEl) multDobradoEl.value = mult.dobrado;
+    const multExtrasEl = document.getElementById('multExtras');
+    if (multExtrasEl) {
+        const extras = Array.isArray(mult.extraMultiplicadores) ? mult.extraMultiplicadores : [];
+        multExtrasEl.value = extras.join(', ');
+    }
     
     // Multiplicadores automáticos (domingo/feriado) - padrão 1.0
     const inputBonusDomingo = document.getElementById('bonusDomingo');
@@ -277,9 +283,16 @@ function salvarTabela(categoria) {
 
 // Salvar multiplicadores
 function salvarMultiplicadores() {
+    const extrasRaw = document.getElementById('multExtras')?.value || '';
+    const extras = extrasRaw
+        .split(',')
+        .map(v => parseFloat(String(v).trim().replace(',', '.')))
+        .filter(v => Number.isFinite(v) && v > 0 && v !== 1);
+
     const mult = {
         normal: 1.0,
         dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0,
+        extraMultiplicadores: [...new Set(extras)],
         bonusDomingo: parseFloat(document.getElementById('bonusDomingo')?.value) || 1.0,
         bonusFeriado: parseFloat(document.getElementById('bonusFeriado')?.value) || 1.0,
         premioSabado: parseFloat(document.getElementById('premioSabado')?.value) || 0,
