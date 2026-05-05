@@ -168,6 +168,8 @@ function obterMultiplicadores() {
         };
     }
     const parsed = JSON.parse(mult);
+    // Retrocompatibilidade: migrar bonusFeriado → bonusFestivo para utilizadores existentes
+    const bonusFestivo = parsed.bonusFestivo !== undefined ? parsed.bonusFestivo : (parsed.bonusFeriado ?? 1.0);
     return {
         normal: 1.0,
         domingoFeriado: 1.5,
@@ -180,8 +182,7 @@ function obterMultiplicadores() {
         bonusOTForaHora: 0,
         bonusOTForaHoraTipo: 'valor',
         ...parsed,
-        // Retrocompatibilidade: migrar bonusFeriado → bonusFestivo
-        bonusFestivo: parsed.bonusFestivo ?? parsed.bonusFeriado ?? 1.0
+        bonusFestivo
     };
 }
 

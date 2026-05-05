@@ -70,12 +70,12 @@ function carregarMultiplicadores() {
         return multiplicadoresPadrao;
     }
     const parsed = JSON.parse(mult);
-    // Retrocompatibilidade: caso o storage antigo não tenha campos novos
-    // Migrar bonusFeriado → bonusFestivo para utilizadores existentes
+    // Retrocompatibilidade: migrar bonusFeriado → bonusFestivo para utilizadores existentes
+    const bonusFestivo = parsed.bonusFestivo !== undefined ? parsed.bonusFestivo : (parsed.bonusFeriado ?? multiplicadoresPadrao.bonusFestivo);
     return {
         ...multiplicadoresPadrao,
         ...parsed,
-        bonusFestivo: parsed.bonusFestivo ?? parsed.bonusFeriado ?? multiplicadoresPadrao.bonusFestivo
+        bonusFestivo
     };
 }
 
