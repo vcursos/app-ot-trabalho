@@ -265,18 +265,19 @@ function calcularValorTotalComMultiplicador() {
         }
     }
     
-    // Festivo (prémio só para PDF + multiplicador no valor)
+    // Festivo - APENAS multiplicador festivo no valor
     if (checkFestivo && checkFestivo.checked) {
-        if (!premioJaAplicado) {
-            const premioFest = parseFloat(mult.premioFestivo) || 0;
-            if (premioFest > 0) premiosAplicados.push(`Festivo: €${premioFest.toFixed(2)} (PDF)`);
+        const multFestivo = parseFloat(mult.bonusFeriado) || 1.0;
+        if (multFestivo > 0 && multFestivo !== 1.0) {
+            valorFinal = valorFinal * multFestivo;
+            premiosAplicados.push(`🎉 x${multFestivo}`);
         }
-        // Multiplicador feriado - este SIM aplica ao valor
-        const multFeriado = parseFloat(mult.bonusFeriado) || 1.0;
-        if (multFeriado > 0 && multFeriado !== 1.0) {
-            valorFinal = valorFinal * multFeriado;
-            premiosAplicados.push(`x${multFeriado}`);
-        }
+    }
+
+    // Bônus Festivo como prémio de saída (separado do multiplicador - só para PDF)
+    if (checkFestivo && checkFestivo.checked && !premioJaAplicado) {
+        const premioFest = parseFloat(mult.premioFestivo) || 0;
+        if (premioFest > 0) premiosAplicados.push(`🎉 Bônus Festivo: €${premioFest.toFixed(2)} (PDF)`);
     }
 
     // BÔNUS POR OT FORA DE HORA - apenas mostrar no preview, aparece separado no PDF
@@ -393,13 +394,15 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
         } else {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
-            const fest = parseFloat(mult.premioFestivo) || 0;
+            const multFest = parseFloat(mult.bonusFeriado) || 1.0;
+            const premioFest = parseFloat(mult.premioFestivo) || 0;
+            const festLabel = `x${multFest}${premioFest > 0 ? ` + Bônus €${premioFest.toFixed(2)}` : ''}`;
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;
             const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
             const bfhLabel = bfh > 0
                 ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
                 : '';
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Festivo: ${festLabel}${bfhLabel}`;
         }
     }
 }

@@ -406,13 +406,15 @@ function atualizarUIFestivoPorDia() {
         if (previewEl) {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
-            const fest = parseFloat(mult.premioFestivo) || 0;
+            const multFest = parseFloat(mult.bonusFeriado) || 1.0;
+            const premioFest = parseFloat(mult.premioFestivo) || 0;
+            const festLabel = `x${multFest}${premioFest > 0 ? ` + Bônus €${premioFest.toFixed(2)}` : ''}`;
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;
             const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
             const bfhLabel = bfh > 0
                 ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
                 : '';
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Festivo: ${festLabel}${bfhLabel}`;
         }
     }
 }
