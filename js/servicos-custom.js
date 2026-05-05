@@ -159,7 +159,7 @@ function obterMultiplicadores() {
             domingoFeriado: 1.5,
             dobrado: 2.0,
             bonusDomingo: 1.0,    // Multiplicador (1.0 = sem alteração)
-            bonusFeriado: 1.0,    // Multiplicador (1.0 = sem alteração)
+            bonusFestivo: 1.0,    // Multiplicador (1.0 = sem alteração)
             premioSabado: 0,
             premioDomingo: 0,
             premioFestivo: 0,
@@ -173,13 +173,15 @@ function obterMultiplicadores() {
         domingoFeriado: 1.5,
         dobrado: 2.0,
         bonusDomingo: 1.0,
-        bonusFeriado: 1.0,
+        bonusFestivo: 1.0,
         premioSabado: 0,
         premioDomingo: 0,
         premioFestivo: 0,
         bonusOTForaHora: 0,
         bonusOTForaHoraTipo: 'valor',
-        ...parsed
+        ...parsed,
+        // Retrocompatibilidade: migrar bonusFeriado → bonusFestivo
+        bonusFestivo: parsed.bonusFestivo ?? parsed.bonusFeriado ?? 1.0
     };
 }
 
@@ -267,7 +269,7 @@ function calcularValorTotalComMultiplicador() {
     
     // Festivo - APENAS multiplicador festivo no valor
     if (checkFestivo && checkFestivo.checked) {
-        const multFestivo = parseFloat(mult.bonusFeriado) || 1.0;
+        const multFestivo = parseFloat(mult.bonusFestivo) || 1.0;
         if (multFestivo > 0 && multFestivo !== 1.0) {
             valorFinal = valorFinal * multFestivo;
             premiosAplicados.push(`🎉 x${multFestivo}`);
@@ -394,7 +396,7 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
         } else {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
-            const multFest = parseFloat(mult.bonusFeriado) || 1.0;
+            const multFest = parseFloat(mult.bonusFestivo) || 1.0;
             const premioFest = parseFloat(mult.premioFestivo) || 0;
             const festLabel = `x${multFest}${premioFest > 0 ? ` + Bônus €${premioFest.toFixed(2)}` : ''}`;
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;

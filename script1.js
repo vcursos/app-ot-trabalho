@@ -406,7 +406,7 @@ function atualizarUIFestivoPorDia() {
         if (previewEl) {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
-            const multFest = parseFloat(mult.bonusFeriado) || 1.0;
+            const multFest = parseFloat(mult.bonusFestivo) || 1.0;
             const premioFest = parseFloat(mult.premioFestivo) || 0;
             const festLabel = `x${multFest}${premioFest > 0 ? ` + Bônus €${premioFest.toFixed(2)}` : ''}`;
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;

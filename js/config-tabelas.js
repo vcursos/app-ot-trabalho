@@ -29,7 +29,7 @@ const multiplicadoresPadrao = {
     normal: 1.0,
     dobrado: 2.0,
     bonusDomingo: 1.0,   // Multiplicador (1.0 = sem alteração, 1.5 = +50%, 2.0 = dobro)
-    bonusFeriado: 1.0,   // Multiplicador (1.0 = sem alteração)
+    bonusFestivo: 1.0,   // Multiplicador (1.0 = sem alteração, 1.5 = +50%, 2.0 = dobro → aplicado pelo checkbox Festivo)
     premioSabado: 0,
     premioDomingo: 0,
     premioFestivo: 0,
@@ -71,9 +71,11 @@ function carregarMultiplicadores() {
     }
     const parsed = JSON.parse(mult);
     // Retrocompatibilidade: caso o storage antigo não tenha campos novos
+    // Migrar bonusFeriado → bonusFestivo para utilizadores existentes
     return {
         ...multiplicadoresPadrao,
-        ...parsed
+        ...parsed,
+        bonusFestivo: parsed.bonusFestivo ?? parsed.bonusFeriado ?? multiplicadoresPadrao.bonusFestivo
     };
 }
 
@@ -108,8 +110,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Multiplicadores automáticos (domingo/feriado) - padrão 1.0
     const inputBonusDomingo = document.getElementById('bonusDomingo');
     if (inputBonusDomingo) inputBonusDomingo.value = mult.bonusDomingo ?? 1.0;
-    const inputBonusFeriado = document.getElementById('bonusFeriado');
-    if (inputBonusFeriado) inputBonusFeriado.value = mult.bonusFeriado ?? 1.0;
+    const inputBonusFestivo = document.getElementById('bonusFestivo');
+    if (inputBonusFestivo) inputBonusFestivo.value = mult.bonusFestivo ?? 1.0;
     
     // Prémios de saída
     const inputPremioSabado = document.getElementById('premioSabado');
@@ -281,7 +283,7 @@ function salvarMultiplicadores() {
         normal: 1.0,
         dobrado: parseFloat(document.getElementById('multDobrado').value) || 2.0,
         bonusDomingo: parseFloat(document.getElementById('bonusDomingo')?.value) || 1.0,
-        bonusFeriado: parseFloat(document.getElementById('bonusFeriado')?.value) || 1.0,
+        bonusFestivo: parseFloat(document.getElementById('bonusFestivo')?.value) || 1.0,
         premioSabado: parseFloat(document.getElementById('premioSabado')?.value) || 0,
         premioDomingo: parseFloat(document.getElementById('premioDomingo')?.value) || 0,
         premioFestivo: parseFloat(document.getElementById('premioFestivo')?.value) || 0,
