@@ -1454,14 +1454,6 @@ function editarOT(id) {
     const categoriaEl = document.getElementById('categoriaServico');
     if (categoriaEl) categoriaEl.value = ot.categoria || '';
     
-    // Valor do serviço (readonly, só para mostrar)
-    const valorServicoEl = document.getElementById('valorServico');
-    if (valorServicoEl) valorServicoEl.value = ot.pontosServico ? ot.pontosServico : '';
-    
-    // Valor total
-    const valorTotalEl = document.getElementById('valorTotal');
-    if (valorTotalEl) valorTotalEl.value = ot.valorServico ? ot.valorServico.toFixed(2) : '';
-    
     // Multiplicador
     const multiplicadorEl = document.getElementById('multiplicadorServico');
     if (multiplicadorEl) multiplicadorEl.value = ot.multiplicador || 'normal';
@@ -1483,6 +1475,11 @@ function editarOT(id) {
     // Adicionais
     adicionaisTemp = ot.adicionais ? [...ot.adicionais] : [];
     atualizarListaAdicionais();
+
+    // Restaurar valor total com o valor original guardado (deve ser o último passo para
+    // garantir que não é sobrescrito por nenhum cálculo anterior do formulário)
+    const valorTotalEl = document.getElementById('valorTotal');
+    if (valorTotalEl) valorTotalEl.value = (ot.valorServico != null) ? ot.valorServico.toFixed(2) : '';
     
     // Mudar botão de "Registrar" para "Atualizar"
     const btnSubmit = document.querySelector('#formOT button[type="submit"]');
