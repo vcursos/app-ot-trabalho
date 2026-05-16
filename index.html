@@ -217,18 +217,15 @@
                     <input type="month" id="filtroMes" onchange="aplicarFiltros()" style="max-width:160px;">
                     <select id="filtroCategoria" onchange="aplicarFiltros()">
                         <option value="">Todas Categorias</option>
-                        <option value="INSTALACIONES FTTH B2C">INSTALACIONES FTTH B2C</option>
-                        <option value="ADICIONALES HOGAR FTTH">ADICIONALES HOGAR FTTH</option>
-                        <option value="AVERIAS + POSTVENTAS B2C">AVERIAS + POSTVENTAS B2C</option>
-                        <option value="INSTALACIONES HFC">INSTALACIONES HFC</option>
                     </select>
                     <select id="filtroDiaSemana" onchange="aplicarFiltros()">
                         <option value="">Todos os Dias</option>
                         <option value="sabado">🅂 Sábados</option>
                         <option value="domingo">🅳 Domingos</option>
+                        <option value="bonus">🎁 Bônus</option>
                         <option value="festivo">🎉 Festivos</option>
                         <option value="fds">📅 Fins de Semana (Sáb+Dom)</option>
-                        <option value="especial">⭐ Todos Especiais (Sáb+Dom+Festivo)</option>
+                        <option value="especial">⭐ Todos Especiais (Sáb+Dom+Festivo+Bônus)</option>
                         <option value="foraHora">⏱️ OT Fora de Hora</option>
                     </select>
                     <div class="filter-actions">
@@ -291,22 +288,9 @@
                         </div>
 
                         <div class="form-group">
-                            <label>Hora Início Jornada</label>
-                            <input type="time" id="horaInicioJornada">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Hora Fim Jornada</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="time" id="horaFimJornada" style="flex: 1;">
-                                <button type="button" class="btn-scan" onclick="atualizarHoraFim()" title="Atualizar com hora atual">🕐</button>
-                            </div>
-                            <small style="color:#666;">Opcional: pode deixar em branco.</small>
-                        </div>
-
-                        <div class="form-group">
                             <label>KM Inicial</label>
                             <input type="text" id="kmInicial" maxlength="8" pattern="[0-9.,]+" placeholder="Ex: 298178.0">
+                            <small style="color:#666;">Ao informar um novo KM inicial, o sistema atualiza automaticamente o KM final pendente do registro anterior.</small>
                         </div>
 
                         <div class="form-group">
@@ -355,7 +339,7 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn-primary">Registrar Jornada</button>
+                        <button type="submit" id="btnSalvarLogistica" class="btn-primary">Registrar Jornada</button>
                         <button type="button" class="btn-secondary" onclick="limparFormularioLogistica()">Limpar</button>
                     </div>
                 </form>
@@ -387,7 +371,6 @@
                         <thead>
                             <tr>
                                 <th>Data</th>
-                                <th>Horário Jornada</th>
                                 <th>KM Inicial</th>
                                 <th>KM Final</th>
                                 <th>KM Rodados</th>
@@ -399,7 +382,7 @@
                         </thead>
                         <tbody id="corpoTabelaLogistica">
                             <tr class="empty-state">
-                                <td colspan="9">Nenhum registro de logística</td>
+                                <td colspan="8">Nenhum registro de logística</td>
                             </tr>
                         </tbody>
                     </table>
@@ -417,6 +400,7 @@
                         <div><strong>Origem do KM Final:</strong> <span id="visLogOrigemFinal">-</span></div>
                         <div><strong>KM Rodados (trecho):</strong> <span id="visLogKmRodados">-</span></div>
                         <div><strong>Litros consumidos (trecho):</strong> <span id="visLogLitrosTrecho">-</span></div>
+                        <div><strong>Custo/KM (trecho):</strong> <span id="visLogCustoTrecho">-</span></div>
                     </div>
                 </div>
             </section>

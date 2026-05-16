@@ -357,7 +357,8 @@ function importarTabela(categoria, inputElement) {
                 rede:      String(item.rede       || '').trim(),
                 descricao: String(item.descricao  || '').trim(),
                 valor:     parseFloat(item.valor)  || 0,
-                pontos:    parseFloat(item.pontos) || 0
+                pontos:    parseFloat(item.pontos) || 0,
+                categoria: String(item.categoria || '').trim()
             }));
             
             // Salvar
@@ -400,6 +401,7 @@ function exportarTabelaExcel(categoria) {
             descricao: item.descricao,
             valor: parseFloat(item.valor) || 0,
             pontos: parseFloat(item.pontos) || 0,
+            categoria: item.categoria || '',
             tipoTrabalho: item.tipoTrabalho || ''
         }));
 
@@ -472,6 +474,7 @@ function importarTabelaExcel(categoria, inputElement) {
                 descricao:String(item.descricao || '').trim(),
                 valor:    parseFloat(item.valor)  || 0,
                 pontos:   parseFloat(item.pontos) || 0,
+                categoria: String(item.categoria || '').trim(),
                 tipoTrabalho: String(item.tipotrabalho || item['tipo de trabalho'] || item.tipodetrabalho || '').trim()
             }));
             
@@ -546,6 +549,13 @@ function abrirModal(categoria, index) {
     document.getElementById('modal-codigo').value = item.codigo;
     
     document.getElementById('modal-descricao').value = item.descricao;
+    const categoriaInput = document.getElementById('modal-categoria');
+    if (categoriaInput) {
+        const categoriaDefault = modalCategoriaAtual === 'instalacoes'
+            ? 'INSTALACIONES'
+            : (modalCategoriaAtual === 'avarias' ? 'AVERIAS + POSTVENTAS' : 'ADICIONALES');
+        categoriaInput.value = item.categoria || categoriaDefault;
+    }
     document.getElementById('modal-valor').value = item.valor;
     const pontosInput = document.getElementById('modal-pontos');
     if (pontosInput) pontosInput.value = parseFloat(item.pontos) || 0;
@@ -580,6 +590,13 @@ function abrirModalNovoServico(categoria) {
     // Limpar e preencher campos do modal
     document.getElementById('modal-codigo').value = proximoCodigo;
     document.getElementById('modal-descricao').value = '';
+    const categoriaInput = document.getElementById('modal-categoria');
+    if (categoriaInput) {
+        const categoriaDefault = modalCategoriaAtual === 'instalacoes'
+            ? 'INSTALACIONES'
+            : (modalCategoriaAtual === 'avarias' ? 'AVERIAS + POSTVENTAS' : 'ADICIONALES');
+        categoriaInput.value = categoriaDefault;
+    }
     document.getElementById('modal-valor').value = '0.00';
     const pontosInput = document.getElementById('modal-pontos');
     if (pontosInput) pontosInput.value = '0';
@@ -610,6 +627,7 @@ function fecharModal() {
     modalCategoriaAtual = '';
     modalIndexAtual = -1;
     if (document.getElementById('modal-pontos')) document.getElementById('modal-pontos').value = '';
+    if (document.getElementById('modal-categoria')) document.getElementById('modal-categoria').value = '';
     if (document.getElementById('modal-tipo-trabalho')) document.getElementById('modal-tipo-trabalho').value = '';
 }
 
@@ -657,6 +675,7 @@ function aplicarEdicao() {
         ...itemOriginal,
         codigo: document.getElementById('modal-codigo').value,
         descricao: document.getElementById('modal-descricao').value,
+        categoria: (document.getElementById('modal-categoria')?.value || '').trim(),
         valor: parseFloat(document.getElementById('modal-valor').value) || 0,
         pontos: parseFloat(document.getElementById('modal-pontos')?.value) || 0,
         tipoTrabalho: document.getElementById('modal-tipo-trabalho')?.value || ''

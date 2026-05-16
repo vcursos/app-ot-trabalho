@@ -24,7 +24,7 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'INSTALACIONES',
+                categoria: item.categoria || 'INSTALACIONES',
                 tipoTrabalho: item.tipoTrabalho || 'instalacao'
             });
         });
@@ -39,7 +39,7 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'AVERIAS + POSTVENTAS',
+                categoria: item.categoria || 'AVERIAS + POSTVENTAS',
                 tipoTrabalho: item.tipoTrabalho || 'avaria'
             });
         });
@@ -54,7 +54,7 @@ function carregarServicosCustomizados() {
                 tipologia: item.descricao,
                 valor: parseFloat(item.valor) || 0,
                 pontos: parseFloat(item.pontos) || 0,
-                categoria: 'ADICIONALES',
+                categoria: item.categoria || 'ADICIONALES',
                 tipoTrabalho: item.tipoTrabalho || ''
             });
         });
@@ -126,7 +126,7 @@ function popularSelectsServicos() {
                 .forEach(servico => {
                     const option = document.createElement('option');
                     option.value = JSON.stringify(servico);
-                    option.textContent = `${servico.item} - ${servico.tipologia}`;
+                    option.textContent = `${servico.tipologia}`;
                     optgroup.appendChild(option);
                 });
             
@@ -144,7 +144,7 @@ function popularSelectsServicos() {
             .forEach(servico => {
                 const option = document.createElement('option');
                 option.value = JSON.stringify(servico);
-                option.textContent = `${servico.item} - ${servico.tipologia}`;
+                option.textContent = `${servico.tipologia}`;
                 selectAdicional.appendChild(option);
             });
     }
@@ -416,7 +416,7 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
             const bfhLabel = bfh > 0
                 ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
                 : '';
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Fest €${fest.toFixed(2)}${bfhLabel}`;
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Bonus €${fest.toFixed(2)}${bfhLabel}`;
         }
     }
 }
