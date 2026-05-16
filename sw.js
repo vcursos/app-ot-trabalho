@@ -1,5 +1,5 @@
 // Aumente a versão quando publicar alterações para garantir atualização do PWA instalado
-const CACHE_NAME = 'ot-app-cache-v10';
+const CACHE_NAME = 'ot-app-cache-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +14,9 @@ const ASSETS = [
 // Scripts críticos: SEMPRE buscar da rede primeiro (evita sessão "perdida" por cache antigo)
 const NETWORK_FIRST = [
   'script1.js',
+  'config-tabelas.js',
+  'servicos-custom.js',
+  'servicosMOI.js',
   'syncFirebase.js',
   'index.html'
 ];
@@ -49,7 +52,7 @@ self.addEventListener('fetch', (event) => {
   // Scripts críticos: network-first (sempre pega versão nova, fallback pro cache se offline)
   if (isNetworkFirst(req.url)) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           if (res && res.status === 200) {
             const resClone = res.clone();
