@@ -149,8 +149,8 @@
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otFestivo" onchange="calcularValorTotal()">
                                 <span class="switch-ui" aria-hidden="true"></span>
-                                <span>🎉 Festivo</span>
-                                <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">FESTIVO ✓</span>
+                                <span>🎉 Bônus (Festivo)</span>
+                                <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">BÔNUS ✓</span>
                             </label>
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otPremioFestivo" onchange="calcularValorTotal()">
@@ -301,6 +301,7 @@
                                 <input type="time" id="horaFimJornada" style="flex: 1;">
                                 <button type="button" class="btn-scan" onclick="atualizarHoraFim()" title="Atualizar com hora atual">🕐</button>
                             </div>
+                            <small style="color:#666;">Opcional: pode deixar em branco.</small>
                         </div>
 
                         <div class="form-group">
@@ -311,6 +312,7 @@
                         <div class="form-group">
                             <label>KM Final</label>
                             <input type="text" id="kmFinal" maxlength="8" pattern="[0-9.,]+" placeholder="Ex: 298178.5">
+                            <small style="color:#666;">Opcional: será auto-completado no próximo abastecimento, se ficar pendente.</small>
                         </div>
 
                         <div class="form-group">
@@ -401,6 +403,21 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div id="painelVisualizacaoLogistica" style="display:none; margin-top:14px; background:#f6f9ff; border:1px solid #dfe7ff; border-radius:10px; padding:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+                        <strong style="color:#334;">👁️ Visualização Rápida do Registro</strong>
+                        <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="fecharVisualizacaoLogistica()">Fechar</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; font-size:13px; color:#333;">
+                        <div><strong>Data:</strong> <span id="visLogData">-</span></div>
+                        <div><strong>KM Inicial:</strong> <span id="visLogKmInicial">-</span></div>
+                        <div><strong>KM Final considerado:</strong> <span id="visLogKmFinal">-</span></div>
+                        <div><strong>Origem do KM Final:</strong> <span id="visLogOrigemFinal">-</span></div>
+                        <div><strong>KM Rodados (trecho):</strong> <span id="visLogKmRodados">-</span></div>
+                        <div><strong>Litros consumidos (trecho):</strong> <span id="visLogLitrosTrecho">-</span></div>
+                    </div>
                 </div>
             </section>
         </div>

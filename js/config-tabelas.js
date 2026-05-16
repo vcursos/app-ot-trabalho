@@ -247,33 +247,37 @@ function salvarTabela(categoria) {
     const dados = [];
     const tabelas = carregarTabelas();
     const dadosOriginais = tabelas[categoria] || [];
+    const mapaOriginaisPorCodigo = new Map(
+        dadosOriginais
+            .filter(item => item && item.codigo)
+            .map(item => [String(item.codigo), item])
+    );
     
     linhas.forEach(linha => {
-        const inputs = linha.querySelectorAll('input, select');
         const indexRef = linha.querySelector('[data-index]');
         const indexReal = indexRef ? parseInt(indexRef.dataset.index, 10) : -1;
-        const base = (indexReal >= 0 && dadosOriginais[indexReal]) ? dadosOriginais[indexReal] : {};
+        const inputCodigo = linha.querySelector('input[data-field="codigo"]');
+        const inputDescricao = linha.querySelector('input[data-field="descricao"]');
+        const inputValor = linha.querySelector('input[data-field="valor"]');
+        const inputPontos = linha.querySelector('input[data-field="pontos"]');
+
+        const codigo = (inputCodigo?.value || '').trim();
+        const basePorCodigo = mapaOriginaisPorCodigo.get(codigo);
+        const basePorIndex = (indexReal >= 0 && dadosOriginais[indexReal]) ? dadosOriginais[indexReal] : null;
+        const base = basePorCodigo || basePorIndex || {};
+
         const item = { ...base };
-        
-        inputs.forEach(input => {
-            const field = input.dataset.field;
-            let value = input.value;
-            
-            if (field === 'valor') {
-                value = parseFloat(value) || 0;
-            }
 
-            if (field === 'pontos') {
-                value = parseFloat(value) || 0;
-            }
-            
-            item[field] = value;
-        });
+        item.codigo = codigo;
+        item.descricao = (inputDescricao?.value || '').trim();
+        item.valor = parseFloat(inputValor?.value) || 0;
+        item.pontos = parseFloat(inputPontos?.value) || 0;
 
-        // Garantir persistência da associação de tipo de trabalho
-        if (typeof item.tipoTrabalho === 'undefined' || item.tipoTrabalho === null) {
-            item.tipoTrabalho = '';
-        }
+        // Campos não exibidos na tabela (mas necessários para não perder dados)
+        if (typeof item.rede === 'undefined' || item.rede === null) item.rede = '';
+        if (typeof item.tipoTrabalho === 'undefined' || item.tipoTrabalho === null) item.tipoTrabalho = '';
+
+        if (!item.codigo && !item.descricao) return;
         
         dados.push(item);
     });
