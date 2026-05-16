@@ -149,7 +149,7 @@
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otFestivo" onchange="calcularValorTotal()">
                                 <span class="switch-ui" aria-hidden="true"></span>
-                                <span>🎉 Bônus (Festivo)</span>
+                                <span>🎉 Festivo</span>
                                 <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">BÔNUS ✓</span>
                             </label>
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
@@ -274,10 +274,10 @@
                         </div>
                         <div class="form-group" style="margin: 0;">
                             <label>Consumo (L/100km)</label>
-                            <input type="number" id="consumoCarro" step="0.1" min="0" placeholder="Ex: 5.15" oninput="salvarConfiguracaoVeiculo()">
+                            <input type="number" id="consumoCarro" step="0.1" min="0.1" placeholder="Ex: 5.15" oninput="salvarConfiguracaoVeiculo()">
                         </div>
                     </div>
-                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">💡 Configure o consumo do seu carro para cálculos precisos de combustível</p>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">💡 O consumo do carro é obrigatório para registrar logística e calcular combustível corretamente.</p>
                 </div>
                 
                 <form id="formLogistica">
@@ -295,8 +295,8 @@
 
                         <div class="form-group">
                             <label>KM Final</label>
-                            <input type="text" id="kmFinal" maxlength="8" pattern="[0-9.,]+" placeholder="Ex: 298178.5">
-                            <small style="color:#666;">Opcional: será auto-completado no próximo abastecimento, se ficar pendente.</small>
+                            <input type="text" id="kmFinal" maxlength="8" pattern="[0-9.,]+" placeholder="Preenchimento automático" readonly>
+                            <small style="color:#666;">Preenchimento automático: será definido quando você registrar o KM inicial do próximo abastecimento.</small>
                         </div>
 
                         <div class="form-group">
@@ -442,7 +442,7 @@
             <h3>❓ Guia Rápido do Aplicativo</h3>
             <div style="text-align:left; font-size:14px; max-height:60vh; overflow:auto;">
                 <p><strong>1. Registrar OT:</strong> Preencha número (opcional), selecione serviço e adicionais, adicione equipamentos (pode escanear), clique em <em>Registrar OT</em>.</p>
-                <p><strong>2. Registrar Logística:</strong> Na aba Logística, a data de hoje já aparece. Preencha KM inicial, ao final do dia KM final, abastecimento (se houve) e clique em <em>Registrar Jornada</em>.</p>
+                <p><strong>2. Registrar Logística:</strong> Na aba Logística, a data de hoje já aparece. Preencha o KM inicial, abastecimento (se houve) e clique em <em>Registrar Jornada</em>. O KM final será preenchido automaticamente pelo próximo KM inicial.</p>
                 <p><strong>3. Resumos:</strong> Cartões no topo mostram quantidade e valor de hoje e do mês.</p>
                 <p><strong>4. Filtros & Busca:</strong> Use mês, categoria, rede ou pesquise por código de barras para localizar rapidamente.</p>
                 <p><strong>5. PDF Mensal:</strong> Selecione o mês e clique em <em>Gerar PDF</em> (OT ou Logística) para criar relatório offline. O arquivo é salvo na pasta de downloads do dispositivo.</p>
