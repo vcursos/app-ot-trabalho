@@ -245,10 +245,15 @@ function salvarTabela(categoria) {
     const tbody = document.getElementById('tbody-' + categoria);
     const linhas = tbody.querySelectorAll('tr');
     const dados = [];
+    const tabelas = carregarTabelas();
+    const dadosOriginais = tabelas[categoria] || [];
     
     linhas.forEach(linha => {
         const inputs = linha.querySelectorAll('input, select');
-        const item = {};
+        const indexRef = linha.querySelector('[data-index]');
+        const indexReal = indexRef ? parseInt(indexRef.dataset.index, 10) : -1;
+        const base = (indexReal >= 0 && dadosOriginais[indexReal]) ? dadosOriginais[indexReal] : {};
+        const item = { ...base };
         
         inputs.forEach(input => {
             const field = input.dataset.field;
@@ -264,11 +269,15 @@ function salvarTabela(categoria) {
             
             item[field] = value;
         });
+
+        // Garantir persistência da associação de tipo de trabalho
+        if (typeof item.tipoTrabalho === 'undefined' || item.tipoTrabalho === null) {
+            item.tipoTrabalho = '';
+        }
         
         dados.push(item);
     });
-    
-    const tabelas = carregarTabelas();
+
     tabelas[categoria] = dados;
     salvarTabelasNoStorage(tabelas);
     
@@ -386,7 +395,8 @@ function exportarTabelaExcel(categoria) {
             rede: item.rede,
             descricao: item.descricao,
             valor: parseFloat(item.valor) || 0,
-            pontos: parseFloat(item.pontos) || 0
+            pontos: parseFloat(item.pontos) || 0,
+            tipoTrabalho: item.tipoTrabalho || ''
         }));
 
         // Criar worksheet
@@ -457,7 +467,8 @@ function importarTabelaExcel(categoria, inputElement) {
                 rede:     String(item.rede      || '').trim(),
                 descricao:String(item.descricao || '').trim(),
                 valor:    parseFloat(item.valor)  || 0,
-                pontos:   parseFloat(item.pontos) || 0
+                pontos:   parseFloat(item.pontos) || 0,
+                tipoTrabalho: String(item.tipotrabalho || item['tipo de trabalho'] || item.tipodetrabalho || '').trim()
             }));
             
             // Salvar

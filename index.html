@@ -153,6 +153,12 @@
                                 <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">FESTIVO ✓</span>
                             </label>
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="otPremioFestivo" onchange="calcularValorTotal()">
+                                <span class="switch-ui" aria-hidden="true"></span>
+                                <span>🎁 Bônus</span>
+                                <span id="badgeBonus" style="display:none; background:#8e44ad; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">BÔNUS ✓</span>
+                            </label>
+                            <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otForaHora" onchange="calcularValorTotal()">
                                 <span class="switch-ui" aria-hidden="true"></span>
                                 <span>⏱️ OT Fora de Hora</span>
@@ -318,12 +324,25 @@
                         </div>
 
                         <div class="form-group">
+                            <label>Preço por Litro (€)</label>
+                            <input type="number" id="precoLitro" step="0.001" min="0" placeholder="Ex: 1.759">
+                        </div>
+
+                        <div class="form-group full-width" style="margin-top: -10px;">
+                            <label class="switch-label" style="font-size: 13px; color: #444;">
+                                <input type="checkbox" id="usarLitrosManual">
+                                <span class="switch-ui"></span>
+                                <span>Editar litros manualmente (desative para cálculo automático por valor/preço)</span>
+                            </label>
+                        </div>
+
+                        <div class="form-group">
                             <label>Litros Abastecidos</label>
                             <input type="number" id="litrosAbastecidos" step="0.01" min="0" placeholder="Ex: 30.5">
                         </div>
 
                         <div class="form-group">
-                            <label>Litros Consumidos (Motor 1.5 dCi)</label>
+                            <label>Litros Consumidos (estimado)</label>
                             <input type="text" id="consumoMedio" readonly placeholder="0.0L consumidos">
                         </div>
 
@@ -338,6 +357,18 @@
                         <button type="button" class="btn-secondary" onclick="limparFormularioLogistica()">Limpar</button>
                     </div>
                 </form>
+
+                <div id="resumoRapidoLogistica" style="margin-top: 18px; border: 1px solid #e6e9ff; border-radius: 10px; padding: 14px; background: #f8f9ff;">
+                    <div style="font-weight: 700; color: #4a56a6; margin-bottom: 10px;">⚡ Visualização Rápida (sem PDF)</div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 10px;">
+                        <div><strong>Registros:</strong> <span id="resumoLogRegistros">0</span></div>
+                        <div><strong>KM Rodados:</strong> <span id="resumoLogKm">0.0 km</span></div>
+                        <div><strong>Abastecimento:</strong> <span id="resumoLogAbastecimento">€ 0.00</span></div>
+                        <div><strong>Litros Abastecidos:</strong> <span id="resumoLogLitrosAbastecidos">0.00 L</span></div>
+                        <div><strong>Litros Consumidos:</strong> <span id="resumoLogLitrosConsumidos">0.00 L</span></div>
+                        <div><strong>Custo/KM:</strong> <span id="resumoLogCustoKm">€ 0.000</span></div>
+                    </div>
+                </div>
             </section>
 
             <section class="table-section">

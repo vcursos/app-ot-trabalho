@@ -210,6 +210,7 @@ function calcularValorTotalComMultiplicador() {
     const checkSabado = document.getElementById('otSabado');
     const checkDomingo = document.getElementById('otDomingo');
     const checkFestivo = document.getElementById('otFestivo');
+    const checkPremioFestivo = document.getElementById('otPremioFestivo');
     
     if (!valorServicoEl || !valorTotalEl) return;
     
@@ -265,18 +266,20 @@ function calcularValorTotalComMultiplicador() {
         }
     }
     
-    // Festivo (prémio só para PDF + multiplicador no valor)
+    // Festivo: aplicar multiplicador no valor
     if (checkFestivo && checkFestivo.checked) {
-        if (!premioJaAplicado) {
-            const premioFest = parseFloat(mult.premioFestivo) || 0;
-            if (premioFest > 0) premiosAplicados.push(`Festivo: €${premioFest.toFixed(2)} (PDF)`);
-        }
-        // Multiplicador feriado - este SIM aplica ao valor
+        // Multiplicador feriado aplica-se ao valor final
         const multFeriado = parseFloat(mult.bonusFeriado) || 1.0;
         if (multFeriado > 0 && multFeriado !== 1.0) {
             valorFinal = valorFinal * multFeriado;
-            premiosAplicados.push(`x${multFeriado}`);
+            premiosAplicados.push(`Festivo: x${multFeriado}`);
         }
+    }
+
+    // Prémio festivo opcional (independente do checkbox Festivo)
+    if (checkPremioFestivo && checkPremioFestivo.checked && !premioJaAplicado) {
+        const premioFest = parseFloat(mult.premioFestivo) || 0;
+        if (premioFest > 0) premiosAplicados.push(`Bônus: €${premioFest.toFixed(2)} (PDF)`);
     }
 
     // BÔNUS POR OT FORA DE HORA - apenas mostrar no preview, aparece separado no PDF
@@ -355,28 +358,42 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
     const checkSabado = document.getElementById('otSabado');
     const checkDomingo = document.getElementById('otDomingo');
     const checkFestivo = document.getElementById('otFestivo');
+    const checkPremioFestivo = document.getElementById('otPremioFestivo');
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeBonus = document.getElementById('badgeBonus');
     const badgeForaHora = document.getElementById('badgeForaHora');
     const checkForaHora = document.getElementById('otForaHora');
     const previewEl = document.getElementById('previewPremios');
+    const emEdicao = (typeof otEmEdicao !== 'undefined') && !!otEmEdicao;
+    const bloquearPremioDia = premioJaAplicado && !emEdicao;
     
     // Mostrar/esconder badges
     if (badgeSabado) badgeSabado.style.display = (checkSabado && checkSabado.checked) ? 'inline' : 'none';
     if (badgeDomingo) badgeDomingo.style.display = (checkDomingo && checkDomingo.checked) ? 'inline' : 'none';
     if (badgeFestivo) badgeFestivo.style.display = (checkFestivo && checkFestivo.checked) ? 'inline' : 'none';
+    if (badgeBonus) badgeBonus.style.display = (checkPremioFestivo && checkPremioFestivo.checked) ? 'inline' : 'none';
     if (badgeForaHora) badgeForaHora.style.display = (checkForaHora && checkForaHora.checked) ? 'inline' : 'none';
     
     // Desabilitar checkboxes de prémio diário se prémio já foi aplicado no dia
-    if (premioJaAplicado) {
+    if (bloquearPremioDia) {
         if (checkSabado) { checkSabado.disabled = true; checkSabado.checked = false; }
         if (checkDomingo) { checkDomingo.disabled = true; checkDomingo.checked = false; }
         if (checkFestivo) { checkFestivo.disabled = true; checkFestivo.checked = false; }
+        if (checkPremioFestivo) { checkPremioFestivo.disabled = true; checkPremioFestivo.checked = false; }
+        if (badgeBonus) badgeBonus.style.display = 'none';
     } else {
         if (checkSabado) checkSabado.disabled = false;
         if (checkDomingo) checkDomingo.disabled = false;
         if (checkFestivo) checkFestivo.disabled = false;
+
+        if (checkPremioFestivo) {
+            const premioFest = parseFloat(mult.premioFestivo) || 0;
+            const podeUsarPremioFestivo = premioFest > 0;
+            checkPremioFestivo.disabled = !podeUsarPremioFestivo;
+            if (!podeUsarPremioFestivo) checkPremioFestivo.checked = false;
+        }
     }
     // O bônus "Fora de Hora" é por OT — nunca é bloqueado pelo prémio diário
     if (checkForaHora) checkForaHora.disabled = false;

@@ -363,11 +363,13 @@ function atualizarUIFestivoPorDia() {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxPremioFestivo = document.getElementById('otPremioFestivo');
     const checkboxForaHora = document.getElementById('otForaHora');
     const previewEl = document.getElementById('previewPremios');
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeBonus = document.getElementById('badgeBonus');
     const badgeForaHora = document.getElementById('badgeForaHora');
 
     const mult = typeof obterMultiplicadores === 'function' ? obterMultiplicadores() : { premioSabado: 0, premioDomingo: 0, premioFestivo: 0, bonusOTForaHora: 0, bonusOTForaHoraTipo: 'valor' };
@@ -377,19 +379,24 @@ function atualizarUIFestivoPorDia() {
     const dataBase = (dataFormEl && dataFormEl.value) ? (dataFormEl.value + 'T00:00:00') : null;
     const hojeISO = getDataISO(dataBase);
     const jaAplicado = premioJaAplicadoNoDia(hojeISO);
+    const emEdicao = !!otEmEdicao;
+    const bloquearPremioDia = jaAplicado && !emEdicao;
 
     // O bônus "Fora de Hora" é por OT — nunca é bloqueado pelo prémio diário
     if (checkboxForaHora) checkboxForaHora.disabled = false;
     if (badgeForaHora) badgeForaHora.style.display = (checkboxForaHora && checkboxForaHora.checked) ? 'inline' : 'none';
+    if (badgeBonus) badgeBonus.style.display = (checkboxPremioFestivo && checkboxPremioFestivo.checked) ? 'inline' : 'none';
 
     // Desabilitar checkboxes de prémio diário se já foi aplicado prémio hoje
-    if (jaAplicado) {
+    if (bloquearPremioDia) {
         if (checkboxSabado) { checkboxSabado.checked = false; checkboxSabado.disabled = true; }
         if (checkboxDomingo) { checkboxDomingo.checked = false; checkboxDomingo.disabled = true; }
         if (checkboxFestivo) { checkboxFestivo.checked = false; checkboxFestivo.disabled = true; }
+        if (checkboxPremioFestivo) { checkboxPremioFestivo.checked = false; checkboxPremioFestivo.disabled = true; }
         if (badgeSabado) badgeSabado.style.display = 'none';
         if (badgeDomingo) badgeDomingo.style.display = 'none';
         if (badgeFestivo) badgeFestivo.style.display = 'none';
+        if (badgeBonus) badgeBonus.style.display = 'none';
         if (previewEl) {
             const val = parseFloat(premiosFestivosPorDia[hojeISO]?.valor) || 0;
             const bfh = parseFloat(mult.bonusOTForaHora) || 0;
@@ -403,6 +410,12 @@ function atualizarUIFestivoPorDia() {
         if (checkboxSabado) checkboxSabado.disabled = false;
         if (checkboxDomingo) checkboxDomingo.disabled = false;
         if (checkboxFestivo) checkboxFestivo.disabled = false;
+        if (checkboxPremioFestivo) {
+            const fest = parseFloat(mult.premioFestivo) || 0;
+            const podePremioFestivo = fest > 0;
+            checkboxPremioFestivo.disabled = !podePremioFestivo;
+            if (!podePremioFestivo) checkboxPremioFestivo.checked = false;
+        }
         if (previewEl) {
             const sab = parseFloat(mult.premioSabado) || 0;
             const dom = parseFloat(mult.premioDomingo) || 0;
@@ -628,6 +641,15 @@ function obterConsumoConfigurado() {
     return 5.15;
 }
 
+function obterModeloVeiculoConfigurado() {
+    const config = localStorage.getItem('configuracaoVeiculo');
+    if (config) {
+        const dados = JSON.parse(config);
+        return dados.modelo || '';
+    }
+    return '';
+}
+
 // Adicionar equipamento à lista temporária
 function adicionarEquipamento() {
     const codigo = document.getElementById('macEquipamento').value.trim();
@@ -794,12 +816,27 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const tipoMultiplicador = multiplicadorEl ? multiplicadorEl.value : 'normal';
     const mult = obterMultiplicadores();
     const valorMultiplicador = mult[tipoMultiplicador] || 1.0;
+
+    // Se está editando, obter OT original (usado em preservação de valores)
+    const otOriginal = otEmEdicao ? ordensTrabalho.find(o => o.id === otEmEdicao) : null;
     
     // Valores base sem multiplicador
-    const valorServicoBase = servicoInfo ? servicoInfo.valor : 0;
+    // Em edição: se o serviço não mudou, preservar valor/pontos originais da OT
+    // para evitar alterações inesperadas quando a tabela de serviços muda.
+    const codigoServicoSelecionado = servicoInfo ? servicoInfo.item : (tipoServico || '-');
+    const servicoMantidoNaEdicao = !!(otOriginal && codigoServicoSelecionado === otOriginal.tipoServico);
 
-    // Pontos base
-    const pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
+    let valorServicoBase = 0;
+    let pontosServicoBase = 0;
+
+    if (servicoMantidoNaEdicao) {
+        valorServicoBase = parseFloat(otOriginal?.valorServicoBase);
+        if (isNaN(valorServicoBase)) valorServicoBase = parseFloat(otOriginal?.valorServico) || 0;
+        pontosServicoBase = parseFloat(otOriginal?.pontosServico) || 0;
+    } else {
+        valorServicoBase = servicoInfo ? (parseFloat(servicoInfo.valor) || 0) : 0;
+        pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
+    }
     
     // Valor total com multiplicador (usar 0 se o campo mostrar "0.00" — não ignorar zero)
     const _valorTotalStr = document.getElementById('valorTotal').value;
@@ -811,14 +848,13 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxPremioFestivo = document.getElementById('otPremioFestivo');
     const checkboxForaHora = document.getElementById('otForaHora');
     
     const dataFormEl = document.getElementById('dataOT');
     const dataOTISO = (dataFormEl && dataFormEl.value) ? dataFormEl.value : getDataISO();
     const hojeISO = dataOTISO;
     
-    // Se está editando, verificar prémios da OT original
-    const otOriginal = otEmEdicao ? ordensTrabalho.find(o => o.id === otEmEdicao) : null;
     const permitirAplicarHoje = otEmEdicao ? true : !premioJaAplicadoNoDia(hojeISO);
     
     // Verificar dia da semana
@@ -829,6 +865,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const marcadoSabado = !!(checkboxSabado && checkboxSabado.checked);
     const marcadoDomingo = !!(checkboxDomingo && checkboxDomingo.checked);
     const marcadoFestivo = !!(checkboxFestivo && checkboxFestivo.checked);
+    const marcadoPremioFestivo = !!(checkboxPremioFestivo && checkboxPremioFestivo.checked);
     const marcadoForaHora = !!(checkboxForaHora && checkboxForaHora.checked);
     
     let premioSabadoAplicado = 0;
@@ -843,7 +880,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         if (marcadoDomingo) {
             premioDomingoAplicado = parseFloat(mult?.premioDomingo) || 0;
         }
-        if (marcadoFestivo) {
+        if (marcadoPremioFestivo) {
             premioFestivoAplicado = parseFloat(mult?.premioFestivo) || 0;
         }
     }
@@ -875,14 +912,14 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             const dataAntigaISO = otAntiga ? getDataISO(otAntiga.data) : null;
             
             // Manter o ID original
-            ordensTrabalho[index] = {
+            const otAtualizada = {
                 ...ordensTrabalho[index],
                 data: dataOTISO + 'T00:00:00',
                 numeroOT: numeroOT || '-',
-                tipoServico: servicoInfo ? servicoInfo.item : (tipoServico || '-'),
+                tipoServico: servicoInfo ? servicoInfo.item : (otOriginal?.tipoServico || tipoServico || '-'),
                 categoria: categoriaSelecionada,
-                rede: servicoInfo ? servicoInfo.red : '',
-                tipologia: servicoInfo ? servicoInfo.tipologia : '',
+                rede: servicoInfo ? servicoInfo.red : (otOriginal?.rede || ''),
+                tipologia: servicoInfo ? servicoInfo.tipologia : (otOriginal?.tipologia || ''),
                 adicional: adicionaisTexto,
                 adicionais: [...adicionaisTemp], // Array completo de adicionais
                 valorAdicional: valorAdicionalBase,
@@ -894,10 +931,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 otSabado: marcadoSabado,
                 otDomingo: marcadoDomingo,
                 otFestivo: marcadoFestivo,
+                otPremioFestivo: marcadoPremioFestivo,
                 otForaHora: marcadoForaHora,
                 premioSabadoAplicado: marcadoSabado ? premioSabadoAplicado : 0,
                 premioDomingoAplicado: marcadoDomingo ? premioDomingoAplicado : 0,
-                premioFestivoAplicado: marcadoFestivo ? premioFestivoAplicado : 0,
+                premioFestivoAplicado: marcadoPremioFestivo ? premioFestivoAplicado : 0,
                 bonusForaHoraAplicado: marcadoForaHora ? bonusForaHoraAplicado : 0,
                 diaSemana: diaSemana,
                 equipamentos: [...equipamentosTemp],
@@ -905,8 +943,14 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 observacoes: document.getElementById('observacoes').value || '',
                 valorServico: valorTotalFinal
             };
+            ordensTrabalho[index] = otAtualizada;
             
             salvarDados();
+
+            // Sincronizar histórico para refletir mudanças em relatórios/consultas
+            removerOTDoHistorico(otAtualizada.id);
+            garantirOTNoHistorico(otAtualizada);
+            salvarHistoricoOT();
             
             // Se removeu prémios, limpar do registro do dia (para PDF)
             if (dataAntigaISO) {
@@ -915,6 +959,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             // Também verificar a nova data se mudou
             if (dataOTISO !== dataAntigaISO) {
                 limparPremiosDoDiaSeNaoExistirMaisOT(dataOTISO);
+            }
+
+            // Regravar prémio do dia conforme o estado atual da OT editada
+            if (premioTotalAplicado > 0) {
+                setPremioNoDiaSeMaior(dataOTISO, premioTotalAplicado, otAtualizada.data);
             }
             
             atualizarTabela();
@@ -950,6 +999,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         otSabado: (marcadoSabado && permitirAplicarHoje),
         otDomingo: (marcadoDomingo && permitirAplicarHoje),
         otFestivo: (marcadoFestivo && permitirAplicarHoje),
+        otPremioFestivo: (marcadoPremioFestivo && permitirAplicarHoje),
         otForaHora: marcadoForaHora,
         // Valores dos prémios aplicados
         premioSabadoAplicado: premioSabadoAplicado,
@@ -1002,20 +1052,24 @@ function limparFormulario() {
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
     const checkboxFestivo = document.getElementById('otFestivo');
+    const checkboxPremioFestivo = document.getElementById('otPremioFestivo');
     const checkboxForaHora = document.getElementById('otForaHora');
     if (checkboxSabado) checkboxSabado.checked = false;
     if (checkboxDomingo) checkboxDomingo.checked = false;
     if (checkboxFestivo) checkboxFestivo.checked = false;
+    if (checkboxPremioFestivo) checkboxPremioFestivo.checked = false;
     if (checkboxForaHora) checkboxForaHora.checked = false;
     
     // Esconder badges
     const badgeSabado = document.getElementById('badgeSabado');
     const badgeDomingo = document.getElementById('badgeDomingo');
     const badgeFestivo = document.getElementById('badgeFestivo');
+    const badgeBonus = document.getElementById('badgeBonus');
     const badgeForaHora = document.getElementById('badgeForaHora');
     if (badgeSabado) badgeSabado.style.display = 'none';
     if (badgeDomingo) badgeDomingo.style.display = 'none';
     if (badgeFestivo) badgeFestivo.style.display = 'none';
+    if (badgeBonus) badgeBonus.style.display = 'none';
     if (badgeForaHora) badgeForaHora.style.display = 'none';
 
     // Atualizar preview do prémio
@@ -1206,18 +1260,42 @@ function atualizarValorServico() {
             // Auto-selecionar tipo de trabalho baseado no código/descrição
             const selectTipoTrabalho = document.getElementById('tipoTrabalho');
             if (selectTipoTrabalho) {
-                if (codigo.startsWith('INST') || categoria.includes('INSTALACIONES')) {
-                    // Verificar se é migração (reutilizada)
-                    if (descricao.toLowerCase().includes('reutilizada') || 
-                        descricao.toLowerCase().includes('reutilizado') ||
-                        descricao.toLowerCase().includes('migracion') ||
-                        descricao.toLowerCase().includes('migração')) {
-                        selectTipoTrabalho.value = 'migracao';
-                    } else {
-                        selectTipoTrabalho.value = 'instalacao';
+                const tipoAssociado = String(servico.tipoTrabalho || '').trim();
+
+                // 1) Prioridade: tipo associado no serviço (Opções)
+                if (tipoAssociado) {
+                    const norm = (s) => String(s || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase()
+                        .trim();
+
+                    const opts = Array.from(selectTipoTrabalho.options || []);
+                    const nAssoc = norm(tipoAssociado);
+
+                    let opt = opts.find(o => o.value === tipoAssociado);
+                    if (!opt) {
+                        opt = opts.find(o => norm(o.value) === nAssoc || norm(o.textContent).includes(nAssoc));
                     }
-                } else if (codigo.startsWith('AVAR') || categoria.includes('AVERIAS') || categoria.includes('POSTVENTAS')) {
-                    selectTipoTrabalho.value = 'avaria';
+
+                    if (opt) {
+                        selectTipoTrabalho.value = opt.value;
+                    }
+                } else {
+                    // 2) Fallback: inferência por código/descrição (retrocompatibilidade)
+                    if (codigo.startsWith('INST') || categoria.includes('INSTALACIONES')) {
+                        // Verificar se é migração (reutilizada)
+                        if (descricao.toLowerCase().includes('reutilizada') || 
+                            descricao.toLowerCase().includes('reutilizado') ||
+                            descricao.toLowerCase().includes('migracion') ||
+                            descricao.toLowerCase().includes('migração')) {
+                            selectTipoTrabalho.value = 'migracao';
+                        } else {
+                            selectTipoTrabalho.value = 'instalacao';
+                        }
+                    } else if (codigo.startsWith('AVAR') || categoria.includes('AVERIAS') || categoria.includes('POSTVENTAS')) {
+                        selectTipoTrabalho.value = 'avaria';
+                    }
                 }
             }
             
@@ -1362,11 +1440,10 @@ function limparPremiosDoDiaSeNaoExistirMaisOT(dataISO) {
             const dataOT = getDataISO(ot.data);
             if (dataOT !== dataISO) return false;
             
-            // Verificar se tem algum prémio aplicado
+            // Verificar se tem algum prémio em € aplicado neste dia
             const temSabado = (parseFloat(ot.premioSabadoAplicado) || 0) > 0 || ot.otSabado;
             const temDomingo = (parseFloat(ot.premioDomingoAplicado) || 0) > 0 || ot.otDomingo;
-            const temFestivo = (parseFloat(ot.premioFestivoAplicado) || 0) > 0 || ot.otFestivo;
-            
+            const temFestivo = (parseFloat(ot.premioFestivoAplicado) || 0) > 0 || ot.otPremioFestivo;
             return temSabado || temDomingo || temFestivo;
         });
 
@@ -1484,10 +1561,12 @@ function editarOT(id) {
     const checkSabado = document.getElementById('otSabado');
     const checkDomingo = document.getElementById('otDomingo');
     const checkFestivo = document.getElementById('otFestivo');
+    const checkPremioFestivo = document.getElementById('otPremioFestivo');
     const checkForaHora = document.getElementById('otForaHora');
     if (checkSabado) checkSabado.checked = !!ot.otSabado;
     if (checkDomingo) checkDomingo.checked = !!ot.otDomingo;
     if (checkFestivo) checkFestivo.checked = !!ot.otFestivo;
+    if (checkPremioFestivo) checkPremioFestivo.checked = !!(ot.otPremioFestivo || (parseFloat(ot.premioFestivoAplicado) || 0) > 0);
     if (checkForaHora) checkForaHora.checked = !!ot.otForaHora;
     
     // Equipamentos
@@ -1804,30 +1883,71 @@ function pesquisarPorMAC() {
 // Isso garante que o PDF "Ordens de Trabalho Registradas" gere somente o que está adicionado/visível,
 // e nunca recupere OTs apagadas que possam ter ficado em cache/histórico.
 function obterOTsVisiveisNaTabela() {
-    // Fonte de verdade: o que está renderizado na TABELA.
-    // Isso evita qualquer divergência entre filtros/estado e garante que:
-    // tabela vazia => PDF vazio.
-    const tbody = document.getElementById('corpoTabela');
-    if (!tbody) return [];
+    // Fonte de verdade: dados atuais em memória + filtros ativos na UI.
+    // Evita divergências quando a tabela HTML não refletiu 100% alguma alteração.
+    const mesInput = document.getElementById('filtroMes')?.value || '';
+    const categoria = document.getElementById('filtroCategoria')?.value || '';
+    const diaSemanaFiltro = document.getElementById('filtroDiaSemana')?.value || '';
+    const termoMAC = (document.getElementById('pesquisaMAC')?.value || '').toLowerCase().trim();
 
-    const linhas = Array.from(tbody.querySelectorAll('tr'));
-    const visiveis = [];
+    const mes = mesInput || getMesAtualISO();
+    let otsFiltradas = Array.isArray(ordensTrabalho) ? [...ordensTrabalho] : [];
 
-    for (const tr of linhas) {
-        // Ignorar estado vazio
-        if (tr.classList.contains('empty-state')) continue;
+    // Filtro por mês (padrão mês atual)
+    otsFiltradas = otsFiltradas.filter(ot => {
+        const dataOT = new Date(ot.data);
+        const mesAno = `${dataOT.getFullYear()}-${String(dataOT.getMonth() + 1).padStart(2, '0')}`;
+        return mesAno === mes;
+    });
 
-        const btn = tr.querySelector('button.btn-delete');
-        const onclick = btn ? (btn.getAttribute('onclick') || '') : '';
-        const match = onclick.match(/deletarOT\((\d+)\)/);
-        const id = match ? parseInt(match[1], 10) : null;
-        if (!id) continue;
-
-        const ot = (ordensTrabalho || []).find(o => o && o.id === id);
-        if (ot) visiveis.push(ot);
+    // Filtro por categoria
+    if (categoria) {
+        otsFiltradas = otsFiltradas.filter(ot => ot.categoria === categoria);
     }
 
-    return visiveis;
+    // Filtro por dia da semana / tipo especial
+    if (diaSemanaFiltro) {
+        otsFiltradas = otsFiltradas.filter(ot => {
+            const dataOT = new Date(ot.data);
+            const diaSemana = dataOT.getDay();
+            const isFestivo = ot.otFestivo === true;
+
+            switch (diaSemanaFiltro) {
+                case 'sabado':
+                    return diaSemana === 6;
+                case 'domingo':
+                    return diaSemana === 0;
+                case 'festivo':
+                    return isFestivo;
+                case 'fds':
+                    return diaSemana === 0 || diaSemana === 6;
+                case 'especial':
+                    return diaSemana === 0 || diaSemana === 6 || isFestivo;
+                case 'foraHora':
+                    return ot.otForaHora === true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    // Filtro por pesquisa MAC (quando ativo)
+    if (termoMAC) {
+        otsFiltradas = otsFiltradas.filter(ot => {
+            if (ot.equipamentos && ot.equipamentos.length > 0) {
+                return ot.equipamentos.some(eq => {
+                    const codigo = typeof eq === 'string' ? eq : eq.mac;
+                    return (codigo || '').toLowerCase().includes(termoMAC);
+                });
+            }
+            if (ot.macEquipamento) {
+                return ot.macEquipamento.toLowerCase().includes(termoMAC);
+            }
+            return false;
+        });
+    }
+
+    return otsFiltradas;
 }
 
 function garantirAutoTablePronto(doc) {
@@ -1992,41 +2112,35 @@ function gerarPDF(comDesconto = false) {
     const premiosSaidaPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
-        if (premiosSaidaPorDia[dataISO]) return; // Já registrado para este dia
-        
+
         const premioSab = parseFloat(ot.premioSabadoAplicado) || 0;
         const premioDom = parseFloat(ot.premioDomingoAplicado) || 0;
         const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
         const totalDia = premioSab + premioDom + premioFest;
-        
-        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+
+        const tipoPremio = (premioSab > 0 || ot.otSabado)
+            ? 'Sáb'
+            : (premioDom > 0 || ot.otDomingo)
+                ? 'Dom'
+                : ((premioFest > 0 || ot.otPremioFestivo) && ot.otFestivo)
+                    ? 'Festivo + Bônus'
+                    : (premioFest > 0 || ot.otPremioFestivo)
+                        ? 'Bônus'
+                        : (ot.otFestivo ? 'Festivo' : '');
+
+        if (!(totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo)) return;
+
+        const atual = premiosSaidaPorDia[dataISO];
+        if (!atual || totalDia >= (atual.total || 0)) {
             premiosSaidaPorDia[dataISO] = {
                 sabado: premioSab,
                 domingo: premioDom,
                 festivo: premioFest,
                 total: totalDia,
-                tipo: ot.otSabado ? 'Sáb' : (ot.otDomingo ? 'Dom' : (ot.otFestivo ? 'Festivo' : ''))
+                tipo: tipoPremio
             };
         }
     });
-    
-    // Fallback: verificar mapa premiosFestivosPorDia para dados antigos
-    if (premiosFestivosPorDia) {
-        Object.keys(premiosFestivosPorDia).forEach(d => {
-            if (!d || typeof d !== 'string') return;
-            if (d.substring(0, 7) !== mesAtual) return;
-            const val = getPremioRegistradoNoDia(d);
-            if (val > 0 && !premiosSaidaPorDia[d]) {
-                premiosSaidaPorDia[d] = {
-                    sabado: 0,
-                    domingo: 0,
-                    festivo: val,
-                    total: val,
-                    tipo: 'Festivo'
-                };
-            }
-        });
-    }
     
     const diasPremio = Object.keys(premiosSaidaPorDia).sort();
     const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
@@ -2222,37 +2336,35 @@ function gerarPDFComEquipamentos() {
     const premiosSaidaPorDia = {};
     otsMes.forEach(ot => {
         const dataISO = getDataISO(ot.data);
-        if (premiosSaidaPorDia[dataISO]) return;
-        
+
         const premioSab = parseFloat(ot.premioSabadoAplicado) || 0;
         const premioDom = parseFloat(ot.premioDomingoAplicado) || 0;
         const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
         const totalDia = premioSab + premioDom + premioFest;
-        
-        if (totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo) {
+
+        const tipoPremio = (premioSab > 0 || ot.otSabado)
+            ? 'Sáb'
+            : (premioDom > 0 || ot.otDomingo)
+                ? 'Dom'
+                : ((premioFest > 0 || ot.otPremioFestivo) && ot.otFestivo)
+                    ? 'Festivo + Bônus'
+                    : (premioFest > 0 || ot.otPremioFestivo)
+                        ? 'Bônus'
+                        : (ot.otFestivo ? 'Festivo' : '');
+
+        if (!(totalDia > 0 || ot.otSabado || ot.otDomingo || ot.otFestivo)) return;
+
+        const atual = premiosSaidaPorDia[dataISO];
+        if (!atual || totalDia >= (atual.total || 0)) {
             premiosSaidaPorDia[dataISO] = {
                 sabado: premioSab,
                 domingo: premioDom,
                 festivo: premioFest,
                 total: totalDia,
-                tipo: ot.otSabado ? 'Sáb' : (ot.otDomingo ? 'Dom' : (ot.otFestivo ? 'Festivo' : ''))
+                tipo: tipoPremio
             };
         }
     });
-    
-    if (premiosFestivosPorDia) {
-        Object.keys(premiosFestivosPorDia).forEach(d => {
-            if (!d || typeof d !== 'string') return;
-            if (d.substring(0, 7) !== mesAtual) return;
-            const val = getPremioRegistradoNoDia(d);
-            if (val > 0 && !premiosSaidaPorDia[d]) {
-                premiosSaidaPorDia[d] = {
-                    sabado: 0, domingo: 0, festivo: val,
-                    total: val, tipo: 'Festivo'
-                };
-            }
-        });
-    }
     
     const diasPremio = Object.keys(premiosSaidaPorDia).sort();
     const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
@@ -2474,6 +2586,7 @@ function inicializarLogisticaDiaria() {
     const hoje = getHojeISO();
     const agora = new Date();
     const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+    const precoPadrao = parseFloat(localStorage.getItem('precoLitroPadrao')) || 0;
     
     // Definir data atual
     const campoData = document.getElementById('dataLogistica');
@@ -2493,6 +2606,12 @@ function inicializarLogisticaDiaria() {
         if (registroDiaAtual.valorAbastecimento) {
             document.getElementById('valorAbastecimento').value = registroDiaAtual.valorAbastecimento;
         }
+        if (registroDiaAtual.precoLitro) {
+            document.getElementById('precoLitro').value = registroDiaAtual.precoLitro;
+        } else if (precoPadrao > 0) {
+            document.getElementById('precoLitro').value = precoPadrao;
+        }
+        document.getElementById('usarLitrosManual').checked = !!registroDiaAtual.usarLitrosManual;
         if (registroDiaAtual.litrosAbastecidos) {
             document.getElementById('litrosAbastecidos').value = registroDiaAtual.litrosAbastecidos;
         }
@@ -2503,7 +2622,16 @@ function inicializarLogisticaDiaria() {
         // Novo dia - definir hora início como hora atual
         document.getElementById('horaInicioJornada').value = horaAtual;
         // NÃO preencher hora fim automaticamente
+        if (precoPadrao > 0) {
+            document.getElementById('precoLitro').value = precoPadrao;
+        }
+        document.getElementById('usarLitrosManual').checked = false;
     }
+
+    atualizarModoLitrosAbastecidos();
+    calcularLitrosAbastecidosAutomatico();
+    calcularKMRodados();
+    calcularConsumo();
 }
 
 // Função para atualizar hora fim manualmente com botão
@@ -2525,7 +2653,9 @@ function atualizarMACScanner(codigo) {
 document.getElementById('horaInicioJornada')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('kmInicial')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('valorAbastecimento')?.addEventListener('change', salvarRegistroDiaAtual);
+document.getElementById('precoLitro')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('litrosAbastecidos')?.addEventListener('change', salvarRegistroDiaAtual);
+document.getElementById('usarLitrosManual')?.addEventListener('change', salvarRegistroDiaAtual);
 document.getElementById('observacoesLogistica')?.addEventListener('input', salvarRegistroDiaAtual);
 
 function salvarRegistroDiaAtual() {
@@ -2539,9 +2669,15 @@ function salvarRegistroDiaAtual() {
             horaInicio: document.getElementById('horaInicioJornada').value,
             kmInicial: parseFloat(document.getElementById('kmInicial').value) || 0,
             valorAbastecimento: parseFloat(document.getElementById('valorAbastecimento').value) || 0,
+            precoLitro: parseFloat(document.getElementById('precoLitro').value) || 0,
+            usarLitrosManual: !!document.getElementById('usarLitrosManual').checked,
             litrosAbastecidos: parseFloat(document.getElementById('litrosAbastecidos').value) || 0,
             observacoes: document.getElementById('observacoesLogistica').value || ''
         };
+
+        if (registroDiaAtual.precoLitro > 0) {
+            localStorage.setItem('precoLitroPadrao', String(registroDiaAtual.precoLitro));
+        }
         
         localStorage.setItem('registroDiaAtual', JSON.stringify(registroDiaAtual));
     }
@@ -2584,8 +2720,12 @@ document.getElementById('dataLogistica')?.addEventListener('change', function() 
         document.getElementById('kmInicial').value = '';
         document.getElementById('kmFinal').value = '';
         document.getElementById('valorAbastecimento').value = '';
+        document.getElementById('precoLitro').value = '';
+        document.getElementById('usarLitrosManual').checked = false;
         document.getElementById('litrosAbastecidos').value = '';
         document.getElementById('observacoesLogistica').value = '';
+        atualizarModoLitrosAbastecidos();
+        calcularConsumo();
     } else {
         // Voltou para hoje - restaurar registro do dia
         inicializarLogisticaDiaria();
@@ -2593,18 +2733,53 @@ document.getElementById('dataLogistica')?.addEventListener('change', function() 
 });
 
 // Calcular KM rodados
+function parseDecimalInput(val) {
+    if (val === undefined || val === null) return 0;
+    const texto = String(val).trim();
+    if (!texto) return 0;
+
+    if (texto.includes(',') && texto.includes('.')) {
+        const normalizado = texto.replace(/\./g, '').replace(',', '.');
+        return parseFloat(normalizado) || 0;
+    }
+
+    return parseFloat(texto.replace(',', '.')) || 0;
+}
+
 document.getElementById('kmFinal')?.addEventListener('input', calcularKMRodados);
 document.getElementById('kmInicial')?.addEventListener('input', calcularKMRodados);
 
-function calcularKMRodados() {
-    function parseKmValue(val) {
-        if (!val) return 0;
-        // Troca vírgula por ponto, remove espaços e ignora separadores de milhar
-        val = val.replace(/\./g, '').replace(/,/g, '.').replace(/\s/g, '');
-        return parseFloat(val) || 0;
+function atualizarModoLitrosAbastecidos() {
+    const usarManual = !!document.getElementById('usarLitrosManual')?.checked;
+    const campoLitros = document.getElementById('litrosAbastecidos');
+    if (!campoLitros) return;
+
+    campoLitros.readOnly = !usarManual;
+    campoLitros.title = usarManual
+        ? 'Edição manual ativada'
+        : 'Valor calculado automaticamente por Abastecimento/Preço por Litro';
+}
+
+function calcularLitrosAbastecidosAutomatico() {
+    const usarManual = !!document.getElementById('usarLitrosManual')?.checked;
+    if (usarManual) return;
+
+    const valorAbastecimento = parseDecimalInput(document.getElementById('valorAbastecimento')?.value);
+    const precoLitro = parseDecimalInput(document.getElementById('precoLitro')?.value);
+    const campoLitros = document.getElementById('litrosAbastecidos');
+
+    if (!campoLitros) return;
+
+    if (valorAbastecimento > 0 && precoLitro > 0) {
+        campoLitros.value = (valorAbastecimento / precoLitro).toFixed(2);
+    } else {
+        campoLitros.value = '';
     }
-    const kmInicial = parseKmValue(document.getElementById('kmInicial').value);
-    const kmFinal = parseKmValue(document.getElementById('kmFinal').value);
+}
+
+function calcularKMRodados() {
+    const kmInicial = parseDecimalInput(document.getElementById('kmInicial').value);
+    const kmFinal = parseDecimalInput(document.getElementById('kmFinal').value);
     if (kmFinal > kmInicial) {
         const kmRodados = kmFinal - kmInicial;
         // Formata com ponto como separador de milhar
@@ -2615,23 +2790,35 @@ function calcularKMRodados() {
         calcularConsumo();
     } else {
         document.getElementById('kmRodadosDia').value = '';
+        calcularConsumo();
     }
 }
 
 // Calcular consumo médio e litros gastos
 document.getElementById('litrosAbastecidos')?.addEventListener('input', calcularConsumo);
+document.getElementById('valorAbastecimento')?.addEventListener('input', function() {
+    calcularLitrosAbastecidosAutomatico();
+    calcularConsumo();
+    salvarRegistroDiaAtual();
+});
+document.getElementById('precoLitro')?.addEventListener('input', function() {
+    calcularLitrosAbastecidosAutomatico();
+    calcularConsumo();
+    salvarRegistroDiaAtual();
+});
+document.getElementById('usarLitrosManual')?.addEventListener('change', function() {
+    atualizarModoLitrosAbastecidos();
+    calcularLitrosAbastecidosAutomatico();
+    calcularConsumo();
+});
 
 function calcularConsumo() {
     const CONSUMO_MEDIO_PADRAO = obterConsumoConfigurado(); // Usa configuração do usuário
-    
-    function parseKmValue(val) {
-        if (!val) return 0;
-        // Troca vírgula por ponto e remove espaços
-        return parseFloat(val.replace(',', '.').replace(/\s/g, '')) || 0;
-    }
-    const kmInicial = parseKmValue(document.getElementById('kmInicial').value);
-    const kmFinal = parseKmValue(document.getElementById('kmFinal').value);
-    const litrosAbastecidos = parseFloat(document.getElementById('litrosAbastecidos').value) || 0;
+    const kmInicial = parseDecimalInput(document.getElementById('kmInicial').value);
+    const kmFinal = parseDecimalInput(document.getElementById('kmFinal').value);
+    const litrosAbastecidos = parseDecimalInput(document.getElementById('litrosAbastecidos').value);
+    const modeloCarro = obterModeloVeiculoConfigurado();
+    const sufixoModelo = modeloCarro ? ` • ${modeloCarro}` : '';
     
     if (kmFinal > kmInicial) {
         const kmRodados = kmFinal - kmInicial;
@@ -2642,10 +2829,10 @@ function calcularConsumo() {
         // Se houve abastecimento, calcular consumo real
         if (litrosAbastecidos > 0) {
             const consumoRealPor100km = (litrosAbastecidos / kmRodados) * 100;
-            document.getElementById('consumoMedio').value = `${litrosGastos.toFixed(2)}L consumidos (${consumoRealPor100km.toFixed(2)} L/100km)`;
+            document.getElementById('consumoMedio').value = `${litrosGastos.toFixed(2)}L consumidos (${consumoRealPor100km.toFixed(2)} L/100km${sufixoModelo})`;
         } else {
             // Mostrar apenas litros gastos estimados
-            document.getElementById('consumoMedio').value = `${litrosGastos.toFixed(2)}L consumidos`;
+            document.getElementById('consumoMedio').value = `${litrosGastos.toFixed(2)}L consumidos (${CONSUMO_MEDIO_PADRAO.toFixed(2)} L/100km${sufixoModelo})`;
         }
     } else {
         document.getElementById('consumoMedio').value = '';
@@ -2658,8 +2845,8 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
     
     const CONSUMO_MEDIO_PADRAO = obterConsumoConfigurado(); // Usa configuração do usuário
     
-    const kmInicial = parseFloat(document.getElementById('kmInicial').value) || 0;
-    const kmFinal = parseFloat(document.getElementById('kmFinal').value) || 0;
+    const kmInicial = parseDecimalInput(document.getElementById('kmInicial').value);
+    const kmFinal = parseDecimalInput(document.getElementById('kmFinal').value);
     
     // Validação apenas se ambos KM forem preenchidos
     if (kmInicial > 0 && kmFinal > 0 && kmFinal <= kmInicial) {
@@ -2668,9 +2855,13 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
     }
     
     const kmRodados = (kmFinal > kmInicial) ? (kmFinal - kmInicial) : 0;
-    const litrosAbastecidos = parseFloat(document.getElementById('litrosAbastecidos').value) || 0;
+    const valorAbastecimento = parseDecimalInput(document.getElementById('valorAbastecimento').value);
+    const precoLitro = parseDecimalInput(document.getElementById('precoLitro').value);
+    const usarLitrosManual = !!document.getElementById('usarLitrosManual').checked;
+    const litrosAbastecidos = parseDecimalInput(document.getElementById('litrosAbastecidos').value);
     const litrosGastos = kmRodados > 0 ? (kmRodados * CONSUMO_MEDIO_PADRAO) / 100 : 0;
     const consumoReal = (litrosAbastecidos > 0 && kmRodados > 0) ? (litrosAbastecidos / kmRodados) * 100 : CONSUMO_MEDIO_PADRAO;
+    const custoPorKm = kmRodados > 0 ? valorAbastecimento / kmRodados : 0;
     
     const registro = {
         id: Date.now(),
@@ -2680,12 +2871,20 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
         kmInicial: kmInicial,
         kmFinal: kmFinal,
         kmRodados: kmRodados,
-        valorAbastecimento: parseFloat(document.getElementById('valorAbastecimento').value) || 0,
+        valorAbastecimento: valorAbastecimento,
+        precoLitro: precoLitro,
+        usarLitrosManual: usarLitrosManual,
+        litrosOrigem: litrosAbastecidos > 0 ? (usarLitrosManual ? 'manual' : 'automatico') : '-',
         litrosAbastecidos: litrosAbastecidos,
         litrosGastos: litrosGastos,
         consumoMedio: consumoReal,
+        custoPorKm: custoPorKm,
         observacoes: document.getElementById('observacoesLogistica').value || ''
     };
+
+    if (precoLitro > 0) {
+        localStorage.setItem('precoLitroPadrao', String(precoLitro));
+    }
     
     console.log('Salvando registro de logística:', registro);
     
@@ -2709,6 +2908,8 @@ function limparFormularioLogistica() {
     document.getElementById('formLogistica').reset();
     document.getElementById('kmRodadosDia').value = '';
     document.getElementById('consumoMedio').value = '';
+    document.getElementById('usarLitrosManual').checked = false;
+    atualizarModoLitrosAbastecidos();
     
     // Reinicializar com data e hora atuais
     inicializarLogisticaDiaria();
@@ -2732,6 +2933,8 @@ function atualizarTabelaLogistica(filtrarMes = null) {
             return reg.data.substring(0, 7) === filtrarMes;
         });
     }
+
+    atualizarResumoRapidoLogistica(registrosFiltrados);
     
     console.log('Registros filtrados:', registrosFiltrados.length);
     
@@ -2740,10 +2943,13 @@ function atualizarTabelaLogistica(filtrarMes = null) {
         return;
     }
     
-    registrosFiltrados.reverse().forEach(reg => {
+    [...registrosFiltrados].reverse().forEach(reg => {
         const tr = document.createElement('tr');
         const dataFormatada = new Date(reg.data + 'T00:00:00').toLocaleDateString('pt-BR');
         const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
+        const precoLitro = parseFloat(reg.precoLitro) || 0;
+        const litrosOrigem = reg.litrosOrigem || '-';
+        const custoPorKm = (parseFloat(reg.custoPorKm) || 0);
         
         tr.innerHTML = `
             <td>${dataFormatada}</td>
@@ -2751,14 +2957,41 @@ function atualizarTabelaLogistica(filtrarMes = null) {
             <td>${reg.kmInicial.toFixed(1)}</td>
             <td>${reg.kmFinal.toFixed(1)}</td>
             <td><strong>${reg.kmRodados.toFixed(1)} km</strong></td>
-            <td><strong style='color:#27ae60;'>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) + ' <span style="font-weight:bold">(Total abastecido)</span>' : '-'}</strong></td>
-            <td>${reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-'}</td>
-            <td>${litrosGastos.toFixed(2)}L consumidos</td>
+            <td><strong style='color:#27ae60;'>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-'}</strong>${precoLitro > 0 ? `<br><small>€ ${precoLitro.toFixed(3)}/L</small>` : ''}</td>
+            <td>${reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-'}${reg.litrosAbastecidos > 0 ? `<br><small>${litrosOrigem}</small>` : ''}</td>
+            <td>${litrosGastos.toFixed(2)}L${custoPorKm > 0 ? `<br><small>€ ${custoPorKm.toFixed(3)}/km</small>` : ''}</td>
             <td><button class="btn-delete" onclick="deletarLogistica(${reg.id})">🗑️</button></td>
         `;
         
         tbody.appendChild(tr);
     });
+}
+
+function atualizarResumoRapidoLogistica(registrosFiltrados = []) {
+    const totalRegistros = registrosFiltrados.length;
+    const totalKM = registrosFiltrados.reduce((sum, reg) => sum + (parseFloat(reg.kmRodados) || 0), 0);
+    const totalAbastecimento = registrosFiltrados.reduce((sum, reg) => sum + (parseFloat(reg.valorAbastecimento) || 0), 0);
+    const totalLitrosAbastecidos = registrosFiltrados.reduce((sum, reg) => sum + (parseFloat(reg.litrosAbastecidos) || 0), 0);
+    const totalLitrosGastos = registrosFiltrados.reduce((sum, reg) => {
+        const litrosGastos = parseFloat(reg.litrosGastos) || (((parseFloat(reg.kmRodados) || 0) * obterConsumoConfigurado()) / 100);
+        return sum + litrosGastos;
+    }, 0);
+
+    const custoPorKm = totalKM > 0 ? totalAbastecimento / totalKM : 0;
+
+    const elReg = document.getElementById('resumoLogRegistros');
+    const elKm = document.getElementById('resumoLogKm');
+    const elAbs = document.getElementById('resumoLogAbastecimento');
+    const elLab = document.getElementById('resumoLogLitrosAbastecidos');
+    const elLco = document.getElementById('resumoLogLitrosConsumidos');
+    const elCkm = document.getElementById('resumoLogCustoKm');
+
+    if (elReg) elReg.textContent = String(totalRegistros);
+    if (elKm) elKm.textContent = `${totalKM.toFixed(1)} km`;
+    if (elAbs) elAbs.textContent = `€ ${totalAbastecimento.toFixed(2)}`;
+    if (elLab) elLab.textContent = `${totalLitrosAbastecidos.toFixed(2)} L`;
+    if (elLco) elLco.textContent = `${totalLitrosGastos.toFixed(2)} L`;
+    if (elCkm) elCkm.textContent = `€ ${custoPorKm.toFixed(3)}`;
 }
 
 function deletarLogistica(id) {
@@ -2799,6 +3032,8 @@ function gerarPDFLogistica() {
     // Tabela
     const tableData = registrosMes.map(reg => {
         const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
+        const precoLitro = parseFloat(reg.precoLitro) || 0;
+        const custoPorKm = parseFloat(reg.custoPorKm) || (reg.kmRodados > 0 ? ((parseFloat(reg.valorAbastecimento) || 0) / reg.kmRodados) : 0);
         return [
             new Date(reg.data + 'T00:00:00').toLocaleDateString('pt-BR'),
             `${reg.horaInicio}-${reg.horaFim}`,
@@ -2806,17 +3041,21 @@ function gerarPDFLogistica() {
             reg.kmFinal.toFixed(1),
             reg.kmRodados.toFixed(1) + ' km',
             reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-',
+            precoLitro > 0 ? '€ ' + precoLitro.toFixed(3) : '-',
             reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-',
-            litrosGastos.toFixed(2) + 'L'
+            (reg.litrosOrigem || '-'),
+            litrosGastos.toFixed(2) + 'L',
+            custoPorKm > 0 ? '€ ' + custoPorKm.toFixed(3) : '-'
         ];
     });
     
     doc.autoTable({
         startY: 35,
-        head: [['Data', 'Horário', 'KM Ini', 'KM Fim', 'KM Rodados', 'Abastec.', 'L.Abast.', 'L.Consumidos']],
+        head: [['Data', 'Horário', 'KM Ini', 'KM Fim', 'KM Rodados', 'Abastec.', '€/L', 'L.Abast.', 'Origem L', 'L.Consumidos', 'Custo/KM']],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [102, 126, 234] }
+        headStyles: { fillColor: [102, 126, 234] },
+        styles: { fontSize: 8 }
     });
     
     // Resumo
@@ -2827,7 +3066,9 @@ function gerarPDFLogistica() {
         const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return sum + litrosGastos;
     }, 0);
+    const totalCustoPorKm = totalKM > 0 ? totalAbastecimento / totalKM : 0;
     const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : obterConsumoConfigurado();
+    const modeloCarro = obterModeloVeiculoConfigurado();
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
@@ -2844,7 +3085,8 @@ function gerarPDFLogistica() {
     doc.text(`Total Abastecimento: € ${totalAbastecimento.toFixed(2)}`, 14, finalY + 31);
     doc.setFontSize(11);
     doc.setFont(undefined, 'normal');
-    doc.text(`(Motor 1.5 dCi: ${consumoMedio.toFixed(2)} L/100km médio)`, 14, finalY + 38);
+    doc.text(`Custo médio por KM: € ${totalCustoPorKm.toFixed(3)}`, 14, finalY + 38);
+    doc.text(`Consumo médio: ${consumoMedio.toFixed(2)} L/100km${modeloCarro ? ' • ' + modeloCarro : ''}`, 14, finalY + 45);
     
     doc.save(`logistica-${mesAtual}.pdf`);
 }
@@ -2877,23 +3119,29 @@ function gerarPDFLogisticaDia() {
     // Tabela (pode haver mais de um registro no mesmo dia)
     const tableData = registrosDia.map(reg => {
         const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
+        const precoLitro = parseFloat(reg.precoLitro) || 0;
+        const custoPorKm = parseFloat(reg.custoPorKm) || (reg.kmRodados > 0 ? ((parseFloat(reg.valorAbastecimento) || 0) / reg.kmRodados) : 0);
         return [
             `${reg.horaInicio}-${reg.horaFim}`,
             reg.kmInicial.toFixed(1),
             reg.kmFinal.toFixed(1),
             reg.kmRodados.toFixed(1) + ' km',
             reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-',
+            precoLitro > 0 ? '€ ' + precoLitro.toFixed(3) : '-',
             reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-',
-            litrosGastos.toFixed(2) + 'L'
+            (reg.litrosOrigem || '-'),
+            litrosGastos.toFixed(2) + 'L',
+            custoPorKm > 0 ? '€ ' + custoPorKm.toFixed(3) : '-'
         ];
     });
     
     doc.autoTable({
         startY: 35,
-        head: [['Horário', 'KM Ini', 'KM Fim', 'KM Rodados', 'Abastec.', 'L.Abast.', 'L.Consumidos']],
+        head: [['Horário', 'KM Ini', 'KM Fim', 'KM Rodados', 'Abastec.', '€/L', 'L.Abast.', 'Origem L', 'L.Consumidos', 'Custo/KM']],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [102, 126, 234] }
+        headStyles: { fillColor: [102, 126, 234] },
+        styles: { fontSize: 8 }
     });
     
     // Resumo
@@ -2904,7 +3152,9 @@ function gerarPDFLogisticaDia() {
         const litrosGastos = reg.litrosGastos || ((reg.kmRodados * obterConsumoConfigurado()) / 100);
         return sum + litrosGastos;
     }, 0);
+    const totalCustoPorKm = totalKM > 0 ? totalAbastecimento / totalKM : 0;
     const consumoMedio = totalLitrosGastos > 0 ? (totalLitrosGastos / totalKM) * 100 : obterConsumoConfigurado();
+    const modeloCarro = obterModeloVeiculoConfigurado();
     
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
@@ -2917,7 +3167,8 @@ function gerarPDFLogisticaDia() {
     doc.text(`Litros Consumidos: ${totalLitrosGastos.toFixed(2)} L`, 14, finalY + 31);
     doc.setFontSize(11);
     doc.setFont(undefined, 'normal');
-    doc.text(`(Motor 1.5 dCi: ${consumoMedio.toFixed(2)} L/100km médio)`, 14, finalY + 38);
+    doc.text(`Custo médio por KM: € ${totalCustoPorKm.toFixed(3)}`, 14, finalY + 38);
+    doc.text(`Consumo médio: ${consumoMedio.toFixed(2)} L/100km${modeloCarro ? ' • ' + modeloCarro : ''}`, 14, finalY + 45);
     
     doc.save(`logistica-${dataSelecionada}.pdf`);
 }
