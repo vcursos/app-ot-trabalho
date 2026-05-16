@@ -340,6 +340,7 @@
 
                     <div class="form-actions">
                         <button type="submit" id="btnSalvarLogistica" class="btn-primary">Registrar Jornada</button>
+                        <button type="button" id="btnCancelarEdicaoLogistica" class="btn-secondary" onclick="cancelarEdicaoLogistica()" style="display:none; background:#e74c3c; color:#fff;">Cancelar Edição</button>
                         <button type="button" class="btn-secondary" onclick="limparFormularioLogistica()">Limpar</button>
                     </div>
                 </form>
@@ -529,7 +530,11 @@
         // Registrar Service Worker para PWA (se suportado)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js').then(function(reg) {
+                const SW_VERSION = '2026-05-16-1';
+                navigator.serviceWorker.register(`./sw.js?v=${SW_VERSION}`, { updateViaCache: 'none' }).then(function(reg) {
+                    // Força verificação imediata de atualização
+                    try { reg.update(); } catch {}
+
                     // UI: se houver nova versão esperando, mostrar botão de atualizar.
                     function showUpdateUI() {
                         var bar = document.getElementById('pwaUpdateBar');

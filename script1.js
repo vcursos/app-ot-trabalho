@@ -2093,7 +2093,7 @@ function gerarPDF(comDesconto = false) {
             ? ot.adicionais.map(a => {
                 const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.nome || a.descricao || ''));
                 const valNum = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
-                const val = valNum > 0 ? ` - ${formatarEuroPDF(valNum)}` : '';
+                                const val = valNum > 0 ? ` ${formatarEuroPDF(valNum)}` : '';
                 return `${nome}${val}`.trim();
               }).filter(Boolean).join(', ')
             : '';
@@ -2795,6 +2795,12 @@ function parseDecimalInput(val) {
     return parseFloat(texto.replace(',', '.')) || 0;
 }
 
+function formatarKm(valor) {
+    const n = parseFloat(valor) || 0;
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
 document.getElementById('kmFinal')?.addEventListener('input', calcularKMRodados);
 document.getElementById('kmInicial')?.addEventListener('input', calcularKMRodados);
 document.getElementById('kmInicial')?.addEventListener('change', function() {
@@ -2923,11 +2929,7 @@ function calcularKMRodados() {
     const kmFinal = parseDecimalInput(document.getElementById('kmFinal').value);
     if (kmFinal > kmInicial) {
         const kmRodados = kmFinal - kmInicial;
-        // Formata com ponto como separador de milhar
-        function formatMilhar(n) {
-            return n.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-        }
-        document.getElementById('kmRodadosDia').value = `${formatMilhar(kmRodados)} km`;
+        document.getElementById('kmRodadosDia').value = `${formatarKm(kmRodados)} km`;
         calcularConsumo();
     } else if (kmInicial > 0) {
         document.getElementById('kmRodadosDia').value = 'Pendente (será fechado no próximo KM inicial)';
@@ -3096,6 +3098,8 @@ function limparFormularioLogistica() {
 
     const btnSalvar = document.getElementById('btnSalvarLogistica');
     if (btnSalvar) btnSalvar.textContent = 'Registrar Jornada';
+    const btnCancelar = document.getElementById('btnCancelarEdicaoLogistica');
+    if (btnCancelar) btnCancelar.style.display = 'none';
     
     // Reinicializar com data e hora atuais
     inicializarLogisticaDiaria();
@@ -3138,14 +3142,14 @@ function atualizarTabelaLogistica(filtrarMes = null) {
         const precoLitro = parseFloat(reg.precoLitro) || 0;
         const litrosOrigem = reg.litrosOrigem || '-';
         const kmFinalTexto = trecho.kmFinalConsiderado > 0
-            ? trecho.kmFinalConsiderado.toFixed(1)
+            ? formatarKm(trecho.kmFinalConsiderado)
             : 'Pendente';
         
         tr.innerHTML = `
             <td>${dataFormatada}</td>
-            <td>${trecho.kmInicial.toFixed(1)}</td>
+            <td>${formatarKm(trecho.kmInicial)}</td>
             <td>${kmFinalTexto}${trecho.origemFinal === 'próximo registro' ? '<br><small>auto</small>' : ''}</td>
-            <td><strong>${trecho.kmRodados.toFixed(1)} km</strong></td>
+            <td><strong>${formatarKm(trecho.kmRodados)} km</strong></td>
             <td><strong style='color:#27ae60;'>${reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-'}</strong>${precoLitro > 0 ? `<br><small>€ ${precoLitro.toFixed(3)}/L</small>` : ''}</td>
             <td>${reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-'}${reg.litrosAbastecidos > 0 ? `<br><small>${litrosOrigem}</small>` : ''}</td>
             <td>${trecho.litrosGastos.toFixed(2)}L${trecho.custoPorKm > 0 ? `<br><small>€ ${trecho.custoPorKm.toFixed(3)}/km</small>` : ''}</td>
@@ -3183,6 +3187,13 @@ function editarLogistica(id) {
 
     const btnSalvar = document.getElementById('btnSalvarLogistica');
     if (btnSalvar) btnSalvar.textContent = 'Atualizar Registro';
+    const btnCancelar = document.getElementById('btnCancelarEdicaoLogistica');
+    if (btnCancelar) btnCancelar.style.display = 'inline-block';
+}
+
+function cancelarEdicaoLogistica() {
+    limparFormularioLogistica();
+    fecharVisualizacaoLogistica();
 }
 
 function visualizarLogistica(id) {
@@ -3216,10 +3227,10 @@ function visualizarLogistica(id) {
     };
 
     setText('visLogData', new Date(registro.data + 'T00:00:00').toLocaleDateString('pt-BR'));
-    setText('visLogKmInicial', `${trecho.kmInicial.toFixed(1)} km`);
-    setText('visLogKmFinal', trecho.kmFinalConsiderado > 0 ? `${trecho.kmFinalConsiderado.toFixed(1)} km` : '-');
+    setText('visLogKmInicial', `${formatarKm(trecho.kmInicial)} km`);
+    setText('visLogKmFinal', trecho.kmFinalConsiderado > 0 ? `${formatarKm(trecho.kmFinalConsiderado)} km` : '-');
     setText('visLogOrigemFinal', origemFinal);
-    setText('visLogKmRodados', `${trecho.kmRodados.toFixed(1)} km`);
+    setText('visLogKmRodados', `${formatarKm(trecho.kmRodados)} km`);
     setText('visLogLitrosTrecho', `${trecho.litrosGastos.toFixed(2)} L`);
     setText('visLogCustoTrecho', trecho.custoPorKm > 0 ? `€ ${trecho.custoPorKm.toFixed(3)}` : '-');
 
@@ -3248,7 +3259,7 @@ function validarConsistenciaLitros(totalLitrosConsumidos, totalLitrosAbastecidos
         if (diferenca > margem) {
             return {
                 temErro: true,
-                mensagem: `⚠️ Para consumo configurado de ${consumoConfig.toFixed(2)} L/100km e ${km.toFixed(1)} km, seriam necessários ~${litrosNecessarios.toFixed(2)} L, mas foram abastecidos ${totalAbast.toFixed(2)} L.`
+                mensagem: `⚠️ Para consumo configurado de ${consumoConfig.toFixed(2)} L/100km e ${formatarKm(km)} km, seriam necessários ~${litrosNecessarios.toFixed(2)} L, mas foram abastecidos ${totalAbast.toFixed(2)} L.`
             };
         }
     }
@@ -3323,7 +3334,7 @@ function atualizarResumoRapidoLogistica(registrosFiltrados = []) {
     const consistencia = validarConsistenciaLitros(totalLitrosGastos, totalLitrosAbastecidos, totalKM, totalRegistros);
 
     if (elReg) elReg.textContent = String(totalRegistros);
-    if (elKm) elKm.textContent = `${totalKM.toFixed(1)} km`;
+    if (elKm) elKm.textContent = `${formatarKm(totalKM)} km`;
     if (elAbs) elAbs.textContent = `€ ${totalAbastecimento.toFixed(2)}`;
     if (elLab) elLab.textContent = `${totalLitrosAbastecidos.toFixed(2)} L`;
     if (elLco) elLco.textContent = consistencia.temErro ? 'ERRO DE SOMA' : `${totalLitrosGastos.toFixed(2)} L`;
@@ -3375,9 +3386,9 @@ function gerarPDFLogistica() {
         const precoLitro = parseFloat(reg.precoLitro) || 0;
         return [
             new Date(reg.data + 'T00:00:00').toLocaleDateString('pt-BR'),
-            trecho.kmInicial.toFixed(1),
-            trecho.kmFinalConsiderado > 0 ? trecho.kmFinalConsiderado.toFixed(1) : 'Pendente',
-            trecho.kmRodados.toFixed(1) + ' km',
+            formatarKm(trecho.kmInicial),
+            trecho.kmFinalConsiderado > 0 ? formatarKm(trecho.kmFinalConsiderado) : 'Pendente',
+            formatarKm(trecho.kmRodados) + ' km',
             reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-',
             precoLitro > 0 ? '€ ' + precoLitro.toFixed(3) : '-',
             reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-',
@@ -3411,7 +3422,7 @@ function gerarPDFLogistica() {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
     doc.text(`Total de Registros: ${registrosMes.length}`, 14, finalY);
-    doc.text(`Total KM Rodados: ${totalKM.toFixed(1)} km`, 14, finalY + 7);
+    doc.text(`Total KM Rodados: ${formatarKm(totalKM)} km`, 14, finalY + 7);
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
     if (consistencia.temErro) {
@@ -3470,9 +3481,9 @@ function gerarPDFLogisticaDia() {
         const trecho = obterDadosTrechoAtualizados(reg, todosOrdenadosAsc);
         const precoLitro = parseFloat(reg.precoLitro) || 0;
         return [
-            trecho.kmInicial.toFixed(1),
-            trecho.kmFinalConsiderado > 0 ? trecho.kmFinalConsiderado.toFixed(1) : 'Pendente',
-            trecho.kmRodados.toFixed(1) + ' km',
+            formatarKm(trecho.kmInicial),
+            trecho.kmFinalConsiderado > 0 ? formatarKm(trecho.kmFinalConsiderado) : 'Pendente',
+            formatarKm(trecho.kmRodados) + ' km',
             reg.valorAbastecimento > 0 ? '€ ' + reg.valorAbastecimento.toFixed(2) : '-',
             precoLitro > 0 ? '€ ' + precoLitro.toFixed(3) : '-',
             reg.litrosAbastecidos > 0 ? reg.litrosAbastecidos.toFixed(2) + 'L' : '-',
@@ -3506,7 +3517,7 @@ function gerarPDFLogisticaDia() {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(12);
     doc.text(`Registros no dia: ${registrosDia.length}`, 14, finalY);
-    doc.text(`KM Rodados: ${totalKM.toFixed(1)} km`, 14, finalY + 7);
+    doc.text(`KM Rodados: ${formatarKm(totalKM)} km`, 14, finalY + 7);
     doc.text(`Abastecimento: € ${totalAbastecimento.toFixed(2)}`, 14, finalY + 14);
     doc.text(`Litros Abastecidos: ${totalLitrosAbastecidos.toFixed(2)} L`, 14, finalY + 21);
     doc.setFontSize(14);
