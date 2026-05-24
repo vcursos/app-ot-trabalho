@@ -331,6 +331,37 @@ function formatarDataBRFromISODate(isoDate) {
     return d.toLocaleDateString('pt-BR');
 }
 
+function obterHoraAtualHHMM() {
+    const agora = new Date();
+    const hh = String(agora.getHours()).padStart(2, '0');
+    const mm = String(agora.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+}
+
+function atualizarCampoHoraForaHora(preencherAtual = false) {
+    const check = document.getElementById('otForaHora');
+    const wrapper = document.getElementById('campoHoraForaHoraWrapper');
+    const inputHora = document.getElementById('horaForaHora');
+    if (!wrapper || !inputHora) return;
+
+    const marcado = !!(check && check.checked);
+    wrapper.style.display = marcado ? 'block' : 'none';
+
+    if (marcado) {
+        if (preencherAtual || !String(inputHora.value || '').trim()) {
+            inputHora.value = obterHoraAtualHHMM();
+        }
+    } else {
+        inputHora.value = '';
+    }
+}
+
+function definirHoraForaHoraAtual() {
+    const inputHora = document.getElementById('horaForaHora');
+    if (!inputHora) return;
+    inputHora.value = obterHoraAtualHHMM();
+}
+
 function salvarPremiosFestivosPorDia() {
     localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia));
     notificarMudancaParaSync('premiosFestivosPorDia');
@@ -386,6 +417,7 @@ function atualizarUIFestivoPorDia() {
     if (checkboxForaHora) checkboxForaHora.disabled = false;
     if (badgeForaHora) badgeForaHora.style.display = (checkboxForaHora && checkboxForaHora.checked) ? 'inline' : 'none';
     if (badgeBonus) badgeBonus.style.display = (checkboxPremioFestivo && checkboxPremioFestivo.checked) ? 'inline' : 'none';
+    atualizarCampoHoraForaHora(!!(checkboxForaHora && checkboxForaHora.checked));
 
     // Desabilitar checkboxes de prémio diário se já foi aplicado prémio hoje
     if (bloquearPremioDia) {
@@ -868,6 +900,10 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const marcadoFestivo = !!(checkboxFestivo && checkboxFestivo.checked);
     const marcadoPremioFestivo = !!(checkboxPremioFestivo && checkboxPremioFestivo.checked);
     const marcadoForaHora = !!(checkboxForaHora && checkboxForaHora.checked);
+    const campoHoraForaHora = document.getElementById('horaForaHora');
+    const horaForaHora = marcadoForaHora
+        ? (String(campoHoraForaHora?.value || '').trim() || obterHoraAtualHHMM())
+        : '';
     
     let premioSabadoAplicado = 0;
     let premioDomingoAplicado = 0;
@@ -934,6 +970,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 otFestivo: marcadoFestivo,
                 otPremioFestivo: marcadoPremioFestivo,
                 otForaHora: marcadoForaHora,
+                horaForaHora: horaForaHora,
                 premioSabadoAplicado: marcadoSabado ? premioSabadoAplicado : 0,
                 premioDomingoAplicado: marcadoDomingo ? premioDomingoAplicado : 0,
                 premioFestivoAplicado: marcadoPremioFestivo ? premioFestivoAplicado : 0,
@@ -1002,6 +1039,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         otFestivo: (marcadoFestivo && permitirAplicarHoje),
         otPremioFestivo: (marcadoPremioFestivo && permitirAplicarHoje),
         otForaHora: marcadoForaHora,
+    horaForaHora: horaForaHora,
         // Valores dos prémios aplicados
         premioSabadoAplicado: premioSabadoAplicado,
         premioDomingoAplicado: premioDomingoAplicado,
@@ -1055,11 +1093,13 @@ function limparFormulario() {
     const checkboxFestivo = document.getElementById('otFestivo');
     const checkboxPremioFestivo = document.getElementById('otPremioFestivo');
     const checkboxForaHora = document.getElementById('otForaHora');
+    const inputHoraForaHora = document.getElementById('horaForaHora');
     if (checkboxSabado) checkboxSabado.checked = false;
     if (checkboxDomingo) checkboxDomingo.checked = false;
     if (checkboxFestivo) checkboxFestivo.checked = false;
     if (checkboxPremioFestivo) checkboxPremioFestivo.checked = false;
     if (checkboxForaHora) checkboxForaHora.checked = false;
+    if (inputHoraForaHora) inputHoraForaHora.value = '';
     
     // Esconder badges
     const badgeSabado = document.getElementById('badgeSabado');
@@ -1605,6 +1645,12 @@ function editarOT(id) {
     if (checkFestivo) checkFestivo.checked = !!ot.otFestivo;
     if (checkPremioFestivo) checkPremioFestivo.checked = !!(ot.otPremioFestivo || (parseFloat(ot.premioFestivoAplicado) || 0) > 0);
     if (checkForaHora) checkForaHora.checked = !!ot.otForaHora;
+    const campoHoraForaHora = document.getElementById('horaForaHora');
+    if (campoHoraForaHora) {
+        const horaSalva = String(ot.horaForaHora || '').trim();
+        campoHoraForaHora.value = horaSalva || (ot.otForaHora ? obterHoraAtualHHMM() : '');
+    }
+    atualizarCampoHoraForaHora(false);
     
     // Equipamentos
     equipamentosTemp = ot.equipamentos ? [...ot.equipamentos] : [];
@@ -2039,6 +2085,21 @@ function formatarEuroPDF(valor) {
     return `€ ${n.toFixed(2).replace('.', ',')}`;
 }
 
+function obterOpcoesPremioMarcadas(ot, { incluirForaHora = false } = {}) {
+    const opcoes = [];
+    if ((parseFloat(ot?.premioSabadoAplicado) || 0) > 0 || ot?.otSabado) opcoes.push('Sábado');
+    if ((parseFloat(ot?.premioDomingoAplicado) || 0) > 0 || ot?.otDomingo) opcoes.push('Domingo');
+    if (ot?.otFestivo) opcoes.push('Festivo');
+    if ((parseFloat(ot?.premioFestivoAplicado) || 0) > 0 || ot?.otPremioFestivo) opcoes.push('Bônus');
+
+    if (incluirForaHora && ot?.otForaHora) {
+        const hora = String(ot?.horaForaHora || '').trim();
+        opcoes.push(hora ? `Fora Hora (${hora})` : 'Fora Hora');
+    }
+
+    return opcoes;
+}
+
 function gerarPDF(comDesconto = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
@@ -2194,6 +2255,7 @@ function gerarPDF(comDesconto = false) {
                     : (premioFest > 0)
                         ? 'Bônus'
                         : '';
+        const opcoesMarcadas = obterOpcoesPremioMarcadas(ot).join(', ') || '-';
 
         if (!(totalDia > 0)) return;
 
@@ -2204,7 +2266,8 @@ function gerarPDF(comDesconto = false) {
                 domingo: premioDom,
                 festivo: premioFest,
                 total: totalDia,
-                tipo: tipoPremio
+                tipo: tipoPremio,
+                opcoes: opcoesMarcadas
             };
         }
     });
@@ -2241,6 +2304,7 @@ function gerarPDF(comDesconto = false) {
             return [
                 formatarDataBRFromISODate(d),
                 p?.tipo || '-',
+                p?.opcoes || '-',
                 formatarEuroPDF(p?.total || 0)
             ];
         });
@@ -2248,7 +2312,7 @@ function gerarPDF(comDesconto = false) {
         if (temAutoTable) {
             doc.autoTable({
                 startY: finalY + 18,
-                head: [['Data', 'Tipo', 'Prémio']],
+                head: [['Data', 'Tipo', 'Opções marcadas', 'Prémio']],
                 body: tablePremios,
                 theme: 'striped',
                 headStyles: { fillColor: [102, 126, 234] },
@@ -2256,7 +2320,8 @@ function gerarPDF(comDesconto = false) {
                 columnStyles: {
                     0: { cellWidth: 30 },
                     1: { cellWidth: 25 },
-                    2: { cellWidth: 25, fontStyle: 'bold' }
+                    2: { cellWidth: 50 },
+                    3: { cellWidth: 25, fontStyle: 'bold' }
                 }
             });
             finalY = doc.lastAutoTable.finalY + 6;
@@ -2268,7 +2333,7 @@ function gerarPDF(comDesconto = false) {
             y += 6;
             diasPremio.forEach(d => {
                 const p = premiosSaidaPorDia[d];
-                doc.text(`${formatarDataBRFromISODate(d)} (${p?.tipo || '-'}) - ${formatarEuroPDF(p?.total || 0)}`, 14, y);
+                doc.text(`${formatarDataBRFromISODate(d)} (${p?.tipo || '-'} | ${p?.opcoes || '-'}) - ${formatarEuroPDF(p?.total || 0)}`, 14, y);
                 y += 5;
             });
             finalY = y;
@@ -2286,13 +2351,14 @@ function gerarPDF(comDesconto = false) {
         const tableForaHora = otsForaHora.map(ot => [
             formatarDataBRFromISODate(getDataISO(ot.data)),
             ot.numeroOT || '-',
+            String(ot.horaForaHora || '').trim() || '-',
             formatarEuroPDF(parseFloat(ot.bonusForaHoraAplicado) || 0)
         ]);
 
         if (temAutoTable) {
             doc.autoTable({
                 startY: finalY + 12,
-                head: [['Data', 'OT', 'Bônus Fora Hora']],
+                head: [['Data', 'OT', 'Hora', 'Bônus Fora Hora']],
                 body: tableForaHora,
                 theme: 'striped',
                 headStyles: { fillColor: [33, 150, 243] },
@@ -2300,7 +2366,8 @@ function gerarPDF(comDesconto = false) {
                 columnStyles: {
                     0: { cellWidth: 30 },
                     1: { cellWidth: 30 },
-                    2: { cellWidth: 35, fontStyle: 'bold' }
+                    2: { cellWidth: 20 },
+                    3: { cellWidth: 35, fontStyle: 'bold' }
                 }
             });
             finalY = doc.lastAutoTable.finalY + 6;
@@ -2308,7 +2375,8 @@ function gerarPDF(comDesconto = false) {
             let y = finalY + 14;
             doc.setFontSize(10);
             otsForaHora.forEach(ot => {
-                doc.text(`${formatarDataBRFromISODate(getDataISO(ot.data))} OT ${ot.numeroOT || '-'} - ${formatarEuroPDF(parseFloat(ot.bonusForaHoraAplicado) || 0)}`, 14, y);
+                const hora = String(ot.horaForaHora || '').trim() || '-';
+                doc.text(`${formatarDataBRFromISODate(getDataISO(ot.data))} OT ${ot.numeroOT || '-'} (${hora}) - ${formatarEuroPDF(parseFloat(ot.bonusForaHoraAplicado) || 0)}`, 14, y);
                 y += 5;
             });
             finalY = y;
@@ -2334,6 +2402,828 @@ function gerarPDF(comDesconto = false) {
     
     doc.save(`relatorio-ot-${mesAtual}${comDesconto ? '-liquido' : ''}.pdf`);
 }
+
+async function gerarExcel(comDesconto = false) {
+    if (typeof ExcelJS === 'undefined' || typeof saveAs === 'undefined') {
+        alert('Bibliotecas de Excel não carregadas. Recarregue a página e tente novamente.');
+        return;
+    }
+
+    const mesAtual = document.getElementById('filtroMes').value ||
+        `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    const categoriaFiltro = document.getElementById('filtroCategoria').value;
+    const diaSemanaFiltro = document.getElementById('filtroDiaSemana')?.value || '';
+
+    const diaSemanaTexto = {
+        'sabado': 'Sábados',
+        'domingo': 'Domingos',
+        'bonus': 'Bônus',
+        'festivo': 'Festivos',
+        'fds': 'Fins de Semana',
+        'especial': 'Dias Especiais (Sáb+Dom+Festivo+Bônus)',
+        'foraHora': 'OT Fora de Hora'
+    };
+
+    const otsMes = obterOTsVisiveisNaTabela();
+
+    const tableData = otsMes.map(ot => {
+        const equipamentosRaw = (ot.equipamentos && ot.equipamentos.length > 0)
+            ? ot.equipamentos.map(eq => (typeof eq === 'string') ? eq : (eq.mac || '')).filter(Boolean).join(', ')
+            : (ot.macEquipamento || '');
+
+        const valorAdicionalLista = (ot.adicionais && ot.adicionais.length > 0)
+            ? ot.adicionais.reduce((sum, a) => sum + ((typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0), 0)
+            : 0;
+        const valorServicoBaseRaw = parseFloat(ot.valorServicoBase);
+        const valorAdicionalRaw = parseFloat(ot.valorAdicional);
+        const valorFinalRaw = parseFloat(ot.valorServico);
+
+        const valorServicoBase = Number.isFinite(valorServicoBaseRaw) ? valorServicoBaseRaw : 0;
+        const valorAdicional = Number.isFinite(valorAdicionalRaw) && valorAdicionalRaw > 0
+            ? valorAdicionalRaw
+            : valorAdicionalLista;
+        const valorFinal = Number.isFinite(valorFinalRaw) && valorFinalRaw > 0
+            ? valorFinalRaw
+            : Math.max(0, valorServicoBase + valorAdicional);
+
+        const adicionaisTexto = (ot.adicionais && ot.adicionais.length > 0)
+            ? ot.adicionais.map(a => {
+                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.nome || a.descricao || a.item || ''));
+                return nome;
+            }).filter(Boolean).join(', ')
+            : normalizarTextoPDF(ot.adicional || '');
+
+        const dataOT = new Date(ot.data);
+        const diaSemana = dataOT.getDay();
+        const isFestivo = ot.otFestivo === true;
+        let diaIndicador = '';
+        if (isFestivo) diaIndicador = ' (FEST)';
+        else if (diaSemana === 0) diaIndicador = ' (DOM)';
+        else if (diaSemana === 6) diaIndicador = ' (SAB)';
+
+        return {
+            data: dataOT.toLocaleDateString('pt-BR') + diaIndicador,
+            ot: normalizarTextoPDF(ot.numeroOT || '-'),
+            tipoTrabalho: normalizarTextoPDF(formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦🔌]/g, '').trim()) || '-',
+            tipoServico: normalizarTextoPDF(ot.tipologia || ot.tipoServico || '-'),
+            adicionais: adicionaisTexto,
+            valorAdicional: valorAdicional,
+            equipamentos: normalizarTextoPDF(equipamentosRaw),
+            observacoes: normalizarTextoPDF(ot.observacoes || ''),
+            premioSaida: (parseFloat(ot.premioSabadoAplicado) || 0) + (parseFloat(ot.premioDomingoAplicado) || 0) + (parseFloat(ot.premioFestivoAplicado) || 0),
+            bonusForaHora: parseFloat(ot.bonusForaHoraAplicado) || 0,
+            horaForaHora: String(ot.horaForaHora || '').trim(),
+            opcoesPremio: obterOpcoesPremioMarcadas(ot, { incluirForaHora: true }).join(', ') || '-',
+            temBonus: ((parseFloat(ot.premioFestivoAplicado) || 0) > 0) || ((parseFloat(ot.bonusForaHoraAplicado) || 0) > 0) || ot.otPremioFestivo === true,
+            valor: valorFinal
+        };
+    });
+
+    const hasEquip = tableData.some(r => r.equipamentos);
+    const hasObs = tableData.some(r => r.observacoes);
+    const hasAdic = tableData.some(r => r.adicionais || (parseFloat(r.valorAdicional) || 0) > 0);
+
+    const totalValor = tableData.reduce((sum, row) => sum + (parseFloat(row.valor) || 0), 0);
+
+    const premiosSaidaPorDia = {};
+    otsMes.forEach(ot => {
+        const dataISO = getDataISO(ot.data);
+        const premioSab = parseFloat(ot.premioSabadoAplicado) || 0;
+        const premioDom = parseFloat(ot.premioDomingoAplicado) || 0;
+        const premioFest = parseFloat(ot.premioFestivoAplicado) || 0;
+        const totalDia = premioSab + premioDom + premioFest;
+
+        const tipoPremio = (premioSab > 0)
+            ? 'Sáb'
+            : (premioDom > 0)
+                ? 'Dom'
+                : (premioFest > 0 && ot.otFestivo)
+                    ? 'Festivo + Bônus'
+                    : (premioFest > 0)
+                        ? 'Bônus'
+                        : '';
+        const opcoesMarcadas = obterOpcoesPremioMarcadas(ot).join(', ') || '-';
+
+        if (!(totalDia > 0)) return;
+
+        const atual = premiosSaidaPorDia[dataISO];
+        if (!atual || totalDia >= (atual.total || 0)) {
+            premiosSaidaPorDia[dataISO] = {
+                total: totalDia,
+                tipo: tipoPremio,
+                opcoes: opcoesMarcadas
+            };
+        }
+    });
+
+    const diasPremio = Object.keys(premiosSaidaPorDia).sort();
+    const totalPremiosSaida = diasPremio.reduce((sum, d) => sum + (premiosSaidaPorDia[d]?.total || 0), 0);
+
+    const totalBonusForaHora = otsMes.reduce((sum, ot) => sum + (parseFloat(ot.bonusForaHoraAplicado) || 0), 0);
+    const otsForaHora = otsMes.filter(ot => ot.otForaHora && (parseFloat(ot.bonusForaHoraAplicado) || 0) > 0);
+
+    const totalPontos = otsMes.reduce((sum, ot) => {
+        const pServ = parseFloat(ot.pontosServico) || 0;
+        const pAdd = parseFloat(ot.pontosAdicional) || 0;
+        return sum + pServ + pAdd;
+    }, 0);
+
+    const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
+    const descPct = obterDescontoPercentual();
+    const valorLiquido = aplicarDesconto(valorReceber);
+    const totalGeralRelatorio = comDesconto ? valorLiquido : valorReceber;
+    const totalGeralLabel = comDesconto ? 'TOTAL GERAL (LÍQUIDO)' : 'TOTAL GERAL (BRUTO)';
+
+    const filtros = [];
+    if (categoriaFiltro) filtros.push(`Categoria: ${categoriaFiltro}`);
+    if (diaSemanaFiltro) filtros.push(`Dias: ${diaSemanaTexto[diaSemanaFiltro] || diaSemanaFiltro}`);
+
+    const resumo = [
+        { Campo: 'Período', Valor: new Date(mesAtual + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) },
+        { Campo: 'Filtros', Valor: filtros.length > 0 ? filtros.join(' | ') : 'Sem filtros adicionais' },
+        { Campo: 'Total de OTs', Valor: otsMes.length },
+        { Campo: 'Total de Pontos', Valor: Number(totalPontos.toFixed(1)) },
+        { Campo: 'Total Serviços (€)', Valor: Number(totalValor.toFixed(2)) },
+        { Campo: 'Prêmios de Saída (€)', Valor: Number(totalPremiosSaida.toFixed(2)) },
+        { Campo: 'Bônus Fora de Hora (€)', Valor: Number(totalBonusForaHora.toFixed(2)) },
+        { Campo: 'Valor Bruto a Receber (€)', Valor: Number(valorReceber.toFixed(2)) }
+    ];
+
+    if (comDesconto) {
+        resumo.push(
+            { Campo: `Desconto (${descPct}%) (€)`, Valor: Number((valorReceber - valorLiquido).toFixed(2)) },
+            { Campo: 'Valor Líquido a Receber (€)', Valor: Number(valorLiquido.toFixed(2)) }
+        );
+    }
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'OT Telecom App';
+    wb.created = new Date();
+
+    const wsOT = wb.addWorksheet('OTs');
+
+    const colunas = [
+        { header: 'Dt', key: 'Dt', width: 16 },
+        { header: 'OT', key: 'OT', width: 16 },
+        { header: 'Trab.', key: 'Trab.', width: 18 },
+        { header: 'Serviço', key: 'Serviço', width: 36 },
+        ...(hasAdic ? [{ header: 'Adic.', key: 'Adic.', width: 18 }] : []),
+        ...(hasEquip ? [{ header: 'Equipamentos', key: 'Equipamentos', width: 30 }] : []),
+    { header: 'Premio', key: 'Premio', width: 14 },
+        { header: 'Bônus?', key: 'Bônus?', width: 10 },
+        { header: 'Prêmio (€)', key: 'Prêmio (€)', width: 14 },
+        { header: 'F.Hora (€)', key: 'F.Hora (€)', width: 14 },
+        { header: 'Hora FH', key: 'Hora FH', width: 10 },
+        ...(hasAdic ? [{ header: 'Adic (€)', key: 'Adic (€)', width: 12 }] : []),
+        { header: 'Total (€)', key: 'Total (€)', width: 14 },
+        ...(hasObs ? [{ header: 'Obs.', key: 'Obs.', width: 30 }] : [])
+    ];
+
+    wsOT.columns = colunas;
+
+    const headerRow = wsOT.getRow(1);
+    headerRow.height = 20;
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3949AB' } };
+        cell.border = {
+            top: { style: 'thin', color: { argb: 'FF283593' } },
+            bottom: { style: 'thin', color: { argb: 'FF283593' } },
+            left: { style: 'thin', color: { argb: 'FF283593' } },
+            right: { style: 'thin', color: { argb: 'FF283593' } }
+        };
+    });
+
+    const valorColIndex = colunas.findIndex(c => c.key === 'Total (€)') + 1;
+    const trabColIndex = colunas.findIndex(c => c.key === 'Trab.') + 1;
+    const tipoServicoColIndex = colunas.findIndex(c => c.key === 'Serviço') + 1;
+    const adicTextoColIndex = colunas.findIndex(c => c.key === 'Adic.') + 1;
+    const adicValorColIndex = colunas.findIndex(c => c.key === 'Adic (€)') + 1;
+
+    const linhasOTExcel = tableData.map((r) => {
+        const row = {
+            Dt: r.data,
+            OT: r.ot,
+            'Trab.': r.tipoTrabalho,
+            'Serviço': r.tipoServico,
+            ...(hasAdic ? { 'Adic.': r.adicionais } : {}),
+            ...(hasEquip ? { Equipamentos: r.equipamentos } : {}),
+            'Premio': r.opcoesPremio,
+            'Bônus?': r.temBonus ? 'SIM' : 'NÃO',
+            'Prêmio (€)': Number(r.premioSaida.toFixed(2)),
+            'F.Hora (€)': Number(r.bonusForaHora.toFixed(2)),
+            'Hora FH': r.horaForaHora || '-',
+            ...(hasAdic ? { 'Adic (€)': Number(r.valorAdicional.toFixed(2)) } : {}),
+            'Total (€)': r.valor,
+            ...(hasObs ? { 'Obs.': r.observacoes } : {})
+        };
+        return row;
+    });
+
+    linhasOTExcel.forEach((rowData, index) => {
+        const row = wsOT.addRow(rowData);
+        const corFundo = index % 2 === 0 ? 'FFF8FAFF' : 'FFFFFFFF';
+        const servicoNorm = normalizarTextoComparacao(rowData['Serviço'] || '');
+        const isReutilizada = servicoNorm.includes('reutiliz');
+        const isNovaInstalacao = servicoNorm.includes('nova') || servicoNorm.includes('instal');
+
+        row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: corFundo } };
+            cell.font = { color: { argb: 'FF1F2937' } };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+                bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+                left: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+                right: { style: 'thin', color: { argb: 'FFE0E0E0' } }
+            };
+            cell.alignment = { vertical: 'middle' };
+        });
+
+        const valorCell = row.getCell(valorColIndex);
+        valorCell.numFmt = '€ #,##0.00';
+        valorCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        if (hasAdic && adicValorColIndex > 0) {
+            const adicValCell = row.getCell(adicValorColIndex);
+            adicValCell.numFmt = '€ #,##0.00';
+            adicValCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+
+        if (tipoServicoColIndex > 0) {
+            const svcCell = row.getCell(tipoServicoColIndex);
+            const trabCell = trabColIndex > 0 ? row.getCell(trabColIndex) : null;
+            if (isReutilizada) {
+                svcCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6EAF8' } };
+                svcCell.font = { bold: true, color: { argb: 'FF154360' } };
+                if (trabCell) {
+                    trabCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6EAF8' } };
+                    trabCell.font = { bold: true, color: { argb: 'FF154360' } };
+                }
+            } else if (isNovaInstalacao) {
+                svcCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD5F5E3' } };
+                svcCell.font = { bold: true, color: { argb: 'FF145A32' } };
+                if (trabCell) {
+                    trabCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD5F5E3' } };
+                    trabCell.font = { bold: true, color: { argb: 'FF145A32' } };
+                }
+            }
+        }
+
+        if (hasAdic && adicTextoColIndex > 0 && rowData['Adic.']) {
+            const adicTxtCell = row.getCell(adicTextoColIndex);
+            adicTxtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+            adicTxtCell.font = { color: { argb: 'FF7D6608' } };
+        }
+        if (hasAdic && adicValorColIndex > 0 && (parseFloat(rowData['Adic (€)']) || 0) > 0) {
+            const adicValCell = row.getCell(adicValorColIndex);
+            adicValCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+            adicValCell.font = { bold: true, color: { argb: 'FF7D6608' } };
+        }
+
+        const bonusCell = row.getCell(colunas.findIndex(c => c.key === 'Bônus?') + 1);
+        bonusCell.font = {
+            bold: true,
+            color: { argb: rowData['Bônus?'] === 'SIM' ? 'FFC62828' : 'FF1F2937' }
+        };
+        bonusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        const premioSaidaCell = row.getCell(colunas.findIndex(c => c.key === 'Prêmio (€)') + 1);
+        premioSaidaCell.numFmt = '€ #,##0.00';
+        premioSaidaCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        const bonusForaHoraCell = row.getCell(colunas.findIndex(c => c.key === 'F.Hora (€)') + 1);
+        bonusForaHoraCell.numFmt = '€ #,##0.00';
+        bonusForaHoraCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+        row.height = 18;
+    });
+
+    const totalRow = wsOT.addRow({
+        Dt: totalGeralLabel,
+        'Total (€)': Number(totalGeralRelatorio.toFixed(2))
+    });
+    totalRow.height = 22;
+    totalRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B5E20' } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.border = {
+            top: { style: 'thin', color: { argb: 'FF0D3A12' } },
+            bottom: { style: 'thin', color: { argb: 'FF0D3A12' } },
+            left: { style: 'thin', color: { argb: 'FF0D3A12' } },
+            right: { style: 'thin', color: { argb: 'FF0D3A12' } }
+        };
+    });
+    totalRow.getCell(valorColIndex).numFmt = '€ #,##0.00';
+    totalRow.getCell(valorColIndex).alignment = { horizontal: 'right', vertical: 'middle' };
+
+    wsOT.views = [{ state: 'frozen', ySplit: 1 }];
+    wsOT.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: colunas.length }
+    };
+
+    const wsResumo = wb.addWorksheet('Resumo');
+    wsResumo.columns = [
+        { header: 'Campo', key: 'Campo', width: 34 },
+        { header: 'Valor', key: 'Valor', width: 30 }
+    ];
+    const resumoHeader = wsResumo.getRow(1);
+    resumoHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    resumoHeader.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00695C' } };
+    });
+
+    resumo.forEach(item => {
+        const row = wsResumo.addRow(item);
+        row.eachCell((cell, col) => {
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE0F2F1' } },
+                bottom: { style: 'thin', color: { argb: 'FFE0F2F1' } },
+                left: { style: 'thin', color: { argb: 'FFE0F2F1' } },
+                right: { style: 'thin', color: { argb: 'FFE0F2F1' } }
+            };
+            if (col === 2 && typeof item.Valor === 'number') {
+                cell.numFmt = '#,##0.00';
+            }
+        });
+    });
+
+    if (diasPremio.length > 0) {
+        const wsPremio = wb.addWorksheet('Premios Saida');
+        wsPremio.columns = [
+            { header: 'Data', key: 'Data', width: 14 },
+            { header: 'Tipo', key: 'Tipo', width: 18 },
+            { header: 'Opções Marcadas', key: 'Opções Marcadas', width: 40 },
+            { header: 'Prêmio (€)', key: 'Prêmio (€)', width: 14 }
+        ];
+        wsPremio.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        wsPremio.getRow(1).eachCell(c => {
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5E35B1' } };
+        });
+
+        diasPremio.forEach(d => {
+            const p = premiosSaidaPorDia[d];
+            const row = wsPremio.addRow({
+                Data: formatarDataBRFromISODate(d),
+                Tipo: p?.tipo || '-',
+                'Opções Marcadas': p?.opcoes || '-',
+                'Prêmio (€)': Number((p?.total || 0).toFixed(2))
+            });
+            row.getCell(4).numFmt = '€ #,##0.00';
+        });
+    }
+
+    if (otsForaHora.length > 0) {
+        const wsForaHora = wb.addWorksheet('Bonus Fora Hora');
+        wsForaHora.columns = [
+            { header: 'Data', key: 'Data', width: 14 },
+            { header: 'OT', key: 'OT', width: 18 },
+            { header: 'Hora', key: 'Hora', width: 12 },
+            { header: 'Bônus Fora Hora (€)', key: 'Bônus Fora Hora (€)', width: 22 }
+        ];
+        wsForaHora.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        wsForaHora.getRow(1).eachCell(c => {
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1565C0' } };
+        });
+
+        otsForaHora.forEach(ot => {
+            const row = wsForaHora.addRow({
+                Data: formatarDataBRFromISODate(getDataISO(ot.data)),
+                OT: normalizarTextoPDF(ot.numeroOT || '-'),
+                Hora: String(ot.horaForaHora || '').trim() || '-',
+                'Bônus Fora Hora (€)': Number((parseFloat(ot.bonusForaHoraAplicado) || 0).toFixed(2))
+            });
+            row.getCell(4).numFmt = '€ #,##0.00';
+        });
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([
+        buffer
+    ], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    saveAs(blob, `relatorio-ot-${mesAtual}${comDesconto ? '-liquido' : ''}.xlsx`);
+}
+
+let resultadoComparacaoExcel = null;
+
+function abrirImportacaoComparacaoExcel() {
+    const input = document.getElementById('inputCompararExcel');
+    if (!input) {
+        alert('Campo de importação Excel não encontrado.');
+        return;
+    }
+    input.value = '';
+    input.click();
+}
+
+function normalizarTextoComparacao(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+}
+
+function parseValorComparacao(valor) {
+    if (typeof valor === 'number') return valor;
+    if (valor === undefined || valor === null) return 0;
+
+    let texto = String(valor).trim();
+    if (!texto) return 0;
+
+    texto = texto.replace(/[^0-9,.-]/g, '');
+    const temVirgula = texto.includes(',');
+    const temPonto = texto.includes('.');
+
+    if (temVirgula && temPonto) {
+        const idxVirgula = texto.lastIndexOf(',');
+        const idxPonto = texto.lastIndexOf('.');
+        if (idxPonto > idxVirgula) {
+            texto = texto.replace(/,/g, '');
+        } else {
+            texto = texto.replace(/\./g, '').replace(',', '.');
+        }
+    } else if (temVirgula) {
+        texto = texto.replace(',', '.');
+    }
+
+    return parseFloat(texto) || 0;
+}
+
+function calcularResumoValoresComparacao(importados, appRows, campoApp) {
+    const mapImport = new Map();
+    const mapApp = new Map();
+
+    importados.forEach(item => {
+        const refNorm = normalizarTextoComparacao(item.principal);
+        if (!refNorm) return;
+        const refOriginal = String(item.principal || '-').trim() || '-';
+        const valor = parseValorComparacao(item.valor);
+        const atual = mapImport.get(refNorm) || { referencia: refOriginal, totalExcel: 0 };
+        atual.totalExcel += valor;
+        if (!atual.referencia || atual.referencia === '-') atual.referencia = refOriginal;
+        mapImport.set(refNorm, atual);
+    });
+
+    appRows.forEach(item => {
+        const refNorm = normalizarTextoComparacao(item[campoApp]);
+        if (!refNorm) return;
+        const refOriginal = String(item[campoApp] || '-').trim() || '-';
+        const valor = parseValorComparacao(item.valor);
+        const atual = mapApp.get(refNorm) || { referencia: refOriginal, totalApp: 0 };
+        atual.totalApp += valor;
+        if (!atual.referencia || atual.referencia === '-') atual.referencia = refOriginal;
+        mapApp.set(refNorm, atual);
+    });
+
+    const chaves = new Set([...mapImport.keys(), ...mapApp.keys()]);
+    const diferencasValor = [];
+    chaves.forEach(chave => {
+        const i = mapImport.get(chave) || { referencia: '-', totalExcel: 0 };
+        const a = mapApp.get(chave) || { referencia: i.referencia || '-', totalApp: 0 };
+        const diferenca = (a.totalApp || 0) - (i.totalExcel || 0);
+        diferencasValor.push({
+            referencia: a.referencia || i.referencia || '-',
+            totalExcel: Number((i.totalExcel || 0).toFixed(2)),
+            totalApp: Number((a.totalApp || 0).toFixed(2)),
+            diferenca: Number(diferenca.toFixed(2))
+        });
+    });
+
+    diferencasValor.sort((x, y) => String(x.referencia).localeCompare(String(y.referencia), 'pt-BR'));
+
+    const totalExcel = diferencasValor.reduce((s, l) => s + (parseFloat(l.totalExcel) || 0), 0);
+    const totalApp = diferencasValor.reduce((s, l) => s + (parseFloat(l.totalApp) || 0), 0);
+    const diferencaTotal = totalApp - totalExcel;
+    const totalPenalizacaoExcel = importados
+        .map(i => parseValorComparacao(i.valor))
+        .filter(v => v < 0)
+        .reduce((s, v) => s + v, 0);
+
+    return {
+        diferencasValor,
+        totalExcel: Number(totalExcel.toFixed(2)),
+        totalApp: Number(totalApp.toFixed(2)),
+        diferencaTotal: Number(diferencaTotal.toFixed(2)),
+        totalPenalizacaoExcel: Number(totalPenalizacaoExcel.toFixed(2))
+    };
+}
+
+function encontrarColunaPorSinonimos(colunas, sinonimos) {
+    let melhor = null;
+    let melhorScore = -1;
+
+    colunas.forEach(col => {
+        const normalizada = normalizarTextoComparacao(col);
+        let score = -1;
+        sinonimos.forEach(s => {
+            const sn = normalizarTextoComparacao(s);
+            if (!sn) return;
+            if (normalizada === sn) score = Math.max(score, 3);
+            else if (normalizada.startsWith(sn) || normalizada.endsWith(sn)) score = Math.max(score, 2);
+            else if (normalizada.includes(sn)) score = Math.max(score, 1);
+        });
+
+        if (score > melhorScore) {
+            melhorScore = score;
+            melhor = col;
+        }
+    });
+
+    return melhorScore >= 0 ? melhor : null;
+}
+
+function montarContagemComparacao(lista, campo, usarValor) {
+    const counts = new Map();
+    const exemplos = new Map();
+
+    lista.forEach(item => {
+        const principal = normalizarTextoComparacao(item[campo]);
+        if (!principal) return;
+        const valorNum = parseValorComparacao(item.valor);
+        const valorParte = usarValor ? `|${valorNum.toFixed(2)}` : '|';
+        const chave = `${principal}${valorParte}`;
+
+        counts.set(chave, (counts.get(chave) || 0) + 1);
+        if (!exemplos.has(chave)) {
+            exemplos.set(chave, {
+                principalOriginal: String(item[campo] || '').trim(),
+                valor: valorNum
+            });
+        }
+    });
+
+    return { counts, exemplos };
+}
+
+function compararListasComContagem(importados, appRows, campoApp, usarValor = true) {
+    const imp = montarContagemComparacao(importados, 'principal', usarValor);
+    const app = montarContagemComparacao(appRows, campoApp, usarValor);
+
+    let coincidencias = 0;
+    imp.counts.forEach((qtdImp, chave) => {
+        const qtdApp = app.counts.get(chave) || 0;
+        coincidencias += Math.min(qtdImp, qtdApp);
+    });
+
+    const faltandoNoApp = [];
+    imp.counts.forEach((qtdImp, chave) => {
+        const qtdApp = app.counts.get(chave) || 0;
+        const diff = qtdImp - qtdApp;
+        if (diff > 0) {
+            const ex = imp.exemplos.get(chave) || { principalOriginal: chave, valor: 0 };
+            faltandoNoApp.push({
+                referencia: ex.principalOriginal,
+                valor: ex.valor,
+                quantidade: diff
+            });
+        }
+    });
+
+    const extrasNoApp = [];
+    app.counts.forEach((qtdApp, chave) => {
+        const qtdImp = imp.counts.get(chave) || 0;
+        const diff = qtdApp - qtdImp;
+        if (diff > 0) {
+            const ex = app.exemplos.get(chave) || { principalOriginal: chave, valor: 0 };
+            extrasNoApp.push({
+                referencia: ex.principalOriginal,
+                valor: ex.valor,
+                quantidade: diff
+            });
+        }
+    });
+
+    return { coincidencias, faltandoNoApp, extrasNoApp };
+}
+
+function renderizarPainelComparacaoExcel(resultado) {
+    const painel = document.getElementById('painelComparacaoExcel');
+    const resumoEl = document.getElementById('resumoComparacaoExcel');
+    const detalhesEl = document.getElementById('detalhesComparacaoExcel');
+    if (!painel || !resumoEl || !detalhesEl) return;
+
+    const fmt = (n) => `€ ${Number(n || 0).toFixed(2).replace('.', ',')}`;
+
+    resumoEl.innerHTML = `
+        <div><strong>Coluna principal detectada:</strong> ${resultado.colunaPrincipal}</div>
+        <div><strong>Coluna de valor detectada:</strong> ${resultado.colunaValor || 'não encontrada (comparação por referência)'}</div>
+        <div><strong>Modo de comparação usado:</strong> ${resultado.modoComparacao}</div>
+        <div><strong>Linhas no Excel:</strong> ${resultado.totalExcel} | <strong>Registros no app:</strong> ${resultado.totalApp}</div>
+        <div><strong>Faltando no app:</strong> ${resultado.faltandoNoApp.length} | <strong>Extras no app:</strong> ${resultado.extrasNoApp.length}</div>
+        <div><strong>Total Excel (chefe):</strong> ${fmt(resultado.totalValorExcel)} | <strong>Total App:</strong> ${fmt(resultado.totalValorApp)} | <strong>Diferença (App - Excel):</strong> ${fmt(resultado.diferencaTotalValor)}</div>
+        <div><strong>Penalizações detectadas no Excel (valores negativos):</strong> ${fmt(resultado.totalPenalizacaoExcel)}</div>
+    `;
+
+    const montarTabela = (titulo, linhas, cor) => {
+        if (!linhas || linhas.length === 0) {
+            return `<div style="margin-top:8px;"><strong>${titulo}:</strong> Nenhum item.</div>`;
+        }
+        const rows = linhas.map(l => `
+            <tr>
+                <td style="padding:6px; border-bottom:1px solid #eee;">${normalizarTextoPDF(l.referencia || '-')}</td>
+                <td style="padding:6px; border-bottom:1px solid #eee; text-align:right;">${fmt(l.valor)}</td>
+                <td style="padding:6px; border-bottom:1px solid #eee; text-align:center;">${l.quantidade}</td>
+            </tr>
+        `).join('');
+
+        return `
+            <div style="margin-top:12px; border:1px solid ${cor}; border-radius:8px; overflow:hidden;">
+                <div style="background:${cor}; color:#fff; padding:8px 10px; font-weight:600;">${titulo}</div>
+                <table style="width:100%; border-collapse:collapse; background:#fff;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">Referência</th>
+                            <th style="text-align:right; padding:6px; border-bottom:1px solid #eee;">Valor</th>
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid #eee;">Qtd.</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    };
+
+    const diferencasValorRows = (resultado.diferencasValor || []).map(l => `
+        <tr>
+            <td style="padding:6px; border-bottom:1px solid #eee;">${normalizarTextoPDF(l.referencia || '-')}</td>
+            <td style="padding:6px; border-bottom:1px solid #eee; text-align:right;">${fmt(l.totalExcel)}</td>
+            <td style="padding:6px; border-bottom:1px solid #eee; text-align:right;">${fmt(l.totalApp)}</td>
+            <td style="padding:6px; border-bottom:1px solid #eee; text-align:right; font-weight:700; color:${l.diferenca < 0 ? '#c0392b' : '#1e8449'};">${fmt(l.diferenca)}</td>
+        </tr>
+    `).join('');
+
+    const blocoDiferencas = `
+        <div style="margin-top:12px; border:1px solid #16a085; border-radius:8px; overflow:hidden;">
+            <div style="background:#16a085; color:#fff; padding:8px 10px; font-weight:600;">Diferença de valores (App x Excel do chefe)</div>
+            <table style="width:100%; border-collapse:collapse; background:#fff;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">Referência</th>
+                        <th style="text-align:right; padding:6px; border-bottom:1px solid #eee;">Excel</th>
+                        <th style="text-align:right; padding:6px; border-bottom:1px solid #eee;">App</th>
+                        <th style="text-align:right; padding:6px; border-bottom:1px solid #eee;">Dif.</th>
+                    </tr>
+                </thead>
+                <tbody>${diferencasValorRows || '<tr><td colspan="4" style="padding:8px;">Sem diferenças de valor.</td></tr>'}</tbody>
+            </table>
+        </div>
+    `;
+
+    detalhesEl.innerHTML =
+        montarTabela('Itens faltando no app (presentes no Excel)', resultado.faltandoNoApp, '#c0392b') +
+        montarTabela('Itens extras no app (não encontrados no Excel)', resultado.extrasNoApp, '#2e86de') +
+        blocoDiferencas;
+
+    painel.style.display = 'block';
+}
+
+function fecharPainelComparacaoExcel() {
+    const painel = document.getElementById('painelComparacaoExcel');
+    if (painel) painel.style.display = 'none';
+}
+
+function exportarComparacaoExcel() {
+    if (!resultadoComparacaoExcel) {
+        alert('Nenhuma comparação foi executada ainda.');
+        return;
+    }
+    if (typeof XLSX === 'undefined') {
+        alert('Biblioteca de Excel não carregada.');
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const resumo = [
+        { Campo: 'Coluna principal detectada', Valor: resultadoComparacaoExcel.colunaPrincipal },
+        { Campo: 'Coluna valor detectada', Valor: resultadoComparacaoExcel.colunaValor || 'não encontrada' },
+        { Campo: 'Modo comparação', Valor: resultadoComparacaoExcel.modoComparacao },
+        { Campo: 'Linhas no Excel', Valor: resultadoComparacaoExcel.totalExcel },
+        { Campo: 'Registros no app', Valor: resultadoComparacaoExcel.totalApp },
+        { Campo: 'Faltando no app', Valor: resultadoComparacaoExcel.faltandoNoApp.length },
+        { Campo: 'Extras no app', Valor: resultadoComparacaoExcel.extrasNoApp.length },
+        { Campo: 'Total Excel (chefe)', Valor: Number((resultadoComparacaoExcel.totalValorExcel || 0).toFixed(2)) },
+        { Campo: 'Total App', Valor: Number((resultadoComparacaoExcel.totalValorApp || 0).toFixed(2)) },
+        { Campo: 'Diferença (App - Excel)', Valor: Number((resultadoComparacaoExcel.diferencaTotalValor || 0).toFixed(2)) },
+        { Campo: 'Penalizações no Excel (negativos)', Valor: Number((resultadoComparacaoExcel.totalPenalizacaoExcel || 0).toFixed(2)) }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), 'Resumo');
+
+    const faltando = resultadoComparacaoExcel.faltandoNoApp.map(i => ({
+        Referencia: i.referencia,
+        Valor: Number((i.valor || 0).toFixed(2)),
+        Quantidade: i.quantidade
+    }));
+    const extras = resultadoComparacaoExcel.extrasNoApp.map(i => ({
+        Referencia: i.referencia,
+        Valor: Number((i.valor || 0).toFixed(2)),
+        Quantidade: i.quantidade
+    }));
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(faltando.length ? faltando : [{ Referencia: 'Nenhum item faltando', Valor: 0, Quantidade: 0 }]), 'Faltando no App');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(extras.length ? extras : [{ Referencia: 'Nenhum item extra', Valor: 0, Quantidade: 0 }]), 'Extras no App');
+
+    const diferencasValor = (resultadoComparacaoExcel.diferencasValor || []).map(l => ({
+        Referencia: l.referencia,
+        Excel: Number((l.totalExcel || 0).toFixed(2)),
+        App: Number((l.totalApp || 0).toFixed(2)),
+        Diferenca: Number((l.diferenca || 0).toFixed(2))
+    }));
+    XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(diferencasValor.length ? diferencasValor : [{ Referencia: 'Sem diferenças', Excel: 0, App: 0, Diferenca: 0 }]),
+        'Diferença de Valores'
+    );
+
+    const dataTag = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `comparacao-relatorio-${dataTag}.xlsx`);
+}
+
+async function processarArquivoComparacaoExcel(evt) {
+    const arquivo = evt?.target?.files?.[0];
+    if (!arquivo) return;
+
+    if (typeof XLSX === 'undefined') {
+        alert('Biblioteca de Excel não carregada.');
+        return;
+    }
+
+    const buffer = await arquivo.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheetName = wb.SheetNames?.[0];
+    if (!sheetName) {
+        alert('Arquivo Excel sem abas válidas.');
+        return;
+    }
+
+    const ws = wb.Sheets[sheetName];
+    const linhas = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!linhas.length) {
+        alert('A planilha está vazia.');
+        return;
+    }
+
+    const colunas = Object.keys(linhas[0] || {});
+    const colunaPrincipal = encontrarColunaPorSinonimos(colunas, [
+        'ot', 'ordem', 'orden', 'servico', 'serviço', 'ordem de trabalho', 'numero ot', 'número ot'
+    ]);
+    const colunaValor = encontrarColunaPorSinonimos(colunas, [
+        'valor', 'precio', 'preco', 'preço', 'cifrao', 'cifrão', 'total', '€', '$'
+    ]);
+
+    if (!colunaPrincipal) {
+        alert('Não encontrei coluna principal (OT/Ordem/Orden/Serviço) no Excel enviado.');
+        return;
+    }
+
+    const importados = linhas
+        .map(l => ({
+            principal: l[colunaPrincipal],
+            valor: colunaValor ? l[colunaValor] : 0
+        }))
+        .filter(i => String(i.principal || '').trim().length > 0);
+
+    const otsVisiveis = obterOTsVisiveisNaTabela();
+    const appRows = otsVisiveis.map(ot => ({
+        ot: ot.numeroOT || '-',
+        servico: ot.tipologia || ot.tipoServico || '-',
+        valor: parseFloat(ot.valorServico) || 0
+    }));
+
+    const comparaOT = compararListasComContagem(importados, appRows, 'ot', !!colunaValor);
+    const comparaServico = compararListasComContagem(importados, appRows, 'servico', !!colunaValor);
+    const usarServico = comparaServico.coincidencias > comparaOT.coincidencias;
+    const base = usarServico ? comparaServico : comparaOT;
+    const resumoValores = calcularResumoValoresComparacao(importados, appRows, usarServico ? 'servico' : 'ot');
+
+    resultadoComparacaoExcel = {
+        colunaPrincipal,
+        colunaValor,
+        modoComparacao: usarServico ? 'Serviço + Valor' : 'OT + Valor',
+        totalExcel: importados.length,
+        totalApp: appRows.length,
+        totalValorExcel: resumoValores.totalExcel,
+        totalValorApp: resumoValores.totalApp,
+        diferencaTotalValor: resumoValores.diferencaTotal,
+        totalPenalizacaoExcel: resumoValores.totalPenalizacaoExcel,
+        diferencasValor: resumoValores.diferencasValor,
+        faltandoNoApp: base.faltandoNoApp.sort((a, b) => String(a.referencia).localeCompare(String(b.referencia), 'pt-BR')),
+        extrasNoApp: base.extrasNoApp.sort((a, b) => String(a.referencia).localeCompare(String(b.referencia), 'pt-BR'))
+    };
+
+    renderizarPainelComparacaoExcel(resultadoComparacaoExcel);
+}
+
+document.getElementById('inputCompararExcel')?.addEventListener('change', function(evt) {
+    processarArquivoComparacaoExcel(evt).catch(err => {
+        console.error('Erro ao comparar Excel:', err);
+        alert('Erro ao ler/comparar o Excel. Verifique o arquivo e tente novamente.');
+    });
+});
 
 // Gerar PDF com Equipamentos
 function gerarPDFComEquipamentos() {
