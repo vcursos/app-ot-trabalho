@@ -60,8 +60,9 @@
 
         <!-- Navegação por Abas -->
         <div class="tabs">
-            <button class="tab-button active" onclick="mostrarAba('ordens')">📋 Ordens de Trabalho</button>
-            <button class="tab-button" onclick="mostrarAba('logistica')">🚗 Logística Diária</button>
+            <button id="tab-btn-ordens" class="tab-button active" onclick="mostrarAba('ordens')">📋 Ordens de Trabalho</button>
+            <button id="tab-btn-logistica" class="tab-button" onclick="mostrarAba('logistica')">🚗 Logística Diária</button>
+            <button id="tab-btn-comparacao" class="tab-button" onclick="mostrarAba('comparacao')">📊 Comparação Excel</button>
         </div>
 
         <!-- ABA: Ordens de Trabalho -->
@@ -267,17 +268,6 @@
                 </table>
             </div>
 
-            <div id="painelComparacaoExcel" style="display:none; margin-top:14px; background:#f7f5ff; border:1px solid #ded8ff; border-radius:10px; padding:14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
-                    <strong style="color:#4a3fb0;">📊 Resultado da Comparação com Excel</strong>
-                    <div style="display:flex; gap:8px;">
-                        <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="exportarComparacaoExcel()">📤 Exportar Diferenças</button>
-                        <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="fecharPainelComparacaoExcel()">Fechar</button>
-                    </div>
-                </div>
-                <div id="resumoComparacaoExcel" style="font-size:13px; color:#333; margin-bottom:10px;"></div>
-                <div id="detalhesComparacaoExcel" style="font-size:12px; color:#444;"></div>
-            </div>
         </section>
         </div>
         <!-- FIM ABA: Ordens de Trabalho -->
@@ -431,6 +421,43 @@
         </div>
         <!-- FIM ABA: Logística Diária -->
 
+        <!-- ABA: Comparação Excel -->
+        <div id="aba-comparacao" class="tab-content">
+            <section class="form-section">
+                <h2>📊 Comparação com Excel do Chefe</h2>
+                <div style="margin-bottom:10px; font-size:13px; color:#555;">
+                    No computador, selecione aqui o arquivo salvo no PC para enviar e comparar:
+                </div>
+                <div style="margin-bottom:12px; background:#f8f9ff; border:1px solid #e6ebff; border-radius:8px; padding:10px;">
+                    <input type="file" id="inputCompararExcelDesktop" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="width:100%; max-width:420px;" />
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                    <button class="btn-pdf" type="button" onclick="abrirArquivoComparacaoExcelDesktop()" style="background:linear-gradient(135deg,#2d98da,#227ab0);">🖥️ Selecionar arquivo do PC</button>
+                    <button class="btn-pdf" type="button" onclick="abrirPastaComparacaoExcelDesktop()" style="background:linear-gradient(135deg,#20bf6b,#169a54);">📁 Selecionar pasta</button>
+                    <button class="btn-pdf" onclick="abrirImportacaoComparacaoExcel()" style="background:linear-gradient(135deg,#6c5ce7,#5a4bcf);">📥 Importar e Comparar Excel</button>
+                    <button class="btn-pdf" onclick="exportarComparacaoExcel()" style="background:linear-gradient(135deg,#16a085,#0e7a63);">📤 Exportar Diferenças</button>
+                </div>
+
+                <div id="painelComparacaoExcel" style="display:none; margin-top:6px; background:#f7f5ff; border:1px solid #ded8ff; border-radius:10px; padding:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+                        <strong style="color:#4a3fb0;">📊 Resultado da Comparação com Excel</strong>
+                        <div style="display:flex; gap:8px;">
+                            <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="visualizarResultadoComparacaoExcel()">👁️ Ir para Resultado</button>
+                            <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="exportarComparacaoExcel()">📤 Exportar Diferenças</button>
+                            <button type="button" class="btn-secondary" style="padding:6px 10px;" onclick="fecharPainelComparacaoExcel()">Fechar</button>
+                        </div>
+                    </div>
+                    <div id="resumoComparacaoExcel" style="font-size:13px; color:#333; margin-bottom:10px;"></div>
+                    <div id="detalhesComparacaoExcel" style="font-size:12px; color:#444;"></div>
+                </div>
+
+                <div id="comparacaoExcelVazia" style="display:block; margin-top:10px; color:#666; font-size:13px;">
+                    Importe um arquivo Excel para gerar e visualizar o resultado nesta aba.
+                </div>
+            </section>
+        </div>
+        <!-- FIM ABA: Comparação Excel -->
+
     </div>
 
     <!-- Modal Scanner -->
@@ -464,6 +491,7 @@
     <!-- Input para importação de backup (oculto) -->
     <input type="file" id="inputImportBackup" accept="application/json" style="display:none" />
     <input type="file" id="inputCompararExcel" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="display:none" />
+    <input type="file" id="inputCompararExcelPasta" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" webkitdirectory directory multiple style="display:none" />
     <!-- Modal Ajuda -->
     <div id="ajudaModal" class="scanner-modal" style="background:rgba(0,0,0,0.6);">
         <div class="scanner-content" style="max-width:700px;">

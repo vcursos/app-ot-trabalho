@@ -2809,14 +2809,85 @@ async function gerarExcel(comDesconto = false) {
 
 let resultadoComparacaoExcel = null;
 
-function abrirImportacaoComparacaoExcel() {
-    const input = document.getElementById('inputCompararExcel');
-    if (!input) {
-        alert('Campo de importação Excel não encontrado.');
+function arquivoComparacaoExcelEhValido(arquivo) {
+    if (!arquivo?.name) return false;
+    return /\.(xlsx|xls|csv)$/i.test(arquivo.name);
+}
+
+function obterPrimeiroArquivoExcelValido(arquivos) {
+    if (!arquivos?.length) return null;
+    const lista = Array.from(arquivos).filter(arquivoComparacaoExcelEhValido);
+    if (!lista.length) return null;
+
+    const prioridade = { '.xlsx': 0, '.xls': 1, '.csv': 2 };
+    lista.sort((a, b) => {
+        const extA = (a.name.match(/\.[^.]+$/)?.[0] || '').toLowerCase();
+        const extB = (b.name.match(/\.[^.]+$/)?.[0] || '').toLowerCase();
+        return (prioridade[extA] ?? 99) - (prioridade[extB] ?? 99);
+    });
+
+    return lista[0];
+}
+
+async function abrirImportacaoComparacaoExcel() {
+    if (window.showOpenFilePicker) {
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                multiple: false,
+                excludeAcceptAllOption: false,
+                types: [
+                    {
+                        description: 'Planilhas',
+                        accept: {
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                            'application/vnd.ms-excel': ['.xls'],
+                            'text/csv': ['.csv']
+                        }
+                    }
+                ]
+            });
+
+            const arquivo = await handle.getFile();
+            if (arquivo) {
+                await processarArquivoComparacaoExcelArquivo(arquivo);
+                return;
+            }
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+            console.warn('Falha no seletor nativo de arquivo, usando fallback:', err);
+        }
+    }
+
+    abrirArquivoComparacaoExcelDesktop();
+}
+
+function abrirArquivoComparacaoExcelDesktop() {
+    const inputDesktop = document.getElementById('inputCompararExcelDesktop');
+    if (inputDesktop) {
+        inputDesktop.value = '';
+        inputDesktop.click();
         return;
     }
-    input.value = '';
-    input.click();
+
+    const input = document.getElementById('inputCompararExcel');
+    if (input) {
+        input.value = '';
+        input.click();
+        return;
+    }
+
+    alert('Campo de importação Excel não encontrado.');
+}
+
+function abrirPastaComparacaoExcelDesktop() {
+    const inputPasta = document.getElementById('inputCompararExcelPasta');
+    if (!inputPasta) {
+        alert('Campo de seleção de pasta não encontrado.');
+        return;
+    }
+
+    inputPasta.value = '';
+    inputPasta.click();
 }
 
 function normalizarTextoComparacao(valor) {
@@ -3080,11 +3151,30 @@ function renderizarPainelComparacaoExcel(resultado) {
         blocoDiferencas;
 
     painel.style.display = 'block';
+    const vazio = document.getElementById('comparacaoExcelVazia');
+    if (vazio) vazio.style.display = 'none';
+    if (typeof mostrarAba === 'function') mostrarAba('comparacao');
 }
 
 function fecharPainelComparacaoExcel() {
     const painel = document.getElementById('painelComparacaoExcel');
     if (painel) painel.style.display = 'none';
+    const vazio = document.getElementById('comparacaoExcelVazia');
+    if (vazio) vazio.style.display = 'block';
+}
+
+function visualizarResultadoComparacaoExcel() {
+    if (!resultadoComparacaoExcel) {
+        alert('Nenhuma comparação foi executada ainda.');
+        return;
+    }
+
+    if (typeof mostrarAba === 'function') mostrarAba('comparacao');
+    const painel = document.getElementById('painelComparacaoExcel');
+    if (painel) {
+        painel.style.display = 'block';
+        painel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 function exportarComparacaoExcel() {
@@ -3146,6 +3236,15 @@ function exportarComparacaoExcel() {
 async function processarArquivoComparacaoExcel(evt) {
     const arquivo = evt?.target?.files?.[0];
     if (!arquivo) return;
+
+    await processarArquivoComparacaoExcelArquivo(arquivo);
+}
+
+async function processarArquivoComparacaoExcelArquivo(arquivo) {
+    if (!arquivoComparacaoExcelEhValido(arquivo)) {
+        alert('Selecione um arquivo válido (.xlsx, .xls ou .csv).');
+        return;
+    }
 
     if (typeof XLSX === 'undefined') {
         alert('Biblioteca de Excel não carregada.');
@@ -3222,6 +3321,26 @@ document.getElementById('inputCompararExcel')?.addEventListener('change', functi
     processarArquivoComparacaoExcel(evt).catch(err => {
         console.error('Erro ao comparar Excel:', err);
         alert('Erro ao ler/comparar o Excel. Verifique o arquivo e tente novamente.');
+    });
+});
+
+document.getElementById('inputCompararExcelDesktop')?.addEventListener('change', function(evt) {
+    processarArquivoComparacaoExcel(evt).catch(err => {
+        console.error('Erro ao comparar Excel (desktop):', err);
+        alert('Erro ao ler/comparar o arquivo do PC. Verifique o arquivo e tente novamente.');
+    });
+});
+
+document.getElementById('inputCompararExcelPasta')?.addEventListener('change', function(evt) {
+    const arquivo = obterPrimeiroArquivoExcelValido(evt?.target?.files);
+    if (!arquivo) {
+        alert('Nenhum arquivo Excel/CSV válido foi encontrado na pasta selecionada.');
+        return;
+    }
+
+    processarArquivoComparacaoExcelArquivo(arquivo).catch(err => {
+        console.error('Erro ao comparar Excel (pasta):', err);
+        alert('Erro ao ler/comparar o arquivo encontrado na pasta. Verifique e tente novamente.');
     });
 });
 
@@ -3636,15 +3755,20 @@ function mostrarAba(aba) {
         btn.classList.remove('active');
     });
     
-    // Mostrar aba selecionada
-    if (aba === 'ordens') {
-        document.getElementById('aba-ordens').classList.add('active');
-        document.querySelector('.tab-button:nth-child(1)').classList.add('active');
-    } else if (aba === 'logistica') {
-        document.getElementById('aba-logistica').classList.add('active');
-        document.querySelector('.tab-button:nth-child(2)').classList.add('active');
+    const mapa = {
+        ordens: { tabId: 'aba-ordens', btnId: 'tab-btn-ordens' },
+        logistica: { tabId: 'aba-logistica', btnId: 'tab-btn-logistica' },
+        comparacao: { tabId: 'aba-comparacao', btnId: 'tab-btn-comparacao' }
+    };
+
+    const alvo = mapa[aba] || mapa.ordens;
+    const tabEl = document.getElementById(alvo.tabId);
+    const btnEl = document.getElementById(alvo.btnId);
+    if (tabEl) tabEl.classList.add('active');
+    if (btnEl) btnEl.classList.add('active');
+
+    if (aba === 'logistica') {
         atualizarTabelaLogistica();
-        
         // NÃO atualizar hora fim automaticamente - usuário clica no botão quando quiser
     }
 }
