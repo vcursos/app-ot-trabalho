@@ -557,7 +557,7 @@
         // Registrar Service Worker para PWA (se suportado)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                const SW_VERSION = '2026-05-16-1';
+                const SW_VERSION = '2026-05-24-2';
                 navigator.serviceWorker.register(`./sw.js?v=${SW_VERSION}`, { updateViaCache: 'none' }).then(function(reg) {
                     // Força verificação imediata de atualização
                     try { reg.update(); } catch {}
@@ -591,19 +591,35 @@
                         reg.waiting.postMessage({ type: 'SKIP_WAITING' });
                     }
 
-                    // Quando encontrar update durante a sessão ativa: apenas mostrar a barra de
-                    // notificação. NÃO forçar ativação imediata — o utilizador pode estar a
-                    // preencher um formulário. A nova versão será ativada automaticamente na
-                    // próxima abertura do app (reg.waiting acima) ou quando clicar em "Atualizar app".
+                    // Atualização automática também durante a sessão ativa.
                     reg.addEventListener('updatefound', function() {
                         var newWorker = reg.installing;
                         if (!newWorker) return;
                         newWorker.addEventListener('statechange', function() {
                             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // Nova versão pronta — mostrar notificação sem recarregar agora
                                 showUpdateUI();
+                                try {
+                                    if (reg.waiting) {
+                                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                                    }
+                                } catch {}
                             }
                         });
+                    });
+
+                    // Checagem periódica para PWA instalado receber update automaticamente.
+                    setInterval(function() {
+                        try { reg.update(); } catch {}
+                    }, 60 * 1000);
+
+                    document.addEventListener('visibilitychange', function() {
+                        if (document.visibilityState === 'visible') {
+                            try { reg.update(); } catch {}
+                        }
+                    });
+
+                    window.addEventListener('online', function() {
+                        try { reg.update(); } catch {}
                     });
 
                     // Quando o SW novo assume controle, recarregar para pegar arquivos novos
