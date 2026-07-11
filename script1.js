@@ -4304,18 +4304,25 @@ function compararMesesCompleto() {
     const labelA = formatarMesLabel(mesA);
     const labelB = formatarMesLabel(mesB);
 
-    const deltaCount = sumA.totalCount - sumB.totalCount;
-    const deltaValor = sumA.totalValue - sumB.totalValue;
-    const pctCount = sumB.totalCount > 0 ? ((deltaCount / sumB.totalCount) * 100).toFixed(1) : 'N/A';
-    const pctValor = sumB.totalValue > 0 ? ((deltaValor / sumB.totalValue) * 100).toFixed(1) : 'N/A';
+    // Diferença sempre calculada como (mês mais recente - mês mais antigo),
+    // para que vermelho/negativo sempre signifique "o mês mais recente fez menos".
+    const mesAMaisRecenteResumo = mesA >= mesB;
+    const baseCount = mesAMaisRecenteResumo ? sumB.totalCount : sumA.totalCount;
+    const baseValor = mesAMaisRecenteResumo ? sumB.totalValue : sumA.totalValue;
+    const deltaCount = mesAMaisRecenteResumo ? (sumA.totalCount - sumB.totalCount) : (sumB.totalCount - sumA.totalCount);
+    const deltaValor = mesAMaisRecenteResumo ? (sumA.totalValue - sumB.totalValue) : (sumB.totalValue - sumA.totalValue);
+    const pctCount = baseCount > 0 ? ((deltaCount / baseCount) * 100).toFixed(1) : 'N/A';
+    const pctValor = baseValor > 0 ? ((deltaValor / baseValor) * 100).toFixed(1) : 'N/A';
 
     const summaryHtml = [];
     summaryHtml.push('<div class="acomp-summary">');
     summaryHtml.push(`<div class="acomp-card"><h3>${labelA}</h3><div>OTs: <strong>${sumA.totalCount}</strong></div><div>Valor: <strong>${formatMoney(sumA.totalValue)}</strong></div></div>`);
     summaryHtml.push(`<div class="acomp-card"><h3>${labelB}</h3><div>OTs: <strong>${sumB.totalCount}</strong></div><div>Valor: <strong>${formatMoney(sumB.totalValue)}</strong></div></div>`);
-    const corCount = deltaCount >= 0 ? '#27ae60' : '#e74c3c';
-    const corValor = deltaValor >= 0 ? '#27ae60' : '#e74c3c';
-    summaryHtml.push(`<div class="acomp-card"><h3>Diferença</h3><div>OTs: <strong style="color:${corCount};">${deltaCount >= 0 ? '+' : ''}${deltaCount} (${pctCount}${pctCount!=='N/A' ? '%' : ''})</strong></div><div>Valor: <strong style="color:${corValor};">${deltaValor >= 0 ? '+' : ''}${formatMoney(deltaValor)} (${pctValor}${pctValor!=='N/A' ? '%' : ''})</strong></div></div>`);
+    const corCount = deltaCount > 0 ? '#27ae60' : (deltaCount < 0 ? '#e74c3c' : '#888');
+    const corValor = deltaValor > 0 ? '#27ae60' : (deltaValor < 0 ? '#e74c3c' : '#888');
+    const sinalCountResumo = deltaCount > 0 ? '+' : (deltaCount < 0 ? '−' : '');
+    const sinalValorResumo = deltaValor > 0 ? '+' : (deltaValor < 0 ? '−' : '');
+    summaryHtml.push(`<div class="acomp-card"><h3>Diferença</h3><div>OTs: <strong style="color:${corCount};">${sinalCountResumo}${Math.abs(deltaCount)} (${pctCount}${pctCount!=='N/A' ? '%' : ''})</strong></div><div>Valor: <strong style="color:${corValor};">${sinalValorResumo}${formatMoney(Math.abs(deltaValor))} (${pctValor}${pctValor!=='N/A' ? '%' : ''})</strong></div></div>`);
     summaryHtml.push('</div>');
     document.getElementById('analise-meses-summary').innerHTML = summaryHtml.join('');
 
@@ -4337,6 +4344,11 @@ function compararMesesCompleto() {
     const semanasA = calcularSemanasDoMes(mesA, otsA);
     const semanasB = calcularSemanasDoMes(mesB, otsB);
     const maxSemanas = Math.max(semanasA.length, semanasB.length);
+    // Determinar qual mês é o mais recente cronologicamente, para que a
+    // diferença sempre reflita "mês mais recente comparado ao mês anterior"
+    // (ex: Julho vs Junho -> se Julho fez menos, mostra negativo/vermelho;
+    // se Julho fez mais, mostra positivo/verde).
+    const mesAMaisRecente = mesA >= mesB; // formato "YYYY-MM" compara corretamente como string
     const rowsSem = [];
     rowsSem.push(`<h3 style="margin-top:16px;">Detalhamento Semana a Semana</h3>`);
     rowsSem.push('<div class="table-scroll-wrapper">');
@@ -4349,10 +4361,13 @@ function compararMesesCompleto() {
     for (let i = 0; i < maxSemanas; i++) {
         const sa = semanasA[i] || { periodo: '-', count: 0, value: 0 };
         const sb = semanasB[i] || { periodo: '-', count: 0, value: 0 };
-        const difCount = sa.count - sb.count;
-        const difValue = sa.value - sb.value;
+        // Diferença sempre calculada como (mês mais recente - mês mais antigo)
+        const difCount = mesAMaisRecente ? (sa.count - sb.count) : (sb.count - sa.count);
+        const difValue = mesAMaisRecente ? (sa.value - sb.value) : (sb.value - sa.value);
         const corCount = difCount > 0 ? '#27ae60' : (difCount < 0 ? '#e74c3c' : '#888');
         const corValue = difValue > 0 ? '#27ae60' : (difValue < 0 ? '#e74c3c' : '#888');
+        const sinalCount = difCount > 0 ? '+' : (difCount < 0 ? '−' : '');
+        const sinalValue = difValue > 0 ? '+' : (difValue < 0 ? '−' : '');
         rowsSem.push('<tr>');
         rowsSem.push(`<td>Semana ${i+1}</td>`);
         rowsSem.push(`<td>${sa.periodo}</td>`);
@@ -4361,8 +4376,8 @@ function compararMesesCompleto() {
         rowsSem.push(`<td>${sb.periodo}</td>`);
         rowsSem.push(`<td>${sb.count}</td>`);
         rowsSem.push(`<td>${formatMoney(sb.value)}</td>`);
-        rowsSem.push(`<td style="color:${corCount}; font-weight:600;">${difCount > 0 ? '+' : ''}${difCount}</td>`);
-        rowsSem.push(`<td style="color:${corValue}; font-weight:600;">${difValue > 0 ? '+' : ''}${formatMoney(difValue)}</td>`);
+        rowsSem.push(`<td style="color:${corCount}; font-weight:700;">${sinalCount}${Math.abs(difCount)}</td>`);
+        rowsSem.push(`<td style="color:${corValue}; font-weight:700;">${sinalValue}${formatMoney(Math.abs(difValue))}</td>`);
         rowsSem.push('</tr>');
     }
     rowsSem.push('</tbody></table>');
