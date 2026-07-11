@@ -477,7 +477,7 @@ window.__syncCallbacks = {
             atualizarTabela();
             atualizarResumos();
             atualizarUIFestivoPorDia();
-            if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica();
+            if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica(typeof obterMesFiltroLogisticaAtual === 'function' ? obterMesFiltroLogisticaAtual() : null);
             if (typeof popularSelectsServicos === 'function') popularSelectsServicos();
             if (typeof recarregarServicos === 'function') recarregarServicos();
             // Recarregar tipos de trabalho e serviços após sync remoto
@@ -3640,7 +3640,7 @@ function importarBackup() {
                 // Atualizar UI
                 atualizarTabela();
                 atualizarResumos();
-                atualizarTabelaLogistica();
+                atualizarTabelaLogistica(obterMesFiltroLogisticaAtual());
                 atualizarUIFestivoPorDia();
 
                 alert('Backup importado com sucesso!');
@@ -3665,6 +3665,14 @@ function importarBackup() {
 let registrosLogistica = JSON.parse(localStorage.getItem('registrosLogistica')) || [];
 let registroDiaAtual = JSON.parse(localStorage.getItem('registroDiaAtual')) || null;
 let logisticaEmEdicao = null;
+
+// Retorna o mês atualmente selecionado no filtro de logística (ou o mês atual, se vazio)
+function obterMesFiltroLogisticaAtual() {
+    const mesInput = document.getElementById('filtroMesLogistica');
+    if (mesInput && mesInput.value) return mesInput.value;
+    const agora = new Date();
+    return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+}
 
 // Inicializar campos de logística ao carregar
 document.addEventListener('DOMContentLoaded', function() {
@@ -3796,7 +3804,15 @@ function mostrarAba(aba) {
     if (btnEl) btnEl.classList.add('active');
 
     if (aba === 'logistica') {
-        atualizarTabelaLogistica();
+        // Respeitar o filtro de mês atualmente selecionado (não resetar para "todos os meses")
+        const mesInput = document.getElementById('filtroMesLogistica');
+        let mesFiltro = mesInput ? mesInput.value : null;
+        if (mesInput && !mesFiltro) {
+            const agora = new Date();
+            mesFiltro = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+            mesInput.value = mesFiltro;
+        }
+        atualizarTabelaLogistica(mesFiltro);
         // NÃO atualizar hora fim automaticamente - usuário clica no botão quando quiser
     }
     if (aba === 'acompanhamento') {
@@ -3946,7 +3962,7 @@ function gerarAnalise() {
         const b = sumB.byTipo[t] || {count:0, value:0};
         const c = sumC.byTipo[t] || {count:0, value:0};
         out.push('<tr>');
-        out.push('<td>' + t + '</td>');
+        out.push('<td>' + formatarTipoTrabalho(t) + '</td>');
         out.push('<td>' + a.count + '</td>');
         out.push('<td>' + formatMoney(a.value) + '</td>');
         out.push('<td>' + b.count + '</td>');
@@ -4053,7 +4069,7 @@ function gerarAnaliseGrafica() {
         const b = sb.byTipo[t] || {count:0, value:0};
         const c = sc.byTipo[t] || {count:0, value:0};
         rows.push('<tr>');
-        rows.push('<td>' + t + '</td>');
+        rows.push('<td>' + formatarTipoTrabalho(t) + '</td>');
         rows.push('<td>' + a.count + '</td>');
         rows.push('<td>' + formatMoney(a.value) + '</td>');
         rows.push('<td>' + b.count + '</td>');
@@ -4165,7 +4181,7 @@ function compararSemanasEntreMeses() {
     tipos.forEach(t => {
         const a = s1.byTipo[t] || {count:0, value:0};
         const b = s2.byTipo[t] || {count:0, value:0};
-        rows.push(`<tr><td>${t}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
+        rows.push(`<tr><td>${formatarTipoTrabalho(t)}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
     });
     rows.push('</tbody></table>');
     document.getElementById('analise-semanas-breakdown').innerHTML = rows.join('');
@@ -4302,7 +4318,7 @@ function compararMesesCompleto() {
     tipos.forEach(t => {
         const a = sumA.byTipo[t] || {count:0, value:0};
         const b = sumB.byTipo[t] || {count:0, value:0};
-        rows.push(`<tr><td>${t}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
+        rows.push(`<tr><td>${formatarTipoTrabalho(t)}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
     });
     rows.push('</tbody></table>');
     document.getElementById('analise-meses-breakdown').innerHTML = rows.join('');
@@ -4328,7 +4344,7 @@ function compararMesesCompleto() {
         rowsSem.push('</tr>');
     }
     rowsSem.push('</tbody></table>');
-    document.getElementById('analise-meses-breakdown').innerHTML += rowsSem.join('');
+    document.getElementById('analise-meses-breakdown').insertAdjacentHTML('beforeend', rowsSem.join(''));
 
     // chart
     try { if (window._mesesChart) window._mesesChart.destroy(); } catch(e){}
@@ -4692,7 +4708,7 @@ document.getElementById('formLogistica')?.addEventListener('submit', function(e)
     localStorage.removeItem('registroDiaAtual');
     logisticaEmEdicao = null;
     
-    atualizarTabelaLogistica();
+    atualizarTabelaLogistica(obterMesFiltroLogisticaAtual());
     limparFormularioLogistica();
     
     alert(estavaEmEdicao ? 'Registro atualizado com sucesso!' : 'Registro de logística salvo com sucesso!');
@@ -4958,7 +4974,7 @@ function deletarLogistica(id) {
         registrosLogistica = registrosLogistica.filter(reg => reg.id !== id);
         localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
         notificarMudancaParaSync('deletarLogistica');
-        atualizarTabelaLogistica();
+        atualizarTabelaLogistica(obterMesFiltroLogisticaAtual());
     }
 }
 
