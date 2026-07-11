@@ -434,15 +434,20 @@ button {
     min-width: 760px; /* garante que colunas não fiquem espremidas (tabela semana a semana tem 9 colunas) */
     width: 100%;
 }
-/* Gráfico responsivo: container com altura fixa, canvas preenche via Chart.js (maintainAspectRatio:false) */
+/* Gráfico responsivo: container com altura fixa e overflow controlado.
+   Importante: NÃO forçar width/height:100% !important no canvas via CSS,
+   pois isso conflita com o redimensionamento interno do Chart.js e causa
+   um loop de crescimento infinito do gráfico (especialmente no mobile). */
 #aba-analise .chart-container {
     position: relative;
     width: 100%;
     height: 260px;
+    max-height: 260px;
+    overflow: hidden;
 }
 #aba-analise .chart-container canvas {
-    width: 100% !important;
-    height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
 }
 @media (max-width: 700px) {
     #aba-analise div[style*="display:flex"] {
@@ -457,7 +462,9 @@ button {
         min-width: 120px;
     }
     #aba-analise .chart-container {
-        height: 220px;
+        height: 200px;
+        max-height: 200px;
+
     }
 }
 

@@ -3838,7 +3838,11 @@ function mostrarAba(aba) {
 // --- Análise: semana, semana anterior e mês anterior ---
 function parseISODate(d) {
     if (!d) return null;
-    return new Date(d + 'T00:00:00');
+    // ot.data já pode vir com hora embutida (ex: "2026-07-11T00:00:00").
+    // Nesse caso, usar apenas os 10 primeiros caracteres (YYYY-MM-DD) antes de anexar T00:00:00,
+    // evitando strings inválidas como "2026-07-11T00:00:00T00:00:00".
+    const soData = String(d).slice(0, 10);
+    return new Date(soData + 'T00:00:00');
 }
 
 function startOfWeek(date) {
@@ -4380,6 +4384,7 @@ function compararMesesCompleto() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            resizeDelay: 100,
             interaction: { mode: 'index', intersect: false },
             scales: {
                 y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Nº OTs' } },
