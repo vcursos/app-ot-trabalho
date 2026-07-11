@@ -4314,6 +4314,7 @@ function compararMesesCompleto() {
     // breakdown por tipo
     const tipos = Array.from(new Set([].concat(Object.keys(sumA.byTipo), Object.keys(sumB.byTipo))));
     const rows = [];
+    rows.push('<div class="table-scroll-wrapper">');
     rows.push(`<table class="acomp-results-table"><thead><tr><th>Tipo</th><th>Qtd ${labelA}</th><th>Valor</th><th>Qtd ${labelB}</th><th>Valor</th></tr></thead><tbody>`);
     tipos.forEach(t => {
         const a = sumA.byTipo[t] || {count:0, value:0};
@@ -4321,6 +4322,7 @@ function compararMesesCompleto() {
         rows.push(`<tr><td>${formatarTipoTrabalho(t)}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
     });
     rows.push('</tbody></table>');
+    rows.push('</div>');
     document.getElementById('analise-meses-breakdown').innerHTML = rows.join('');
 
     // breakdown por semana (semana 1, 2, 3... dentro de cada mês)
@@ -4329,6 +4331,7 @@ function compararMesesCompleto() {
     const maxSemanas = Math.max(semanasA.length, semanasB.length);
     const rowsSem = [];
     rowsSem.push(`<h3 style="margin-top:16px;">Detalhamento Semana a Semana</h3>`);
+    rowsSem.push('<div class="table-scroll-wrapper">');
     rowsSem.push(`<table class="acomp-results-table"><thead><tr><th>Semana</th><th>Período ${labelA}</th><th>Qtd OTs</th><th>Valor</th><th>Período ${labelB}</th><th>Qtd OTs</th><th>Valor</th></tr></thead><tbody>`);
     for (let i = 0; i < maxSemanas; i++) {
         const sa = semanasA[i];
@@ -4344,6 +4347,7 @@ function compararMesesCompleto() {
         rowsSem.push('</tr>');
     }
     rowsSem.push('</tbody></table>');
+    rowsSem.push('</div>');
     document.getElementById('analise-meses-breakdown').insertAdjacentHTML('beforeend', rowsSem.join(''));
 
     // chart
@@ -4360,6 +4364,7 @@ function compararMesesCompleto() {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
                 y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Nº OTs' } },

@@ -413,16 +413,36 @@ button {
 /* Aba Análise: garantir que tudo fique encaixado na tela mobile */
 #aba-analise, #aba-analise * {
     box-sizing: border-box;
+}
+#aba-analise > .form-section {
     max-width: 100%;
 }
-#aba-analise .acomp-results-table {
-    display: block;
+/* Wrapper de rolagem horizontal para tabelas (o table em si mantém layout normal) */
+#aba-analise .table-scroll-wrapper {
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    margin-top: 14px;
+    border-radius: 8px;
+    box-shadow: 0 8px 26px rgba(0,0,0,0.06);
 }
-#aba-analise canvas {
-    max-width: 100% !important;
-    height: auto !important;
+#aba-analise .table-scroll-wrapper .acomp-results-table {
+    margin-top: 0;
+    box-shadow: none;
+    border-radius: 0;
+    min-width: 640px; /* garante que colunas não fiquem espremidas */
+    width: 100%;
+}
+/* Gráfico responsivo: container com altura fixa, canvas preenche via Chart.js (maintainAspectRatio:false) */
+#aba-analise .chart-container {
+    position: relative;
+    width: 100%;
+    height: 260px;
+}
+#aba-analise .chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 @media (max-width: 700px) {
     #aba-analise div[style*="display:flex"] {
@@ -435,6 +455,9 @@ button {
     #aba-analise .btn-secondary {
         flex: 1;
         min-width: 120px;
+    }
+    #aba-analise .chart-container {
+        height: 220px;
     }
 }
 
