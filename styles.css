@@ -435,17 +435,21 @@ button {
     width: 100%;
 }
 /* Gráfico responsivo: container com altura fixa e overflow controlado.
-   Importante: NÃO forçar width/height:100% !important no canvas via CSS,
-   pois isso conflita com o redimensionamento interno do Chart.js e causa
-   um loop de crescimento infinito do gráfico (especialmente no mobile). */
+   Importante: o canvas precisa de display:block (canvas inline tem
+   espaço fantasma abaixo que, combinado com resize automático do
+   Chart.js, pode causar crescimento incremental a cada resize). */
 #aba-analise .chart-container {
     position: relative;
+    display: block;
     width: 100%;
-    height: 260px;
-    max-height: 260px;
+    height: 220px;
+    max-height: 220px;
     overflow: hidden;
 }
 #aba-analise .chart-container canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
     max-width: 100%;
     max-height: 100%;
 }
@@ -462,8 +466,8 @@ button {
         min-width: 120px;
     }
     #aba-analise .chart-container {
-        height: 200px;
-        max-height: 200px;
+        height: 180px;
+        max-height: 180px;
 
     }
 }

@@ -4384,7 +4384,9 @@ function compararMesesCompleto() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            resizeDelay: 100,
+            resizeDelay: 200,
+            devicePixelRatio: 1,
+            animation: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
                 y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Nº OTs' } },
