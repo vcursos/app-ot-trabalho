@@ -465,10 +465,10 @@ button {
         flex: 1;
         min-width: 120px;
     }
-    #aba-analise .chart-container {
-        height: 180px;
-        max-height: 180px;
-
+    /* Gráfico removido na versão mobile: causava problemas de redimensionamento.
+       O usuário ainda tem acesso aos mesmos dados nas tabelas abaixo. */
+    #aba-analise .grafico-ganho-mensal-card {
+        display: none !important;
     }
 }
 
