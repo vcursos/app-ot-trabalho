@@ -410,6 +410,34 @@ button {
     .form-grid { grid-template-columns: 1fr; }
 }
 
+/* Aba Análise: garantir que tudo fique encaixado na tela mobile */
+#aba-analise, #aba-analise * {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+#aba-analise .acomp-results-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+#aba-analise canvas {
+    max-width: 100% !important;
+    height: auto !important;
+}
+@media (max-width: 700px) {
+    #aba-analise div[style*="display:flex"] {
+        flex-wrap: wrap;
+    }
+    #aba-analise input[type="month"] {
+        width: 100%;
+    }
+    #aba-analise .btn-primary,
+    #aba-analise .btn-secondary {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
 .scanner-content h3 {
     margin-bottom: 15px;
     color: #333;

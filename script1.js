@@ -3804,18 +3804,17 @@ function mostrarAba(aba) {
         try { gerarAnalise(); } catch(e) { /* não bloquear */ }
     }
     if (aba === 'analise') {
-        // Preencher datas padrão (semana atual vs semana passada) e comparar automaticamente
+        // Preencher mês atual e mês anterior e comparar automaticamente
         try {
-            const hoje = getHojeISO ? getHojeISO() : new Date().toISOString().slice(0,10);
-            const s1 = document.getElementById('analise-semana1-data');
-            const s2 = document.getElementById('analise-semana2-data');
-            if (s1 && !s1.value) s1.value = hoje;
-            if (s2 && !s2.value) {
-                const d = parseISODate(hoje);
-                d.setMonth(d.getMonth() - 1);
-                s2.value = d.toISOString().slice(0,10);
-            }
-            compararSemanasEntreMeses();
+            const hoje = new Date();
+            const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
+            const anterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+            const mesAnterior = anterior.getFullYear() + '-' + String(anterior.getMonth()+1).padStart(2,'0');
+            const mA = document.getElementById('analise-mesA');
+            const mB = document.getElementById('analise-mesB');
+            if (mA && !mA.value) mA.value = mesAnterior;
+            if (mB && !mB.value) mB.value = mesAtual;
+            compararMesesCompleto();
         } catch(e) { console.warn('Erro ao gerar análise automática:', e); }
     }
 }
