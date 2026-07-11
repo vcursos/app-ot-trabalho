@@ -4274,10 +4274,14 @@ function calcularSemanasDoMes(anoMesStr, otsDoMes) {
     });
 
     return semanas.map(s => ({
-        periodo: `${s.start.toLocaleDateString('pt-BR')} a ${s.end.toLocaleDateString('pt-BR')}`,
+        periodo: `${formatarDataCurta(s.start)} a ${formatarDataCurta(s.end)}`,
         count: s.count,
         value: s.value
     }));
+}
+
+function formatarDataCurta(d) {
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
 }
 
 function compararMesesCompleto() {
@@ -4332,18 +4336,29 @@ function compararMesesCompleto() {
     const rowsSem = [];
     rowsSem.push(`<h3 style="margin-top:16px;">Detalhamento Semana a Semana</h3>`);
     rowsSem.push('<div class="table-scroll-wrapper">');
-    rowsSem.push(`<table class="acomp-results-table"><thead><tr><th>Semana</th><th>Período ${labelA}</th><th>Qtd OTs</th><th>Valor</th><th>Período ${labelB}</th><th>Qtd OTs</th><th>Valor</th></tr></thead><tbody>`);
+    rowsSem.push(`<table class="acomp-results-table"><thead><tr>
+        <th>Semana</th>
+        <th>${labelA}</th><th>Qtd</th><th>Valor</th>
+        <th>${labelB}</th><th>Qtd</th><th>Valor</th>
+        <th>Dif. Qtd</th><th>Dif. Valor</th>
+    </tr></thead><tbody>`);
     for (let i = 0; i < maxSemanas; i++) {
-        const sa = semanasA[i];
-        const sb = semanasB[i];
+        const sa = semanasA[i] || { periodo: '-', count: 0, value: 0 };
+        const sb = semanasB[i] || { periodo: '-', count: 0, value: 0 };
+        const difCount = sa.count - sb.count;
+        const difValue = sa.value - sb.value;
+        const corCount = difCount > 0 ? '#27ae60' : (difCount < 0 ? '#e74c3c' : '#888');
+        const corValue = difValue > 0 ? '#27ae60' : (difValue < 0 ? '#e74c3c' : '#888');
         rowsSem.push('<tr>');
         rowsSem.push(`<td>Semana ${i+1}</td>`);
-        rowsSem.push(`<td>${sa ? sa.periodo : '-'}</td>`);
-        rowsSem.push(`<td>${sa ? sa.count : '-'}</td>`);
-        rowsSem.push(`<td>${sa ? formatMoney(sa.value) : '-'}</td>`);
-        rowsSem.push(`<td>${sb ? sb.periodo : '-'}</td>`);
-        rowsSem.push(`<td>${sb ? sb.count : '-'}</td>`);
-        rowsSem.push(`<td>${sb ? formatMoney(sb.value) : '-'}</td>`);
+        rowsSem.push(`<td>${sa.periodo}</td>`);
+        rowsSem.push(`<td>${sa.count}</td>`);
+        rowsSem.push(`<td>${formatMoney(sa.value)}</td>`);
+        rowsSem.push(`<td>${sb.periodo}</td>`);
+        rowsSem.push(`<td>${sb.count}</td>`);
+        rowsSem.push(`<td>${formatMoney(sb.value)}</td>`);
+        rowsSem.push(`<td style="color:${corCount}; font-weight:600;">${difCount > 0 ? '+' : ''}${difCount}</td>`);
+        rowsSem.push(`<td style="color:${corValue}; font-weight:600;">${difValue > 0 ? '+' : ''}${formatMoney(difValue)}</td>`);
         rowsSem.push('</tr>');
     }
     rowsSem.push('</tbody></table>');

@@ -431,7 +431,7 @@ button {
     margin-top: 0;
     box-shadow: none;
     border-radius: 0;
-    min-width: 640px; /* garante que colunas não fiquem espremidas */
+    min-width: 760px; /* garante que colunas não fiquem espremidas (tabela semana a semana tem 9 colunas) */
     width: 100%;
 }
 /* Gráfico responsivo: container com altura fixa, canvas preenche via Chart.js (maintainAspectRatio:false) */
@@ -459,6 +459,13 @@ button {
     #aba-analise .chart-container {
         height: 220px;
     }
+}
+
+#aba-analise .table-scroll-wrapper .acomp-results-table thead th,
+#aba-analise .table-scroll-wrapper .acomp-results-table tbody td {
+    padding: 10px 10px;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
 .scanner-content h3 {
