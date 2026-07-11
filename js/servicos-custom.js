@@ -279,10 +279,14 @@ function calcularValorTotalComMultiplicador() {
     // Prémio festivo opcional (independente do checkbox Festivo)
     if (checkPremioFestivo && checkPremioFestivo.checked && !premioJaAplicado) {
         const premioFest = parseFloat(mult.premioFestivo) || 0;
-        if (premioFest > 0) premiosAplicados.push(`Bônus: €${premioFest.toFixed(2)} (PDF)`);
+        if (premioFest > 0) {
+            premiosAplicados.push(`Bônus: €${premioFest.toFixed(2)} (adicionado)`);
+            // Somar o prémio opcional ao valor final exibido (é um prémio escolhido pelo operador)
+            valorFinal = valorFinal + premioFest;
+        }
     }
 
-    // BÔNUS POR OT FORA DE HORA - apenas mostrar no preview, aparece separado no PDF
+    // BÔNUS POR OT FORA DE HORA - calcular e SOMAR ao valor final (por OT)
     const checkForaHora = document.getElementById('otForaHora');
     if (checkForaHora && checkForaHora.checked) {
         const bonusValor = parseFloat(mult.bonusOTForaHora) || 0;
@@ -293,18 +297,19 @@ function calcularValorTotalComMultiplicador() {
                 bonusCalculado = bonusValor;
                 premiosAplicados.push(`⏱️ Fora Hora: €${bonusCalculado.toFixed(2)} (PDF)`);
             } else if (bonusTipo === 'percentagem') {
+                // percentagem aplicada sobre o valor já multiplicado (antes do próprio bónus)
                 bonusCalculado = valorFinal * bonusValor / 100;
                 premiosAplicados.push(`⏱️ Fora Hora: ${bonusValor}%=€${bonusCalculado.toFixed(2)} (PDF)`);
             } else if (bonusTipo === 'multiplicador') {
                 bonusCalculado = valorFinal * bonusValor;
                 premiosAplicados.push(`⏱️ Fora Hora: x${bonusValor}=€${bonusCalculado.toFixed(2)} (PDF)`);
             }
+            // Somar o bônus ao valor final mostrado (é por OT)
+            valorFinal = valorFinal + bonusCalculado;
         }
     }
-    
-    // NÃO somar prémios ao valor final - prémios aparecem apenas no PDF
-    // valorFinal = valorFinal + premioTotal; (REMOVIDO)
-    
+
+    // Somar prémios de saída não — continuam separados no PDF. Já somamos apenas o bónus por OT aqui.
     valorTotalEl.value = valorFinal.toFixed(2);
     
     // Atualizar UI dos checkboxes e preview
@@ -416,7 +421,7 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
             const bfhLabel = bfh > 0
                 ? ` | ⏱️ Fora Hora: ${bfhTipo === 'valor' ? '€' + bfh.toFixed(2) : (bfhTipo === 'percentagem' ? bfh + '%' : bfh + 'x')}`
                 : '';
-            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Bonus €${fest.toFixed(2)}${bfhLabel}`;
+            previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Festivo €${fest.toFixed(2)}${bfhLabel}`;
         }
     }
 }

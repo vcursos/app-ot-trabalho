@@ -871,7 +871,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
     }
     
-    // Valor total com multiplicador (usar 0 se o campo mostrar "0.00" — não ignorar zero)
+    // Valor total com multiplicador mostrado no preview (pode já incluir o bónus se o preview somou)
     const _valorTotalStr = document.getElementById('valorTotal').value;
     const valorTotalFinal = (_valorTotalStr !== '' && !isNaN(parseFloat(_valorTotalStr)))
         ? parseFloat(_valorTotalStr)
@@ -930,12 +930,37 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             if (bfhTipo === 'valor') {
                 bonusForaHoraAplicado = bfhValor;
             } else if (bfhTipo === 'percentagem') {
-                bonusForaHoraAplicado = valorTotalFinal * bfhValor / 100;
+                // percentagem calculada sobre o valor base multiplicado (sem incluir já o bónus)
+                bonusForaHoraAplicado = valorBaseMultiplicado * bfhValor / 100;
             } else if (bfhTipo === 'multiplicador') {
-                bonusForaHoraAplicado = valorTotalFinal * bfhValor;
+                bonusForaHoraAplicado = valorBaseMultiplicado * bfhValor;
             }
+            // Atualizar o valor total final para incluir o bónus por OT
+            // Se o preview já somou o bónus, valorTotalFinal já inclui; mas para consistência, usamos valorTotalFinal + bonus caso não.
+            // Preferir recalcular valorServicoFinal como valorBaseMultiplicado + bonus
+            // porém manter compatibilidade com valorTotalFinal se o campo tiver sido manualmente alterado.
         }
     }
+        // Para calcular o bónus "Fora de Hora" corretamente sem duplicação, recomputar o valor base
+        // aplicado pelo multiplicador (mas sem incluir o bónus por OT que o preview também soma)
+        const multObj = obterMultiplicadores();
+        const tipoMultSelecionado = tipoMultiplicador || 'normal';
+        // Valor base multiplicado (inclui multiplicadores automáticos como domingo ou feriado multiplicador)
+        let valorBaseMultiplicado = (valorServicoBase + valorAdicionalBase) * (multObj[tipoMultSelecionado] || 1.0);
+        // Aplicar multiplicador automático de domingo se aplicável
+        if (diaSemana === 0) {
+            const multDomingo = parseFloat(multObj.bonusDomingo) || 1.0;
+            if (multDomingo > 0 && multDomingo !== 1.0) {
+                valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
+            }
+        }
+        // Aplicar multiplicador feriado se checkbox estiver marcado
+        if (marcadoFestivo) {
+            const multFeriado = parseFloat(multObj.bonusFeriado) || 1.0;
+            if (multFeriado > 0 && multFeriado !== 1.0) {
+                valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
+            }
+        }
     
     // Total de prémios aplicados
     const premioTotalAplicado = premioSabadoAplicado + premioDomingoAplicado + premioFestivoAplicado;
@@ -979,7 +1004,8 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 equipamentos: [...equipamentosTemp],
                 tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
                 observacoes: document.getElementById('observacoes').value || '',
-                valorServico: valorTotalFinal
+                // Garantir que o valor salvo no registro inclui o bónus por OT e prémios de saída aplicados
+                valorServico: (valorBaseMultiplicado + premioTotalAplicado + (typeof bonusForaHoraAplicado === 'number' ? bonusForaHoraAplicado : 0))
             };
             ordensTrabalho[index] = otAtualizada;
             
@@ -3758,7 +3784,9 @@ function mostrarAba(aba) {
     const mapa = {
         ordens: { tabId: 'aba-ordens', btnId: 'tab-btn-ordens' },
         logistica: { tabId: 'aba-logistica', btnId: 'tab-btn-logistica' },
-        comparacao: { tabId: 'aba-comparacao', btnId: 'tab-btn-comparacao' }
+        analise: { tabId: 'aba-analise', btnId: 'tab-btn-analise' },
+        comparacao: { tabId: 'aba-comparacao', btnId: 'tab-btn-comparacao' },
+    acompanhamento: { tabId: 'aba-acompanhamento' }
     };
 
     const alvo = mapa[aba] || mapa.ordens;
@@ -3771,6 +3799,575 @@ function mostrarAba(aba) {
         atualizarTabelaLogistica();
         // NÃO atualizar hora fim automaticamente - usuário clica no botão quando quiser
     }
+    if (aba === 'acompanhamento') {
+        // Ao abrir a aba de acompanhamento, executar análise rápida (se houver datas)
+        try { gerarAnalise(); } catch(e) { /* não bloquear */ }
+    }
+    if (aba === 'analise') {
+        // Preencher datas padrão (semana atual vs semana passada) e comparar automaticamente
+        try {
+            const hoje = getHojeISO ? getHojeISO() : new Date().toISOString().slice(0,10);
+            const s1 = document.getElementById('analise-semana1-data');
+            const s2 = document.getElementById('analise-semana2-data');
+            if (s1 && !s1.value) s1.value = hoje;
+            if (s2 && !s2.value) {
+                const d = parseISODate(hoje);
+                d.setMonth(d.getMonth() - 1);
+                s2.value = d.toISOString().slice(0,10);
+            }
+            compararSemanasEntreMeses();
+        } catch(e) { console.warn('Erro ao gerar análise automática:', e); }
+    }
+}
+
+// --- Análise: semana, semana anterior e mês anterior ---
+function parseISODate(d) {
+    if (!d) return null;
+    return new Date(d + 'T00:00:00');
+}
+
+function startOfWeek(date) {
+    const d = new Date(date);
+    const day = (d.getDay() + 6) % 7; // make Monday=0
+    d.setDate(d.getDate() - day);
+    d.setHours(0,0,0,0);
+    return d;
+}
+
+function endOfWeek(date) {
+    const s = startOfWeek(date);
+    s.setDate(s.getDate() + 6);
+    s.setHours(23,59,59,999);
+    return s;
+}
+
+function sumarizarOTs(ots) {
+    const summary = {
+        totalCount: 0,
+        totalValue: 0,
+        byTipo: {}
+    };
+    ots.forEach(o => {
+        const val = Number(o.valorServico) || 0;
+        summary.totalCount += 1;
+        summary.totalValue += val;
+        const tipo = o.tipoTrabalho || 'outro';
+        if (!summary.byTipo[tipo]) summary.byTipo[tipo] = { count:0, value:0 };
+        summary.byTipo[tipo].count += 1;
+        summary.byTipo[tipo].value += val;
+    });
+    return summary;
+}
+
+function formatMoney(v) {
+    return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function obterOTsFiltradas(inicioDate, fimDate, diasSemanaArr) {
+    const raw = localStorage.getItem('ordensTrabalho');
+    if (!raw) return [];
+    let arr = [];
+    try { arr = JSON.parse(raw) || []; } catch(e){ arr = []; }
+    return arr.filter(o => {
+        if (!o || !o.data) return false;
+        const dt = parseISODate(o.data);
+        if (!dt) return false;
+        if (dt < inicioDate || dt > fimDate) return false;
+        if (Array.isArray(diasSemanaArr) && diasSemanaArr.length) {
+            const dow = dt.getDay(); // 0=Sun .. 6=Sat
+            if (!diasSemanaArr.includes(String(dow))) return false;
+        }
+        return true;
+    });
+}
+
+function gerarAnalise() {
+    // read inputs
+    const inicioStr = document.getElementById('analise-data-inicio').value;
+    const fimStr = document.getElementById('analise-data-fim').value;
+    const diasSelect = document.getElementById('analise-dias-semana');
+    const diasSemanaArr = [];
+    if (diasSelect) {
+        Array.from(diasSelect.selectedOptions).forEach(o => diasSemanaArr.push(o.value));
+    }
+    if (!inicioStr || !fimStr) {
+        document.getElementById('analise-resultados').innerHTML = '<div class="aviso">Escolha data início e fim (uma semana recomendada).</div>';
+        return;
+    }
+
+    const inicioDate = parseISODate(inicioStr);
+    const fimDate = parseISODate(fimStr);
+
+    // ensure week boundaries
+    const semanaInicio = startOfWeek(inicioDate);
+    const semanaFim = endOfWeek(inicioDate);
+
+    const semanaAnteriorInicio = new Date(semanaInicio);
+    semanaAnteriorInicio.setDate(semanaInicio.getDate() - 7);
+    const semanaAnteriorFim = endOfWeek(semanaAnteriorInicio);
+
+    // same week in previous month: approximate by subtracting 1 month from semanaInicio
+    const mesAnteriorDate = new Date(semanaInicio);
+    mesAnteriorDate.setMonth(mesAnteriorDate.getMonth() -1);
+    const semanaMesAnteriorInicio = startOfWeek(mesAnteriorDate);
+    const semanaMesAnteriorFim = endOfWeek(semanaMesAnteriorInicio);
+
+    const otsSemana = obterOTsFiltradas(semanaInicio, semanaFim, diasSemanaArr);
+    const otsSemanaAnterior = obterOTsFiltradas(semanaAnteriorInicio, semanaAnteriorFim, diasSemanaArr);
+    const otsSemanaMesAnterior = obterOTsFiltradas(semanaMesAnteriorInicio, semanaMesAnteriorFim, diasSemanaArr);
+
+    const sumA = sumarizarOTs(otsSemana);
+    const sumB = sumarizarOTs(otsSemanaAnterior);
+    const sumC = sumarizarOTs(otsSemanaMesAnterior);
+
+    // render
+    const out = [];
+    out.push('<div class="acomp-summary">');
+    out.push('<div class="acomp-card"><h3>Semana selecionada</h3>');
+    out.push('<div>Nº OTs: <strong>' + sumA.totalCount + '</strong></div>');
+    out.push('<div>Valor total: <strong>' + formatMoney(sumA.totalValue) + '</strong></div>');
+    out.push('</div>');
+    out.push('<div class="acomp-card"><h3>Semana anterior</h3>');
+    out.push('<div>Nº OTs: <strong>' + sumB.totalCount + '</strong></div>');
+    out.push('<div>Valor total: <strong>' + formatMoney(sumB.totalValue) + '</strong></div>');
+    out.push('</div>');
+    out.push('<div class="acomp-card"><h3>Semana (mês anterior)</h3>');
+    out.push('<div>Nº OTs: <strong>' + sumC.totalCount + '</strong></div>');
+    out.push('<div>Valor total: <strong>' + formatMoney(sumC.totalValue) + '</strong></div>');
+    out.push('</div>');
+    out.push('</div>');
+
+    // breakdown by tipoTrabalho: collect union of tipos
+    const tiposSet = new Set([].concat(Object.keys(sumA.byTipo), Object.keys(sumB.byTipo), Object.keys(sumC.byTipo)));
+    const tipos = Array.from(tiposSet);
+    out.push('<h3>Detalhamento por tipo de trabalho</h3>');
+    out.push('<table class="acomp-results-table"><thead><tr><th>Tipo</th><th>Qtd (sem)</th><th>Valor (sem)</th><th>Qtd (sem ant)</th><th>Valor (sem ant)</th><th>Qtd (mês ant)</th><th>Valor (mês ant)</th></tr></thead><tbody>');
+    tipos.forEach(t => {
+        const a = sumA.byTipo[t] || {count:0, value:0};
+        const b = sumB.byTipo[t] || {count:0, value:0};
+        const c = sumC.byTipo[t] || {count:0, value:0};
+        out.push('<tr>');
+        out.push('<td>' + t + '</td>');
+        out.push('<td>' + a.count + '</td>');
+        out.push('<td>' + formatMoney(a.value) + '</td>');
+        out.push('<td>' + b.count + '</td>');
+        out.push('<td>' + formatMoney(b.value) + '</td>');
+        out.push('<td>' + c.count + '</td>');
+        out.push('<td>' + formatMoney(c.value) + '</td>');
+        out.push('</tr>');
+    });
+    out.push('</tbody></table>');
+
+    document.getElementById('analise-resultados').innerHTML = out.join('');
+}
+
+// Chart instances holders
+window._analiseCharts = { count: null, value: null };
+
+function buildWeekSeriesFromDate(refDate, diasSemanaArr) {
+    const start = startOfWeek(refDate);
+    const labels = [];
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        labels.push(d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }));
+        days.push(new Date(d));
+    }
+    // compute counts and sums per day
+    const counts = Array(7).fill(0);
+    const sums = Array(7).fill(0);
+    const raw = localStorage.getItem('ordensTrabalho');
+    let arr = [];
+    try { arr = JSON.parse(raw) || []; } catch(e){ arr = []; }
+    arr.forEach(o => {
+        if (!o || !o.data) return;
+        const dt = parseISODate(o.data);
+        if (!dt) return;
+        // match exact day in this week
+        for (let i = 0; i < days.length; i++) {
+            const d0 = days[i];
+            if (dt.getFullYear() === d0.getFullYear() && dt.getMonth() === d0.getMonth() && dt.getDate() === d0.getDate()) {
+                if (Array.isArray(diasSemanaArr) && diasSemanaArr.length) {
+                    const dow = dt.getDay();
+                    if (!diasSemanaArr.includes(String(dow))) return;
+                }
+                counts[i] += 1;
+                sums[i] += Number(o.valorServico) || 0;
+            }
+        }
+    });
+    return { labels, counts, sums, start, end: endOfWeek(start) };
+}
+
+function gerarAnaliseGrafica() {
+    const refStr = document.getElementById('analise-ref-data').value;
+    const diasSel = document.getElementById('analise-ref-dias');
+    const dias = [];
+    if (diasSel) Array.from(diasSel.selectedOptions).forEach(o => dias.push(o.value));
+    if (!refStr) {
+        alert('Escolha uma data de referência para analisar a semana.');
+        return;
+    }
+
+    const refDate = parseISODate(refStr);
+    const weekA = buildWeekSeriesFromDate(refDate, dias);
+
+    const prevWeekDate = new Date(refDate);
+    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+    const weekPrev = buildWeekSeriesFromDate(prevWeekDate, dias);
+
+    const prevMonthDate = new Date(refDate);
+    prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+    const weekPrevMonth = buildWeekSeriesFromDate(prevMonthDate, dias);
+
+    // render summary numbers
+    const sumA = weekA.counts.reduce((s,n)=>s+n,0);
+    const valA = weekA.sums.reduce((s,n)=>s+n,0);
+    const sumB = weekPrev.counts.reduce((s,n)=>s+n,0);
+    const valB = weekPrev.sums.reduce((s,n)=>s+n,0);
+    const sumC = weekPrevMonth.counts.reduce((s,n)=>s+n,0);
+    const valC = weekPrevMonth.sums.reduce((s,n)=>s+n,0);
+
+    const summaryHtml = [];
+    summaryHtml.push('<div class="acomp-summary">');
+    summaryHtml.push(`<div class="acomp-card"><h3>Semana selecionada</h3><div>OTs: <strong>${sumA}</strong></div><div>Valor: <strong>${formatMoney(valA)}</strong></div></div>`);
+    summaryHtml.push(`<div class="acomp-card"><h3>Semana anterior</h3><div>OTs: <strong>${sumB}</strong></div><div>Valor: <strong>${formatMoney(valB)}</strong></div></div>`);
+    summaryHtml.push(`<div class="acomp-card"><h3>Semana (mês anterior)</h3><div>OTs: <strong>${sumC}</strong></div><div>Valor: <strong>${formatMoney(valC)}</strong></div></div>`);
+    summaryHtml.push('</div>');
+    document.getElementById('analise-summary').innerHTML = summaryHtml.join('');
+
+    // breakdown by tipoTrabalho for each period (use existing summarizer with obterOTsFiltradas)
+    const aOTs = obterOTsFiltradas(weekA.start, weekA.end, dias);
+    const bOTs = obterOTsFiltradas(weekPrev.start, weekPrev.end, dias);
+    const cOTs = obterOTsFiltradas(weekPrevMonth.start, weekPrevMonth.end, dias);
+    const sa = sumarizarOTs(aOTs);
+    const sb = sumarizarOTs(bOTs);
+    const sc = sumarizarOTs(cOTs);
+
+    const tiposSet = new Set([].concat(Object.keys(sa.byTipo), Object.keys(sb.byTipo), Object.keys(sc.byTipo)));
+    const tipos = Array.from(tiposSet);
+    const rows = [];
+    rows.push('<table class="acomp-results-table"><thead><tr><th>Tipo</th><th>Qtd Sem</th><th>Valor Sem</th><th>Qtd Sem Ant</th><th>Valor Sem Ant</th><th>Qtd Mês Ant</th><th>Valor Mês Ant</th></tr></thead><tbody>');
+    tipos.forEach(t => {
+        const a = sa.byTipo[t] || {count:0, value:0};
+        const b = sb.byTipo[t] || {count:0, value:0};
+        const c = sc.byTipo[t] || {count:0, value:0};
+        rows.push('<tr>');
+        rows.push('<td>' + t + '</td>');
+        rows.push('<td>' + a.count + '</td>');
+        rows.push('<td>' + formatMoney(a.value) + '</td>');
+        rows.push('<td>' + b.count + '</td>');
+        rows.push('<td>' + formatMoney(b.value) + '</td>');
+        rows.push('<td>' + c.count + '</td>');
+        rows.push('<td>' + formatMoney(c.value) + '</td>');
+        rows.push('</tr>');
+    });
+    rows.push('</tbody></table>');
+    document.getElementById('analise-breakdown').innerHTML = rows.join('');
+
+    // Draw charts using Chart.js
+    // destroy previous instances
+    try { if (window._analiseCharts.count) window._analiseCharts.count.destroy(); } catch(e){}
+    try { if (window._analiseCharts.value) window._analiseCharts.value.destroy(); } catch(e){}
+
+    const ctxCount = document.getElementById('chart-ordens-count').getContext('2d');
+    window._analiseCharts.count = new Chart(ctxCount, {
+        type: 'bar',
+        data: {
+            labels: weekA.labels,
+            datasets: [
+                { label: 'Semana (selecionada)', data: weekA.counts, backgroundColor: 'rgba(54,162,235,0.8)' },
+                { label: 'Semana anterior', data: weekPrev.counts, backgroundColor: 'rgba(153,102,255,0.7)' },
+                { label: 'Semana (mês anterior)', data: weekPrevMonth.counts, backgroundColor: 'rgba(255,159,64,0.7)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+
+    const ctxVal = document.getElementById('chart-ordens-valor').getContext('2d');
+    window._analiseCharts.value = new Chart(ctxVal, {
+        type: 'bar',
+        data: {
+            labels: weekA.labels,
+            datasets: [
+                { label: 'Semana (selecionada)', data: weekA.sums, backgroundColor: 'rgba(40,167,69,0.8)' },
+                { label: 'Semana anterior', data: weekPrev.sums, backgroundColor: 'rgba(23,162,184,0.7)' },
+                { label: 'Semana (mês anterior)', data: weekPrevMonth.sums, backgroundColor: 'rgba(255,193,7,0.7)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); } } } },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+}
+
+function limparAnaliseGrafica() {
+    document.getElementById('analise-ref-data').value = '';
+    document.getElementById('analise-ref-dias').selectedIndex = -1;
+    document.getElementById('analise-summary').innerHTML = '';
+    document.getElementById('analise-breakdown').innerHTML = '';
+    try { if (window._analiseCharts.count) window._analiseCharts.count.destroy(); } catch(e){}
+    try { if (window._analiseCharts.value) window._analiseCharts.value.destroy(); } catch(e){}
+}
+
+// ================== Comparar Semana de um Mês com Semana de Outro Mês ==================
+window._semanasCharts = { count: null, value: null };
+
+function compararSemanasEntreMeses() {
+    const d1Str = document.getElementById('analise-semana1-data').value;
+    const d2Str = document.getElementById('analise-semana2-data').value;
+    if (!d1Str || !d2Str) {
+        alert('Escolha uma data dentro de cada semana que deseja comparar.');
+        return;
+    }
+    const d1 = parseISODate(d1Str);
+    const d2 = parseISODate(d2Str);
+    const week1 = buildWeekSeriesFromDate(d1, []);
+    const week2 = buildWeekSeriesFromDate(d2, []);
+
+    const total1Count = week1.counts.reduce((s,n)=>s+n,0);
+    const total1Valor = week1.sums.reduce((s,n)=>s+n,0);
+    const total2Count = week2.counts.reduce((s,n)=>s+n,0);
+    const total2Valor = week2.sums.reduce((s,n)=>s+n,0);
+
+    const label1 = `Semana de ${week1.start.toLocaleDateString('pt-BR')} a ${week1.end.toLocaleDateString('pt-BR')}`;
+    const label2 = `Semana de ${week2.start.toLocaleDateString('pt-BR')} a ${week2.end.toLocaleDateString('pt-BR')}`;
+
+    const deltaCount = total1Count - total2Count;
+    const deltaValor = total1Valor - total2Valor;
+    const pctCount = total2Count > 0 ? ((deltaCount / total2Count) * 100).toFixed(1) : 'N/A';
+    const pctValor = total2Valor > 0 ? ((deltaValor / total2Valor) * 100).toFixed(1) : 'N/A';
+
+    const summaryHtml = [];
+    summaryHtml.push('<div class="acomp-summary">');
+    summaryHtml.push(`<div class="acomp-card"><h3>${label1}</h3><div>OTs: <strong>${total1Count}</strong></div><div>Valor: <strong>${formatMoney(total1Valor)}</strong></div></div>`);
+    summaryHtml.push(`<div class="acomp-card"><h3>${label2}</h3><div>OTs: <strong>${total2Count}</strong></div><div>Valor: <strong>${formatMoney(total2Valor)}</strong></div></div>`);
+    const corCount = deltaCount >= 0 ? '#27ae60' : '#e74c3c';
+    const corValor = deltaValor >= 0 ? '#27ae60' : '#e74c3c';
+    summaryHtml.push(`<div class="acomp-card"><h3>Diferença</h3><div>OTs: <strong style="color:${corCount};">${deltaCount >= 0 ? '+' : ''}${deltaCount} (${pctCount}${pctCount!=='N/A' ? '%' : ''})</strong></div><div>Valor: <strong style="color:${corValor};">${deltaValor >= 0 ? '+' : ''}${formatMoney(deltaValor)} (${pctValor}${pctValor!=='N/A' ? '%' : ''})</strong></div></div>`);
+    summaryHtml.push('</div>');
+    document.getElementById('analise-semanas-summary').innerHTML = summaryHtml.join('');
+
+    // breakdown por tipo de trabalho
+    const ots1 = obterOTsFiltradas(week1.start, week1.end, []);
+    const ots2 = obterOTsFiltradas(week2.start, week2.end, []);
+    const s1 = sumarizarOTs(ots1);
+    const s2 = sumarizarOTs(ots2);
+    const tipos = Array.from(new Set([].concat(Object.keys(s1.byTipo), Object.keys(s2.byTipo))));
+    const rows = [];
+    rows.push('<table class="acomp-results-table"><thead><tr><th>Tipo</th><th>Qtd ' + label1 + '</th><th>Valor</th><th>Qtd ' + label2 + '</th><th>Valor</th></tr></thead><tbody>');
+    tipos.forEach(t => {
+        const a = s1.byTipo[t] || {count:0, value:0};
+        const b = s2.byTipo[t] || {count:0, value:0};
+        rows.push(`<tr><td>${t}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
+    });
+    rows.push('</tbody></table>');
+    document.getElementById('analise-semanas-breakdown').innerHTML = rows.join('');
+
+    // charts
+    try { if (window._semanasCharts.count) window._semanasCharts.count.destroy(); } catch(e){}
+    try { if (window._semanasCharts.value) window._semanasCharts.value.destroy(); } catch(e){}
+
+    const ctxCount = document.getElementById('chart-semanas-count').getContext('2d');
+    window._semanasCharts.count = new Chart(ctxCount, {
+        type: 'bar',
+        data: {
+            labels: ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'],
+            datasets: [
+                { label: label1, data: week1.counts, backgroundColor: 'rgba(54,162,235,0.8)' },
+                { label: label2, data: week2.counts, backgroundColor: 'rgba(255,99,132,0.7)' }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'top' } } }
+    });
+
+    const ctxVal = document.getElementById('chart-semanas-valor').getContext('2d');
+    window._semanasCharts.value = new Chart(ctxVal, {
+        type: 'bar',
+        data: {
+            labels: ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'],
+            datasets: [
+                { label: label1, data: week1.sums, backgroundColor: 'rgba(40,167,69,0.8)' },
+                { label: label2, data: week2.sums, backgroundColor: 'rgba(230,126,34,0.7)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); } } } },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+}
+
+function limparComparacaoSemanas() {
+    document.getElementById('analise-semana1-data').value = '';
+    document.getElementById('analise-semana2-data').value = '';
+    document.getElementById('analise-semanas-summary').innerHTML = '';
+    document.getElementById('analise-semanas-breakdown').innerHTML = '';
+    try { if (window._semanasCharts.count) window._semanasCharts.count.destroy(); } catch(e){}
+    try { if (window._semanasCharts.value) window._semanasCharts.value.destroy(); } catch(e){}
+}
+
+// ================== Comparação Mês a Mês ==================
+window._mesesChart = null;
+
+function obterOTsDoMes(anoMesStr) {
+    // anoMesStr formato "YYYY-MM"
+    const raw = localStorage.getItem('ordensTrabalho');
+    let arr = [];
+    try { arr = JSON.parse(raw) || []; } catch(e){ arr = []; }
+    return arr.filter(o => {
+        if (!o || !o.data) return false;
+        return String(o.data).slice(0,7) === anoMesStr;
+    });
+}
+
+function calcularSemanasDoMes(anoMesStr, otsDoMes) {
+    // Gera todas as semanas (Segunda a Domingo) que tocam o mês, na ordem cronológica,
+    // e soma as OTs de cada semana. Semanas sem OT aparecem com 0.
+    const [ano, mes] = anoMesStr.split('-').map(Number);
+    const primeiroDia = new Date(ano, mes - 1, 1);
+    const ultimoDia = new Date(ano, mes, 0); // último dia do mês
+
+    const semanas = [];
+    let cursor = startOfWeek(primeiroDia);
+    while (cursor <= ultimoDia) {
+        const start = new Date(cursor);
+        const end = endOfWeek(start);
+        semanas.push({ start, end, count: 0, value: 0 });
+        cursor = new Date(cursor);
+        cursor.setDate(cursor.getDate() + 7);
+    }
+
+    otsDoMes.forEach(o => {
+        const dt = parseISODate(o.data);
+        if (!dt) return;
+        for (const s of semanas) {
+            if (dt >= s.start && dt <= s.end) {
+                s.count += 1;
+                s.value += Number(o.valorServico) || 0;
+                break;
+            }
+        }
+    });
+
+    return semanas.map(s => ({
+        periodo: `${s.start.toLocaleDateString('pt-BR')} a ${s.end.toLocaleDateString('pt-BR')}`,
+        count: s.count,
+        value: s.value
+    }));
+}
+
+function compararMesesCompleto() {
+    const mesA = document.getElementById('analise-mesA').value;
+    const mesB = document.getElementById('analise-mesB').value;
+    if (!mesA || !mesB) {
+        alert('Escolha o Mês A e o Mês B para comparar.');
+        return;
+    }
+
+    const otsA = obterOTsDoMes(mesA);
+    const otsB = obterOTsDoMes(mesB);
+    const sumA = sumarizarOTs(otsA);
+    const sumB = sumarizarOTs(otsB);
+
+    const labelA = formatarMesLabel(mesA);
+    const labelB = formatarMesLabel(mesB);
+
+    const deltaCount = sumA.totalCount - sumB.totalCount;
+    const deltaValor = sumA.totalValue - sumB.totalValue;
+    const pctCount = sumB.totalCount > 0 ? ((deltaCount / sumB.totalCount) * 100).toFixed(1) : 'N/A';
+    const pctValor = sumB.totalValue > 0 ? ((deltaValor / sumB.totalValue) * 100).toFixed(1) : 'N/A';
+
+    const summaryHtml = [];
+    summaryHtml.push('<div class="acomp-summary">');
+    summaryHtml.push(`<div class="acomp-card"><h3>${labelA}</h3><div>OTs: <strong>${sumA.totalCount}</strong></div><div>Valor: <strong>${formatMoney(sumA.totalValue)}</strong></div></div>`);
+    summaryHtml.push(`<div class="acomp-card"><h3>${labelB}</h3><div>OTs: <strong>${sumB.totalCount}</strong></div><div>Valor: <strong>${formatMoney(sumB.totalValue)}</strong></div></div>`);
+    const corCount = deltaCount >= 0 ? '#27ae60' : '#e74c3c';
+    const corValor = deltaValor >= 0 ? '#27ae60' : '#e74c3c';
+    summaryHtml.push(`<div class="acomp-card"><h3>Diferença</h3><div>OTs: <strong style="color:${corCount};">${deltaCount >= 0 ? '+' : ''}${deltaCount} (${pctCount}${pctCount!=='N/A' ? '%' : ''})</strong></div><div>Valor: <strong style="color:${corValor};">${deltaValor >= 0 ? '+' : ''}${formatMoney(deltaValor)} (${pctValor}${pctValor!=='N/A' ? '%' : ''})</strong></div></div>`);
+    summaryHtml.push('</div>');
+    document.getElementById('analise-meses-summary').innerHTML = summaryHtml.join('');
+
+    // breakdown por tipo
+    const tipos = Array.from(new Set([].concat(Object.keys(sumA.byTipo), Object.keys(sumB.byTipo))));
+    const rows = [];
+    rows.push(`<table class="acomp-results-table"><thead><tr><th>Tipo</th><th>Qtd ${labelA}</th><th>Valor</th><th>Qtd ${labelB}</th><th>Valor</th></tr></thead><tbody>`);
+    tipos.forEach(t => {
+        const a = sumA.byTipo[t] || {count:0, value:0};
+        const b = sumB.byTipo[t] || {count:0, value:0};
+        rows.push(`<tr><td>${t}</td><td>${a.count}</td><td>${formatMoney(a.value)}</td><td>${b.count}</td><td>${formatMoney(b.value)}</td></tr>`);
+    });
+    rows.push('</tbody></table>');
+    document.getElementById('analise-meses-breakdown').innerHTML = rows.join('');
+
+    // breakdown por semana (semana 1, 2, 3... dentro de cada mês)
+    const semanasA = calcularSemanasDoMes(mesA, otsA);
+    const semanasB = calcularSemanasDoMes(mesB, otsB);
+    const maxSemanas = Math.max(semanasA.length, semanasB.length);
+    const rowsSem = [];
+    rowsSem.push(`<h3 style="margin-top:16px;">Detalhamento Semana a Semana</h3>`);
+    rowsSem.push(`<table class="acomp-results-table"><thead><tr><th>Semana</th><th>Período ${labelA}</th><th>Qtd OTs</th><th>Valor</th><th>Período ${labelB}</th><th>Qtd OTs</th><th>Valor</th></tr></thead><tbody>`);
+    for (let i = 0; i < maxSemanas; i++) {
+        const sa = semanasA[i];
+        const sb = semanasB[i];
+        rowsSem.push('<tr>');
+        rowsSem.push(`<td>Semana ${i+1}</td>`);
+        rowsSem.push(`<td>${sa ? sa.periodo : '-'}</td>`);
+        rowsSem.push(`<td>${sa ? sa.count : '-'}</td>`);
+        rowsSem.push(`<td>${sa ? formatMoney(sa.value) : '-'}</td>`);
+        rowsSem.push(`<td>${sb ? sb.periodo : '-'}</td>`);
+        rowsSem.push(`<td>${sb ? sb.count : '-'}</td>`);
+        rowsSem.push(`<td>${sb ? formatMoney(sb.value) : '-'}</td>`);
+        rowsSem.push('</tr>');
+    }
+    rowsSem.push('</tbody></table>');
+    document.getElementById('analise-meses-breakdown').innerHTML += rowsSem.join('');
+
+    // chart
+    try { if (window._mesesChart) window._mesesChart.destroy(); } catch(e){}
+    const ctx = document.getElementById('chart-meses-valor').getContext('2d');
+    window._mesesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [labelA, labelB],
+            datasets: [
+                { label: 'Nº de OTs', data: [sumA.totalCount, sumB.totalCount], backgroundColor: 'rgba(54,162,235,0.8)', yAxisID: 'y' },
+                { label: 'Valor (€)', data: [sumA.totalValue, sumB.totalValue], backgroundColor: 'rgba(40,167,69,0.8)', yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'Nº OTs' } },
+                y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Valor (€)' }, ticks: { callback: function(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); } } }
+            },
+            plugins: { legend: { position: 'top' } }
+        }
+    });
+}
+
+function formatarMesLabel(anoMesStr) {
+    const [ano, mes] = anoMesStr.split('-');
+    const nomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const idx = parseInt(mes, 10) - 1;
+    return (nomes[idx] || mes) + '/' + ano;
+}
+
+function limparComparacaoMeses() {
+    document.getElementById('analise-mesA').value = '';
+    document.getElementById('analise-mesB').value = '';
+    document.getElementById('analise-meses-summary').innerHTML = '';
+    document.getElementById('analise-meses-breakdown').innerHTML = '';
+    try { if (window._mesesChart) window._mesesChart.destroy(); } catch(e){}
 }
 
 // Atualizar data e hora quando mudar manualmente a data
@@ -4772,6 +5369,625 @@ function fecharBannerIOS() {
 }
 
 // ==================== SWIPE ENTRE ABAS ====================
+// === Acompanhamento / Análise de OTs (inserido) ===
+function parseSelectedDiasSemana() {
+    const sel = document.getElementById('acomp-dias-semana');
+    if (!sel) return null;
+    const opts = Array.from(sel.options).filter(o => o.selected).map(o => Number(o.value));
+    return opts.length === 0 ? null : opts; // null means todos os dias
+}
+
+function filtrarOTsPorPeriodoEDias(ots, inicioISO, fimISO, diasSemana) {
+    const inicio = inicioISO ? new Date(inicioISO + 'T00:00:00') : null;
+    const fim = fimISO ? new Date(fimISO + 'T23:59:59') : null;
+    return (ots || []).filter(ot => {
+        const otDate = new Date(getDataISO(ot.data) + 'T12:00:00');
+        if (inicio && otDate < inicio) return false;
+        if (fim && otDate > fim) return false;
+        if (Array.isArray(diasSemana) && diasSemana.length > 0) {
+            const d = otDate.getDay();
+            if (!diasSemana.includes(d)) return false;
+        }
+        return true;
+    });
+}
+
+function calcularMetricasOTs(ots) {
+    const totalOTs = ots.length;
+    const totalValor = ots.reduce((s, ot) => s + (parseFloat(ot.valorServico) || 0), 0);
+    const totalBonusForaHora = ots.reduce((s, ot) => s + (parseFloat(ot.bonusForaHoraAplicado) || 0), 0);
+    const totalPremiosSaida = ots.reduce((s, ot) => s + ((parseFloat(ot.premioSabadoAplicado) || 0) + (parseFloat(ot.premioDomingoAplicado) || 0) + (parseFloat(ot.premioFestivoAplicado) || 0)), 0);
+    return { totalOTs, totalValor, totalBonusForaHora, totalPremiosSaida };
+}
+
+function obterDiasDoPeriodo(inicioISO, fimISO) {
+    const arr = [];
+    const inicio = new Date(inicioISO + 'T00:00:00');
+    const fim = new Date(fimISO + 'T00:00:00');
+    for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+        arr.push(new Date(d));
+    }
+    return arr;
+}
+
+function getCheckboxWeekdays() {
+    const container = document.getElementById('acomp-week-checkboxes');
+    if (!container) return null;
+    const inputs = container.querySelectorAll('input[type="checkbox"]');
+    const vals = Array.from(inputs).filter(i => i.checked).map(i => Number(i.value));
+    return vals.length === 0 ? null : vals;
+}
+
+function populateDatesListForRange() {
+    const inicio = document.getElementById('acomp-data-inicio')?.value;
+    const fim = document.getElementById('acomp-data-fim')?.value;
+    const sel = document.getElementById('acomp-dates-list');
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (!inicio || !fim) return;
+    const dias = obterDiasDoPeriodo(inicio, fim);
+    dias.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.toISOString().slice(0,10);
+        opt.text = d.toLocaleDateString();
+        opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+function populateDatesListForMonth() {
+    const tipo = document.getElementById('acomp-tipo-comparacao')?.value;
+    const monthEl = document.getElementById('acomp-month-compare');
+    const sel = document.getElementById('acomp-compare-dates-list');
+    if (!sel || !monthEl) return;
+    sel.innerHTML = '';
+    let base = monthEl.value; // YYYY-MM
+    if (!base) {
+        // if month not set and tipo is mes-anterior, try derive from start date
+        const inicio = document.getElementById('acomp-data-inicio')?.value;
+        if (inicio) {
+            const d = new Date(inicio + 'T00:00:00');
+            d.setMonth(d.getMonth() - (tipo === 'mes-anterior' ? 1 : 0));
+            base = d.toISOString().slice(0,7);
+            monthEl.value = base;
+        } else return;
+    }
+    const [y,m] = base.split('-').map(Number);
+    const first = new Date(y, m-1, 1);
+    const last = new Date(y, m, 0);
+    for (let d = new Date(first); d <= last; d.setDate(d.getDate()+1)) {
+        const opt = document.createElement('option');
+        opt.value = d.toISOString().slice(0,10);
+        opt.text = d.toLocaleDateString();
+        opt.selected = true;
+        sel.appendChild(opt);
+    }
+}
+
+function agregarPorDiaIndice(ots, inicioISO) {
+    const dias = obterDiasDoPeriodo(inicioISO, inicioISO); // placeholder, will use diffs
+    // We'll compute day index as days since inicioISO
+    return ots.reduce((map, ot) => {
+        const d = new Date(getDataISO(ot.data) + 'T12:00:00');
+        const inicio = new Date(inicioISO + 'T00:00:00');
+        const idx = Math.floor((d - inicio) / (24*60*60*1000));
+        map[idx] = (map[idx] || 0) + (parseFloat(ot.valorServico) || 0);
+        return map;
+    }, {});
+}
+
+function desenharGraficoAcompanhamento(inicioISO, fimISO, dadosAtualMap, dadosCompMap) {
+    const canvas = document.getElementById('acomp-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dias = obterDiasDoPeriodo(inicioISO, fimISO);
+    // Clear
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Responsive scaling
+    const DPR = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * DPR;
+    canvas.height = canvas.clientHeight * DPR;
+    ctx.scale(DPR, DPR);
+
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    const padding = 40;
+    const chartW = W - padding*2;
+    const chartH = H - padding*2;
+
+    // Build arrays
+    const atualArr = dias.map((d,i) => dadosAtualMap[i] || 0);
+    const compArr = dias.map((d,i) => dadosCompMap ? (dadosCompMap[i] || 0) : 0);
+    const maxVal = Math.max(...atualArr, ...compArr, 10);
+
+    // axes
+    ctx.fillStyle = '#666'; ctx.font = '12px Arial';
+    ctx.fillText('€', 6, padding - 6);
+
+    // draw bars grouped
+    const groupW = chartW / dias.length;
+    const barW = Math.min(24, groupW * 0.36);
+    dias.forEach((d,i) => {
+        const xGroup = padding + i * groupW;
+        // atual bar (left)
+        const hA = (atualArr[i] / maxVal) * chartH;
+        ctx.fillStyle = '#6c5ce7';
+        ctx.fillRect(xGroup + (groupW/2 - barW - 3), padding + (chartH - hA), barW, hA);
+        // comp bar (right)
+        const hC = (compArr[i] / maxVal) * chartH;
+        ctx.fillStyle = '#5a4bcf';
+        ctx.fillRect(xGroup + (groupW/2 + 3), padding + (chartH - hC), barW, hC);
+        // labels
+        ctx.fillStyle = '#333'; ctx.font = '11px Arial';
+        const label = String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+        ctx.fillText(label, xGroup + groupW/2 - 18, padding + chartH + 16);
+    });
+
+    // legend
+    ctx.fillStyle = '#6c5ce7'; ctx.fillRect(W - padding - 120, padding - 28, 12, 12);
+    ctx.fillStyle = '#333'; ctx.fillText('Período selecionado', W - padding - 100, padding - 18);
+    ctx.fillStyle = '#5a4bcf'; ctx.fillRect(W - padding - 120, padding - 8, 12, 12);
+    ctx.fillStyle = '#333'; ctx.fillText('Comparação', W - padding - 100, padding - -2);
+}
+
+function renderAcompanhamento(resAtual, resComparacao) {
+    const principal = document.getElementById('acomp-resumo-principal');
+    const tabela = document.getElementById('acomp-tabela-resultados');
+    if (!principal || !tabela) return;
+
+    principal.innerHTML = `
+        <div style="display:flex; gap:18px; flex-wrap:wrap;">
+            <div style="background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px;color:#666;">OTs no período</div>
+                <div style="font-weight:700;font-size:20px;">${resAtual.totalOTs}</div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px;color:#666;">Valor total (€)</div>
+                <div style="font-weight:700;font-size:20px;">€ ${resAtual.totalValor.toFixed(2)}</div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px;color:#666;">Bônus Fora Hora (€)</div>
+                <div style="font-weight:700;font-size:20px;">€ ${resAtual.totalBonusForaHora.toFixed(2)}</div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px;color:#666;">Prémios de Saída (€)</div>
+                <div style="font-weight:700;font-size:20px;">€ ${resAtual.totalPremiosSaida.toFixed(2)}</div>
+            </div>
+        </div>
+    `;
+
+    let html = '<table style="width:100%;border-collapse:collapse;margin-top:12px;">';
+    html += '<thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Métrica</th><th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Período</th>';
+    if (resComparacao) html += '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Comparação</th><th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Diferença</th>';
+    html += '</tr></thead><tbody>';
+
+    function row(name, cur, cmp) {
+        const diff = (cmp !== null && typeof cmp !== 'undefined') ? ( (typeof cur === 'number' ? cur : parseFloat(cur)) - (typeof cmp === 'number' ? cmp : parseFloat(String(cmp).replace(/[^0-9.-]+/g, '')) ) ) : 0;
+        return `<tr><td style="padding:8px;border-bottom:1px solid #fafafa;">${name}</td><td style="padding:8px;text-align:right;border-bottom:1px solid #fafafa;">${cur}</td>${(cmp !== null && typeof cmp !== 'undefined') ? `<td style="padding:8px;text-align:right;border-bottom:1px solid #fafafa;">${cmp}</td><td style="padding:8px;text-align:right;border-bottom:1px solid #fafafa;">${diff >=0 ? '+' : ''}${diff}</td>` : ''}</tr>`;
+    }
+
+    html += row('OTs', resAtual.totalOTs, resComparacao ? resComparacao.totalOTs : null);
+    html += row('Valor (€)', '€ ' + resAtual.totalValor.toFixed(2), resComparacao ? '€ ' + resComparacao.totalValor.toFixed(2) : null);
+    html += row('Bônus Fora Hora (€)', '€ ' + resAtual.totalBonusForaHora.toFixed(2), resComparacao ? '€ ' + resComparacao.totalBonusForaHora.toFixed(2) : null);
+    html += row('Prémios de Saída (€)', '€ ' + resAtual.totalPremiosSaida.toFixed(2), resComparacao ? '€ ' + resComparacao.totalPremiosSaida.toFixed(2) : null);
+
+    html += '</tbody></table>';
+    tabela.innerHTML = html;
+}
+
+function gerarAnalise() {
+    // read selected date lists
+    const inicio = document.getElementById('acomp-data-inicio')?.value || null;
+    const fim = document.getElementById('acomp-data-fim')?.value || null;
+    const selDias = Array.from(document.getElementById('acomp-dates-list')?.options || []).filter(o => o.selected).map(o => o.value);
+    const selDiasComp = Array.from(document.getElementById('acomp-compare-dates-list')?.options || []).filter(o => o.selected).map(o => o.value);
+    const tipoComparacao = document.getElementById('acomp-tipo-comparacao')?.value || 'mes-selecionado';
+
+    const allOTs = JSON.parse(localStorage.getItem('ordensTrabalho') || '[]');
+    // filter by selected explicit dates list
+    const filtradoAtual = (selDias.length > 0) ? allOTs.filter(ot => selDias.includes(getDataISO(ot.data))) : filtrarOTsPorPeriodoEDias(allOTs, inicio, fim, null);
+    const resAtual = calcularMetricasOTs(filtradoAtual);
+
+    let resComparacao = null;
+    let filtradoPrev = [];
+    if (selDiasComp.length > 0) {
+        filtradoPrev = allOTs.filter(ot => selDiasComp.includes(getDataISO(ot.data)));
+        resComparacao = calcularMetricasOTs(filtradoPrev);
+    } else if (tipoComparacao === 'mes-anterior' && inicio && fim) {
+        // fallback: month-before for the selected period
+        const iDate = new Date(inicio + 'T00:00:00');
+        const fDate = new Date(fim + 'T23:59:59');
+        const iPrev = new Date(iDate); iPrev.setMonth(iPrev.getMonth() - 1);
+        const fPrev = new Date(fDate); fPrev.setMonth(fPrev.getMonth() - 1);
+        const iPrevISO = iPrev.toISOString().slice(0,10);
+        const fPrevISO = fPrev.toISOString().slice(0,10);
+        filtradoPrev = filtrarOTsPorPeriodoEDias(allOTs, iPrevISO, fPrevISO, null);
+        resComparacao = calcularMetricasOTs(filtradoPrev);
+    }
+
+    // Preparar dados por dia para o gráfico
+    if (inicio && fim) {
+        const start = new Date(inicio + 'T00:00:00');
+        const end = new Date(fim + 'T23:59:59');
+        const durationDays = Math.floor((end - start) / (24*60*60*1000)) + 1;
+
+        const selectedCheckboxDays = getCheckboxWeekdays();
+        const diasSemanaFilter = Array.isArray(selectedCheckboxDays) ? selectedCheckboxDays : dias;
+
+        const atualMap = {};
+        filtradoAtual.forEach(ot => {
+            const d = new Date(getDataISO(ot.data) + 'T12:00:00');
+            if (diasSemanaFilter && diasSemanaFilter.length > 0 && !diasSemanaFilter.includes(d.getDay())) return;
+            const idx = Math.floor((d - start) / (24*60*60*1000));
+            if (idx < 0 || idx >= durationDays) return;
+            atualMap[idx] = (atualMap[idx] || 0) + (parseFloat(ot.valorServico) || 0);
+        });
+
+        let compMap = null;
+        const tipoComp = document.getElementById('acomp-tipo-comparacao')?.value || 'mes-anterior';
+        if (tipoComp === 'mes-anterior') {
+            const prevStart = new Date(start);
+            const prevEnd = new Date(end);
+            prevStart.setMonth(prevStart.getMonth() - 1);
+            prevEnd.setMonth(prevEnd.getMonth() - 1);
+            const prevInicioISO = prevStart.toISOString().slice(0,10);
+            const prevFimISO = prevEnd.toISOString().slice(0,10);
+            const filtradoPrev = filtrarOTsPorPeriodoEDias(JSON.parse(localStorage.getItem('ordensTrabalho')||'[]'), prevInicioISO, prevFimISO, diasSemanaFilter);
+            compMap = {};
+            filtradoPrev.forEach(ot => {
+                const d = new Date(getDataISO(ot.data) + 'T12:00:00');
+                if (diasSemanaFilter && diasSemanaFilter.length > 0 && !diasSemanaFilter.includes(d.getDay())) return;
+                const idx = Math.floor((d - prevStart) / (24*60*60*1000));
+                if (idx < 0 || idx >= durationDays) return;
+                compMap[idx] = (compMap[idx] || 0) + (parseFloat(ot.valorServico) || 0);
+            });
+        } else if (tipoComp === 'periodo-anterior') {
+            const prevEnd = new Date(start);
+            prevEnd.setDate(prevEnd.getDate() - 1);
+            prevEnd.setHours(23,59,59,999);
+            const prevStart = new Date(prevEnd);
+            prevStart.setDate(prevEnd.getDate() - (durationDays - 1));
+            prevStart.setHours(0,0,0,0);
+            const prevInicioISO = prevStart.toISOString().slice(0,10);
+            const prevFimISO = prevEnd.toISOString().slice(0,10);
+            const filtradoPrev = filtrarOTsPorPeriodoEDias(JSON.parse(localStorage.getItem('ordensTrabalho')||'[]'), prevInicioISO, prevFimISO, diasSemanaFilter);
+            compMap = {};
+            filtradoPrev.forEach(ot => {
+                const d = new Date(getDataISO(ot.data) + 'T12:00:00');
+                if (diasSemanaFilter && diasSemanaFilter.length > 0 && !diasSemanaFilter.includes(d.getDay())) return;
+                const idx = Math.floor((d - prevStart) / (24*60*60*1000));
+                if (idx < 0 || idx >= durationDays) return;
+                compMap[idx] = (compMap[idx] || 0) + (parseFloat(ot.valorServico) || 0);
+            });
+        }
+
+        desenharGraficoAcompanhamento(inicio, fim, atualMap, compMap);
+    }
+
+    renderAcompanhamento(resAtual, resComparacao);
+}
+
+function obterInicioFimSemanaPorData(isoDate) {
+    if (!isoDate) return null;
+    const d = new Date(isoDate + 'T12:00:00');
+    // Ajustar para começar a semana na segunda-feira (1)
+    const dia = d.getDay(); // 0..6 (0=domingo)
+    const diffToMonday = (dia === 0) ? -6 : (1 - dia);
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diffToMonday);
+    monday.setHours(0,0,0,0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23,59,59,999);
+    return { inicioISO: monday.toISOString().slice(0,10), fimISO: sunday.toISOString().slice(0,10) };
+}
+
+function gerarAnaliseSemana() {
+    const dataSemana = document.getElementById('acomp-data-semana')?.value;
+    if (!dataSemana) {
+        alert('Selecione a data da semana que quer analisar.');
+        return;
+    }
+    const periodo = obterInicioFimSemanaPorData(dataSemana);
+    if (!periodo) return;
+    // preencher os campos de inicio/fim para reaproveitar gerarAnalise
+    document.getElementById('acomp-data-inicio').value = periodo.inicioISO;
+    document.getElementById('acomp-data-fim').value = periodo.fimISO;
+    gerarAnalise();
+}
+
+function limparAcompanhamentoSemana() {
+    document.getElementById('acomp-data-semana').value = '';
+    document.getElementById('acomp-data-inicio').value = '';
+    document.getElementById('acomp-data-fim').value = '';
+    document.getElementById('acomp-dias-semana').selectedIndex = -1;
+    document.getElementById('acomp-comparar-mes-anterior').checked = false;
+    document.getElementById('acomp-resumo-principal').innerHTML = '';
+    document.getElementById('acomp-tabela-resultados').innerHTML = '';
+}
+
+function gerarComparacaoSemana() {
+    const picked = document.getElementById('acomp-week-picker')?.value;
+    if (!picked) { alert('Selecione uma data dentro da semana que quer comparar.'); return; }
+    // compute monday..sunday for the picked date
+    const d = new Date(picked + 'T12:00:00');
+    const dia = d.getDay();
+    const diffToMonday = (dia === 0) ? -6 : (1 - dia);
+    const monday = new Date(d); monday.setDate(d.getDate() + diffToMonday); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+
+    // previous-month same-week: move both start and end one month back
+    const prevMonday = new Date(monday); prevMonday.setMonth(prevMonday.getMonth() -1);
+    const prevSunday = new Date(sunday); prevSunday.setMonth(prevSunday.getMonth() -1);
+
+    const allOTs = JSON.parse(localStorage.getItem('ordensTrabalho') || '[]');
+
+    // aggregate by day index (0..6) for counts and sums
+    const atualCounts = Array(7).fill(0);
+    const atualSums = Array(7).fill(0);
+    const prevCounts = Array(7).fill(0);
+    const prevSums = Array(7).fill(0);
+
+    allOTs.forEach(ot => {
+        const otDate = new Date(getDataISO(ot.data) + 'T12:00:00');
+        if (otDate >= monday && otDate <= sunday) {
+            const idx = Math.floor((otDate - monday) / (24*60*60*1000));
+            atualCounts[idx] += 1;
+            atualSums[idx] += parseFloat(ot.valorServico) || 0;
+        }
+        if (otDate >= prevMonday && otDate <= prevSunday) {
+            const idx = Math.floor((otDate - prevMonday) / (24*60*60*1000));
+            prevCounts[idx] += 1;
+            prevSums[idx] += parseFloat(ot.valorServico) || 0;
+        }
+    });
+
+    // build maps compatible with desenharGraficoAcompanhamento: map idx->value (use sums)
+    const atualMap = {};
+    const prevMap = {};
+    for (let i=0;i<7;i++){ atualMap[i]=atualSums[i]||0; prevMap[i]=prevSums[i]||0; }
+
+    // prepare labels/dates for chart: monday..sunday ISO
+    const inicioISO = monday.toISOString().slice(0,10);
+    const fimISO = sunday.toISOString().slice(0,10);
+
+    desenharGraficoAcompanhamento(inicioISO, fimISO, atualMap, prevMap);
+
+    // render summary cards: total OTs, total valor, and delta vs prev
+    const totalAtualOTs = atualCounts.reduce((s,v)=>s+v,0);
+    const totalPrevOTs = prevCounts.reduce((s,v)=>s+v,0);
+    const totalAtualValor = atualSums.reduce((s,v)=>s+v,0);
+    const totalPrevValor = prevSums.reduce((s,v)=>s+v,0);
+
+    const principal = document.getElementById('acomp-resumo-principal');
+    if (principal) {
+        principal.innerHTML = `
+            <div class="acomp-card"><small>OTs na semana</small><strong>${totalAtualOTs}</strong></div>
+            <div class="acomp-card"><small>Valor semana</small><strong>€ ${totalAtualValor.toFixed(2)}</strong></div>
+            <div class="acomp-card"><small>Variação OTs</small><strong>${totalPrevOTs===0?'+':((totalAtualOTs-totalPrevOTs)>0?'+':'')}${totalAtualOTs-totalPrevOTs}</strong></div>
+            <div class="acomp-card"><small>Variação Valor</small><strong>€ ${(totalAtualValor-totalPrevValor).toFixed(2)}</strong></div>
+        `;
+    }
+}
+
+function compararDuasSemanas() {
+    const a = document.getElementById('acomp-week-a')?.value;
+    const b = document.getElementById('acomp-week-b')?.value;
+    if (!a || !b) { alert('Selecione ambas as semanas (um dia de cada semana).'); return; }
+
+    function weekRangeFromDate(iso) {
+        const d = new Date(iso + 'T12:00:00');
+        const dia = d.getDay();
+        const diffToMonday = (dia === 0) ? -6 : (1 - dia);
+        const monday = new Date(d); monday.setDate(d.getDate() + diffToMonday); monday.setHours(0,0,0,0);
+        const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+        return { monday, sunday };
+    }
+
+    const rangeA = weekRangeFromDate(a);
+    const rangeB = weekRangeFromDate(b);
+    const allOTs = JSON.parse(localStorage.getItem('ordensTrabalho') || '[]');
+
+    const countsA = Array(7).fill(0), sumsA = Array(7).fill(0);
+    const countsB = Array(7).fill(0), sumsB = Array(7).fill(0);
+
+    allOTs.forEach(ot => {
+        const otDate = new Date(getDataISO(ot.data) + 'T12:00:00');
+        if (otDate >= rangeA.monday && otDate <= rangeA.sunday) {
+            const idx = Math.floor((otDate - rangeA.monday) / (24*60*60*1000));
+            countsA[idx] += 1; sumsA[idx] += parseFloat(ot.valorServico) || 0;
+        }
+        if (otDate >= rangeB.monday && otDate <= rangeB.sunday) {
+            const idx = Math.floor((otDate - rangeB.monday) / (24*60*60*1000));
+            countsB[idx] += 1; sumsB[idx] += parseFloat(ot.valorServico) || 0;
+        }
+    });
+
+    // Draw A and B charts (values)
+    drawSmallWeekChart('acomp-chart-a', sumsA, rangeA.monday);
+    drawSmallWeekChart('acomp-chart-b', sumsB, rangeB.monday);
+
+    // Summary
+    const totalAOTs = countsA.reduce((s,v)=>s+v,0), totalBOTs = countsB.reduce((s,v)=>s+v,0);
+    const totalAVal = sumsA.reduce((s,v)=>s+v,0), totalBVal = sumsB.reduce((s,v)=>s+v,0);
+    const principal = document.getElementById('acomp-resumo-principal');
+    if (principal) {
+        principal.innerHTML = `
+            <div class="acomp-card"><small>Semana A - OTs</small><strong>${totalAOTs}</strong></div>
+            <div class="acomp-card"><small>Semana A - Valor</small><strong>€ ${totalAVal.toFixed(2)}</strong></div>
+            <div class="acomp-card"><small>Semana B - OTs</small><strong>${totalBOTs}</strong></div>
+            <div class="acomp-card"><small>Semana B - Valor</small><strong>€ ${totalBVal.toFixed(2)}</strong></div>
+        `;
+    }
+}
+
+function drawSmallWeekChart(canvasId, valuesArr, mondayDate) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * DPR; canvas.height = canvas.clientHeight * DPR;
+    ctx.scale(DPR, DPR);
+    ctx.clearRect(0,0,canvas.clientWidth, canvas.clientHeight);
+    const W = canvas.clientWidth, H = canvas.clientHeight; const padding=36;
+    const chartW = W - padding*2, chartH = H - padding*2;
+    const maxV = Math.max(...valuesArr,10);
+    const groupW = chartW / 7; const barW = Math.min(26, groupW*0.6);
+    valuesArr.forEach((v,i)=>{
+        const x = padding + i*groupW + (groupW/2 - barW/2);
+        const h = (v / maxV) * chartH;
+        ctx.fillStyle = '#6c5ce7'; ctx.fillRect(x, padding + (chartH - h), barW, h);
+        ctx.fillStyle='#333'; ctx.font='12px Arial';
+        const labelDate = new Date(mondayDate); labelDate.setDate(labelDate.getDate()+i);
+        const lbl = String(labelDate.getDate()).padStart(2,'0')+'/'+String(labelDate.getMonth()+1).padStart(2,'0');
+        ctx.fillText(lbl, x-6, padding+chartH+16);
+    });
+}
+
+// --- Week/calendar helpers (A/B) ---
+function getWeekFromDateISO(isoDate) {
+    const d = new Date(isoDate + 'T12:00:00');
+    const dia = d.getDay();
+    const diffToMonday = (dia === 0) ? -6 : (1 - dia);
+    const monday = new Date(d); monday.setDate(d.getDate() + diffToMonday); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+    return { monday, sunday };
+}
+
+function shiftWeek(which, offsetWeeks) {
+    const dateEl = document.getElementById(`acomp-week-${which.toLowerCase()}-date`);
+    if (!dateEl) return;
+    const cur = dateEl.value ? new Date(dateEl.value + 'T12:00:00') : new Date();
+    cur.setDate(cur.getDate() + offsetWeeks*7);
+    dateEl.value = cur.toISOString().slice(0,10);
+    syncWeekFromDate(which);
+}
+
+function resetWeekToToday(which) {
+    const dateEl = document.getElementById(`acomp-week-${which.toLowerCase()}-date`);
+    if (!dateEl) return;
+    const today = new Date(); dateEl.value = today.toISOString().slice(0,10);
+    syncWeekFromDate(which);
+}
+
+function updateWeekInputsFromMonth(which) {
+    // if month/year changes, set the date input to the first day of that month
+    const monthEl = document.getElementById(`acomp-week-${which.toLowerCase()}-month`);
+    const yearEl = document.getElementById(`acomp-week-${which.toLowerCase()}-year`);
+    const dateEl = document.getElementById(`acomp-week-${which.toLowerCase()}-date`);
+    if (!monthEl || !yearEl || !dateEl) return;
+    const m = monthEl.value; if (!m) return;
+    const [y,mm] = m.split('-').map(Number);
+    const year = yearEl.value ? Number(yearEl.value) : y;
+    const d = new Date(year, mm-1, 1);
+    dateEl.value = d.toISOString().slice(0,10);
+    syncWeekFromDate(which);
+}
+
+function syncWeekFromDate(which) {
+    // ensure month and year inputs reflect the chosen date
+    const dateEl = document.getElementById(`acomp-week-${which.toLowerCase()}-date`);
+    const monthEl = document.getElementById(`acomp-week-${which.toLowerCase()}-month`);
+    const yearEl = document.getElementById(`acomp-week-${which.toLowerCase()}-year`);
+    if (!dateEl) return;
+    const val = dateEl.value; if (!val) return;
+    const d = new Date(val + 'T12:00:00');
+    if (monthEl) monthEl.value = d.toISOString().slice(0,7);
+    if (yearEl) yearEl.value = d.getFullYear();
+}
+
+// Update compararDuasSemanas to also build month comparison
+function compararDuasSemanas() {
+    const da = document.getElementById('acomp-week-a-date')?.value;
+    const db = document.getElementById('acomp-week-b-date')?.value;
+    if (!da || !db) { alert('Escolha uma data para cada semana (qualquer dia da semana).'); return; }
+    const rangeA = getWeekFromDateISO(da);
+    const rangeB = getWeekFromDateISO(db);
+    const allOTs = JSON.parse(localStorage.getItem('ordensTrabalho') || '[]');
+
+    const countsA = Array(7).fill(0), sumsA = Array(7).fill(0);
+    const countsB = Array(7).fill(0), sumsB = Array(7).fill(0);
+    allOTs.forEach(ot => {
+        const otDate = new Date(getDataISO(ot.data) + 'T12:00:00');
+        if (otDate >= rangeA.monday && otDate <= rangeA.sunday) {
+            const idx = Math.floor((otDate - rangeA.monday) / (24*60*60*1000));
+            countsA[idx]++; sumsA[idx]+=parseFloat(ot.valorServico)||0;
+        }
+        if (otDate >= rangeB.monday && otDate <= rangeB.sunday) {
+            const idx = Math.floor((otDate - rangeB.monday) / (24*60*60*1000));
+            countsB[idx]++; sumsB[idx]+=parseFloat(ot.valorServico)||0;
+        }
+    });
+
+    drawSmallWeekChart('acomp-chart-a', sumsA, rangeA.monday);
+    drawSmallWeekChart('acomp-chart-b', sumsB, rangeB.monday);
+
+    // summary cards
+    const totalAOTs = countsA.reduce((s,v)=>s+v,0), totalBOTs = countsB.reduce((s,v)=>s+v,0);
+    const totalAVal = sumsA.reduce((s,v)=>s+v,0), totalBVal = sumsB.reduce((s,v)=>s+v,0);
+    const principal = document.getElementById('acomp-resumo-principal');
+    if (principal) {
+        principal.innerHTML = `
+            <div class="acomp-card"><small>Semana A - OTs</small><strong>${totalAOTs}</strong></div>
+            <div class="acomp-card"><small>Semana A - Valor</small><strong>€ ${totalAVal.toFixed(2)}</strong></div>
+            <div class="acomp-card"><small>Semana B - OTs</small><strong>${totalBOTs}</strong></div>
+            <div class="acomp-card"><small>Semana B - Valor</small><strong>€ ${totalBVal.toFixed(2)}</strong></div>
+        `;
+    }
+
+    // month-to-month chart: aggregate month totals for the months containing monday of A and monday of B
+    const monthAStart = new Date(rangeA.monday.getFullYear(), rangeA.monday.getMonth(), 1);
+    const monthAEnd = new Date(rangeA.monday.getFullYear(), rangeA.monday.getMonth()+1, 0);
+    const monthBStart = new Date(rangeB.monday.getFullYear(), rangeB.monday.getMonth(), 1);
+    const monthBEnd = new Date(rangeB.monday.getFullYear(), rangeB.monday.getMonth()+1, 0);
+
+    // build arrays month-wise: for simplicity show both months side-by-side day-by-day up to max days
+    const daysA = Math.ceil((monthAEnd - monthAStart)/(24*60*60*1000))+1;
+    const daysB = Math.ceil((monthBEnd - monthBStart)/(24*60*60*1000))+1;
+    const maxDays = Math.max(daysA, daysB);
+    const mapA = Array(maxDays).fill(0), mapB = Array(maxDays).fill(0);
+    allOTs.forEach(ot=>{
+        const od = new Date(getDataISO(ot.data)+'T12:00:00');
+        if (od>=monthAStart && od<=monthAEnd) {
+            const idx = Math.floor((od - monthAStart)/(24*60*60*1000));
+            mapA[idx] += parseFloat(ot.valorServico)||0;
+        }
+        if (od>=monthBStart && od<=monthBEnd) {
+            const idx = Math.floor((od - monthBStart)/(24*60*60*1000));
+            mapB[idx] += parseFloat(ot.valorServico)||0;
+        }
+    });
+
+    drawMonthComparisonChart('acomp-chart-month', mapA, mapB, monthAStart, monthBStart);
+}
+
+function drawMonthComparisonChart(canvasId, arrA, arrB, startA, startB) {
+    const canvas = document.getElementById(canvasId); if(!canvas) return;
+    const ctx = canvas.getContext('2d'); const DPR = window.devicePixelRatio||1;
+    canvas.width = canvas.clientWidth * DPR; canvas.height = canvas.clientHeight * DPR; ctx.scale(DPR,DPR);
+    ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+    const W=canvas.clientWidth, H=canvas.clientHeight, pad=40; const chartW=W-pad*2, chartH=H-pad*2;
+    const maxV = Math.max(...arrA, ...arrB, 10);
+    const groupW = chartW / Math.max(arrA.length, arrB.length);
+    const barW = Math.min(10, groupW*0.4);
+    // draw A bars (upper row)
+    arrA.forEach((v,i)=>{
+        const x = pad + i*groupW + (groupW/2 - barW - 2);
+        const h = (v/maxV)*chartH;
+        ctx.fillStyle='#6c5ce7'; ctx.fillRect(x, pad + (chartH - h), barW, h);
+        ctx.fillStyle='#333'; ctx.font='11px Arial'; const dt = new Date(startA); dt.setDate(dt.getDate()+i);
+        ctx.fillText(String(dt.getDate()).padStart(2,'0'), x-3, pad+chartH+14);
+    });
+    // draw B bars (shifted right)
+    arrB.forEach((v,i)=>{
+        const x = pad + i*groupW + (groupW/2 + 2);
+        const h = (v/maxV)*chartH;
+        ctx.fillStyle='#5a4bcf'; ctx.fillRect(x, pad + (chartH - h), barW, h);
+    });
+    // legend
+    ctx.fillStyle='#6c5ce7'; ctx.fillRect(W - pad - 160, pad - 26, 12, 12); ctx.fillStyle='#333'; ctx.fillText('Mês A', W-pad-140, pad-16);
+    ctx.fillStyle='#5a4bcf'; ctx.fillRect(W - pad -160, pad - 6, 12, 12); ctx.fillStyle='#333'; ctx.fillText('Mês B', W-pad-140, pad+4);
+}
 let touchStartX = 0;
 let touchEndX = 0;
 let touchStartY = 0;

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão de Ordens de Trabalho - Telecom</title>
-    <meta name="theme-color" content="#667eea">
+    <!-- Chart.js for analysis charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- iOS Progressive Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -62,6 +63,7 @@
         <div class="tabs">
             <button id="tab-btn-ordens" class="tab-button active" onclick="mostrarAba('ordens')">📋 Ordens de Trabalho</button>
             <button id="tab-btn-logistica" class="tab-button" onclick="mostrarAba('logistica')">🚗 Logística Diária</button>
+            <button id="tab-btn-analise" class="tab-button" onclick="mostrarAba('analise')">📈 Análise</button>
             <button id="tab-btn-comparacao" class="tab-button" onclick="mostrarAba('comparacao')">📊 Comparação Excel</button>
         </div>
 
@@ -151,7 +153,7 @@
                                 <input type="checkbox" id="otFestivo" onchange="calcularValorTotal()">
                                 <span class="switch-ui" aria-hidden="true"></span>
                                 <span>🎉 Festivo</span>
-                                <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">BÔNUS ✓</span>
+                                <span id="badgeFestivo" class="badge-festivo" style="display:none; background:#9c27b0; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px;">FESTIVO ✓</span>
                             </label>
                             <label class="switch-label" style="display:flex; align-items:center; gap:8px;">
                                 <input type="checkbox" id="otPremioFestivo" onchange="calcularValorTotal()">
@@ -271,6 +273,172 @@
         </section>
         </div>
         <!-- FIM ABA: Ordens de Trabalho -->
+
+        <!-- ABA: Acompanhamento -->
+        <div id="aba-acompanhamento" class="tab-content">
+            <section class="form-section">
+                <h2>📈 Acompanhamento e Análise</h2>
+                <div class="mult-grid" style="margin-bottom:12px;">
+                    <div class="mult-item">
+                        <label>Data início</label>
+                        <input type="date" id="acomp-data-inicio">
+                    </div>
+                    <div class="mult-item">
+                        <label>Data fim</label>
+                        <input type="date" id="acomp-data-fim">
+                    </div>
+                    <div class="mult-item">
+                        <label>Dias da semana</label>
+                        <select id="acomp-dias-semana" multiple style="height:96px;">
+                            <option value="1">Segunda</option>
+                            <option value="2">Terça</option>
+                            <option value="3">Quarta</option>
+                            <option value="4">Quinta</option>
+                            <option value="5">Sexta</option>
+                            <option value="6">Sábado</option>
+                            <option value="0">Domingo</option>
+                        </select>
+                    </div>
+                    <div class="mult-item">
+                        <label>Comparar com mês anterior?</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="checkbox" id="acomp-comparar-mes-anterior">
+                            <button class="btn-small btn-save" onclick="gerarAnalise()">Gerar Análise</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:12px; align-items:end; margin-bottom:8px;">
+                    <div style="display:flex; flex-direction:column;">
+                        <label>Analisar semana a partir de</label>
+                        <input type="date" id="acomp-data-semana" />
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button class="btn-small btn-save" onclick="gerarAnaliseSemana()">Analisar Semana</button>
+                        <button class="btn-small" onclick="limparAcompanhamentoSemana()">Limpar</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:18px;">
+                    <div style="flex:1; background:#fff; padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>Semana A</strong>
+                            <div>
+                                <button class="btn-small" onclick="shiftWeek('A', -1)">&lt;</button>
+                                <button class="btn-small" onclick="resetWeekToToday('A')">Hoje</button>
+                                <button class="btn-small" onclick="shiftWeek('A', 1)">&gt;</button>
+                            </div>
+                        </div>
+                        <div style="margin-top:8px; display:flex; gap:8px;">
+                            <input type="month" id="acomp-week-a-month" onchange="updateWeekInputsFromMonth('A')">
+                            <input type="number" id="acomp-week-a-year" min="2000" max="2099" style="width:110px;" onchange="updateWeekInputsFromMonth('A')">
+                        </div>
+                        <div style="margin-top:10px;"><input type="date" id="acomp-week-a-date" style="width:100%;" onchange="syncWeekFromDate('A')"></div>
+                    </div>
+
+                    <div style="flex:1; background:#fff; padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>Semana B</strong>
+                            <div>
+                                <button class="btn-small" onclick="shiftWeek('B', -1)">&lt;</button>
+                                <button class="btn-small" onclick="resetWeekToToday('B')">Hoje</button>
+                                <button class="btn-small" onclick="shiftWeek('B', 1)">&gt;</button>
+                            </div>
+                        </div>
+                        <div style="margin-top:8px; display:flex; gap:8px;">
+                            <input type="month" id="acomp-week-b-month" onchange="updateWeekInputsFromMonth('B')">
+                            <input type="number" id="acomp-week-b-year" min="2000" max="2099" style="width:110px;" onchange="updateWeekInputsFromMonth('B')">
+                        </div>
+                        <div style="margin-top:10px;"><input type="date" id="acomp-week-b-date" style="width:100%;" onchange="syncWeekFromDate('B')"></div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <button class="btn-primary" onclick="compararDuasSemanas()" style="height:48px;">Comparar</button>
+                        <button class="btn-secondary" onclick="limparAcompanhamentoSemana()" style="height:48px;">Limpar</button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div>
+                        <div style="font-weight:700; margin-bottom:8px;">Semana A - Valores (€)</div>
+                        <canvas id="acomp-chart-a" width="600" height="240" style="width:100%; background:#fff; border-radius:8px; padding:8px;"></canvas>
+                    </div>
+                    <div>
+                        <div style="font-weight:700; margin-bottom:8px;">Semana B - Valores (€)</div>
+                        <canvas id="acomp-chart-b" width="600" height="240" style="width:100%; background:#fff; border-radius:8px; padding:8px;"></canvas>
+                    </div>
+                </div>
+
+                <div id="acomp-resumo" style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap;">
+                    <div id="acomp-resumo-principal" class="acomp-summary"></div>
+                </div>
+
+                <div style="margin-top:18px;">
+                    <div style="font-weight:700; margin-bottom:8px;">Comparação mês a mês (mês da Semana A vs mês da Semana B)</div>
+                    <canvas id="acomp-chart-month" width="1200" height="220" style="width:100%; background:#fff; border-radius:8px; padding:8px;"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <!-- ABA: Análise (nova, funcional com gráficos) -->
+        <div id="aba-analise" class="tab-content">
+            <section class="form-section">
+                <h2> Comparar Semana de um Mês com Semana de Outro Mês</h2>
+                <div style="display:flex; gap:12px; align-items:end; margin-bottom:12px; flex-wrap:wrap;">
+                    <div>
+                        <label>Semana 1 (escolha um dia dentro dela)</label>
+                        <input type="date" id="analise-semana1-data" />
+                    </div>
+                    <div>
+                        <label>Semana 2 (escolha um dia dentro dela)</label>
+                        <input type="date" id="analise-semana2-data" />
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn-primary" onclick="compararSemanasEntreMeses()">Comparar Semanas</button>
+                        <button class="btn-secondary" onclick="limparComparacaoSemanas()">Limpar</button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+                        <div style="font-weight:700; margin-bottom:8px;">Ordens por Dia (Contagem)</div>
+                        <canvas id="chart-semanas-count" width="600" height="260" style="width:100%;"></canvas>
+                    </div>
+                    <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.04);">
+                        <div style="font-weight:700; margin-bottom:8px;">Valores por Dia (€)</div>
+                        <canvas id="chart-semanas-valor" width="600" height="260" style="width:100%;"></canvas>
+                    </div>
+                </div>
+
+                <div id="analise-semanas-summary" style="margin-top:8px;"></div>
+                <div id="analise-semanas-breakdown" style="margin-top:12px;"></div>
+
+                <hr style="margin:24px 0; border:none; border-top:1px solid #e0e0e0;">
+
+                <h2>📆 Comparação Mês a Mês</h2>
+                <div style="display:flex; gap:12px; align-items:end; margin-bottom:12px; flex-wrap:wrap;">
+                    <div>
+                        <label>Mês A</label>
+                        <input type="month" id="analise-mesA" />
+                    </div>
+                    <div>
+                        <label>Mês B</label>
+                        <input type="month" id="analise-mesB" />
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn-primary" onclick="compararMesesCompleto()">Comparar Meses</button>
+                        <button class="btn-secondary" onclick="limparComparacaoMeses()">Limpar</button>
+                    </div>
+                </div>
+
+                <div style="background:#fff; padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.04); margin-bottom:16px;">
+                    <div style="font-weight:700; margin-bottom:8px;">Ganho Total por Mês (€)</div>
+                    <canvas id="chart-meses-valor" width="1200" height="260" style="width:100%;"></canvas>
+                </div>
+
+                <div id="analise-meses-summary" style="margin-top:8px;"></div>
+                <div id="analise-meses-breakdown" style="margin-top:12px;"></div>
+            </section>
+        </div>
 
         <!-- ABA: Logística Diária -->
         <div id="aba-logistica" class="tab-content">

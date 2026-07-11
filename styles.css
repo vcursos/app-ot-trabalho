@@ -143,11 +143,21 @@ header h1 {
     margin-bottom: 25px;
 }
 
-*.form-grid {
+.form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 20px;
     margin-bottom: 25px;
+}
+
+/* Desktop larger layout: organize form in 4 columns */
+@media (min-width: 1100px) {
+    .form-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    .form-group.full-width {
+        grid-column: 1 / -1;
+    }
 }
 
 .form-group {
@@ -368,6 +378,36 @@ button {
     position: relative;
     display: flex;
     flex-direction: column;
+}
+
+/* Acompanhamento - layout e estilo */
+.mult-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+.mult-item label { font-weight:600; color:#444; margin-bottom:6px; }
+.mult-item input[type="date"], .mult-item select {
+    padding:10px 12px; border-radius:8px; border:1px solid #e6e6e6; background:#fff; width:100%;
+}
+.btn-small { padding:8px 14px; border-radius:10px; font-size:14px; }
+.btn-save { background: linear-gradient(135deg,#6c5ce7,#5a4bcf); color:white; border:none; }
+
+.acomp-container-controls { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:8px; }
+
+.acomp-summary { display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; }
+.acomp-card { background:white; border-radius:10px; padding:12px 16px; box-shadow:0 6px 18px rgba(0,0,0,0.06); min-width:140px; }
+.acomp-card small { display:block; color:#888; margin-bottom:6px; }
+.acomp-card strong { font-size:18px; color:#333; }
+
+.acomp-results-table { margin-top:14px; border-radius:8px; overflow:hidden; box-shadow:0 8px 26px rgba(0,0,0,0.06); }
+.acomp-results-table thead th { background: linear-gradient(135deg,#6c5ce7,#5a4bcf); color:white; padding:12px 16px; text-align:left; }
+.acomp-results-table tbody td { padding:12px 16px; background:#fff; border-bottom:1px solid #f6f6f6; }
+
+/* Responsive tweaks */
+@media (max-width: 700px) {
+    .acomp-summary { flex-direction:column; }
+    .form-grid { grid-template-columns: 1fr; }
 }
 
 .scanner-content h3 {
