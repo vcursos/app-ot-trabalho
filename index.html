@@ -63,12 +63,33 @@
         <div class="tabs">
             <button id="tab-btn-ordens" class="tab-button active" onclick="mostrarAba('ordens')">📋 Ordens de Trabalho</button>
             <button id="tab-btn-logistica" class="tab-button" onclick="mostrarAba('logistica')">🚗 Logística Diária</button>
+            <button id="tab-btn-almoxarifado" class="tab-button" onclick="mostrarAba('almoxarifado')">📦 Almoxarifado</button>
             <button id="tab-btn-analise" class="tab-button" onclick="mostrarAba('analise')">📈 Análise</button>
             <button id="tab-btn-comparacao" class="tab-button" onclick="mostrarAba('comparacao')">📊 Comparação Excel</button>
         </div>
 
         <!-- ABA: Ordens de Trabalho -->
         <div id="aba-ordens" class="tab-content active">
+        <section class="form-section" id="relatorio-dia-section">
+            <h2>🔎 Relatório do Dia (Ordens e Materiais)</h2>
+            <p style="color:#666; font-size:13px; margin-top:-6px;">Pesquise um dia e veja todas as OTs e materiais usados. Depois baixe um PDF para enviar quando perguntarem "o que você usou nesse dia".</p>
+            <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Data</label>
+                    <input type="date" id="relatorioDiaData">
+                    <script>
+                        (function(){
+                            var d=new Date();
+                            var v=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+                            document.getElementById('relatorioDiaData').value=v;
+                        })();
+                    </script>
+                </div>
+                <button type="button" class="btn-secondary" onclick="gerarRelatorioDia()">🔎 Gerar Relatório</button>
+                <button type="button" id="btnBaixarRelatorioDia" class="btn-pdf" style="display:none;" onclick="baixarRelatorioDiaPDF()">📄 Baixar PDF do Dia</button>
+            </div>
+            <div id="relatorioDiaResultado"></div>
+        </section>
         <section class="form-section">
             <h2>Nova Ordem de Trabalho</h2>
             <form id="formOT">
@@ -207,6 +228,22 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>Materiais Usados (🧰 Almoxarifado)</label>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <select id="materialSelecionado" style="flex: 2; min-width: 160px;">
+                                <option value="">Selecione um material...</option>
+                            </select>
+                            <input type="number" id="quantidadeMaterialOT" placeholder="Qtd" min="0" step="0.01" style="flex: 1; min-width: 70px;">
+                            <button type="button" class="btn-primary" onclick="adicionarMaterialNaOT()" style="padding: 10px 15px;">+</button>
+                        </div>
+                        <div id="msgMateriaisVazio" class="equipamentos-vazio">Nenhum material adicionado</div>
+                        <div id="listaMateriaisOT" style="margin-top: 8px; min-height: 20px;">
+                            <!-- Materiais adicionados aparecerão aqui -->
+                        </div>
+                        <small style="color:#607d8b;">Ao registrar a OT, a quantidade é descontada automaticamente do Almoxarifado.</small>
+                    </div>
+
                     <div class="form-group full-width">
                         <label>Observações</label>
                         <textarea id="observacoes" rows="3" placeholder="Detalhes adicionais..."></textarea>
@@ -273,6 +310,55 @@
         </section>
         </div>
         <!-- FIM ABA: Ordens de Trabalho -->
+
+        <!-- ABA: Almoxarifado -->
+        <div id="aba-almoxarifado" class="tab-content">
+            <section class="form-section">
+                <h2>📦 Almoxarifado — Materiais e Equipamentos em Estoque</h2>
+                <p style="color:#666; font-size:13px; margin-top:-6px;">Cadastre aqui tudo que você tem no seu armazém. Ao adicionar materiais numa OT, a quantidade é descontada automaticamente.</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nome do Material/Equipamento</label>
+                        <input type="text" id="almox-novo-nome" placeholder="Ex: Cabo de Rede, Router, Fibra...">
+                    </div>
+                    <div class="form-group">
+                        <label>Unidade</label>
+                        <input type="text" id="almox-novo-unidade" placeholder="un, m, cx...">
+                    </div>
+                    <div class="form-group">
+                        <label>Quantidade em Estoque</label>
+                        <input type="number" id="almox-novo-quantidade" placeholder="0" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" onclick="adicionarMaterialEstoque()">➕ Adicionar ao Almoxarifado</button>
+                </div>
+            </section>
+
+            <section class="table-section">
+                <div class="table-header">
+                    <h2>Materiais em Estoque</h2>
+                </div>
+                <div class="table-responsive">
+                    <table id="tabelaAlmoxarifado">
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Unidade</th>
+                                <th>Quantidade</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="corpoTabelaAlmoxarifado">
+                            <tr class="empty-state">
+                                <td colspan="4">Nenhum material cadastrado no almoxarifado</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <!-- FIM ABA: Almoxarifado -->
 
         <!-- ABA: Acompanhamento -->
         <div id="aba-acompanhamento" class="tab-content">

@@ -1,6 +1,401 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
 let adicionaisTemp = []; // Array temporário para adicionais antes de salvar OT
+let materiaisEstoque = JSON.parse(localStorage.getItem('materiaisEstoque')) || []; // Almoxarifado: [{id, nome, unidade, quantidade}]
+let materiaisTemp = []; // Array temporário de materiais usados na OT em edição/criação: [{materialId, nome, unidade, quantidade}]
+
+// ==================== ALMOXARIFADO (Materiais/Equipamentos em estoque) ====================
+function salvarMateriaisEstoque() {
+    localStorage.setItem('materiaisEstoque', JSON.stringify(materiaisEstoque));
+}
+
+function adicionarMaterialEstoque() {
+    const nomeEl = document.getElementById('almox-novo-nome');
+    const unidadeEl = document.getElementById('almox-novo-unidade');
+    const qtdEl = document.getElementById('almox-novo-quantidade');
+    if (!nomeEl) return;
+
+    const nome = nomeEl.value.trim();
+    const unidade = unidadeEl ? (unidadeEl.value.trim() || 'un') : 'un';
+    const quantidade = parseFloat(qtdEl ? qtdEl.value : 0) || 0;
+
+    if (!nome) {
+        alert('Digite o nome do material/equipamento!');
+        return;
+    }
+
+    // Se já existe material com mesmo nome (case-insensitive), soma ao estoque existente
+    const existente = materiaisEstoque.find(m => m.nome.toLowerCase() === nome.toLowerCase());
+    if (existente) {
+        existente.quantidade = (parseFloat(existente.quantidade) || 0) + quantidade;
+    } else {
+        materiaisEstoque.push({
+            id: Date.now(),
+            nome: nome,
+            unidade: unidade,
+            quantidade: quantidade
+        });
+    }
+
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
+
+    nomeEl.value = '';
+    if (unidadeEl) unidadeEl.value = '';
+    if (qtdEl) qtdEl.value = '';
+}
+
+function removerMaterialEstoque(id) {
+    if (!confirm('Remover este material do almoxarifado? Isso não afeta OTs já registradas.')) return;
+    materiaisEstoque = materiaisEstoque.filter(m => m.id !== id);
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
+}
+
+function ajustarEstoqueMaterial(id, delta) {
+    const item = materiaisEstoque.find(m => m.id === id);
+    if (!item) return;
+    const novaQtd = (parseFloat(item.quantidade) || 0) + delta;
+    item.quantidade = novaQtd < 0 ? 0 : novaQtd;
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
+}
+
+function editarQuantidadeMaterialEstoque(id) {
+    const item = materiaisEstoque.find(m => m.id === id);
+    if (!item) return;
+    const novaQtdStr = prompt(`Nova quantidade em estoque para "${item.nome}":`, item.quantidade);
+    if (novaQtdStr === null) return;
+    const novaQtd = parseFloat(novaQtdStr);
+    if (isNaN(novaQtd) || novaQtd < 0) {
+        alert('Quantidade inválida!');
+        return;
+    }
+    item.quantidade = novaQtd;
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
+}
+
+function atualizarTabelaAlmoxarifado() {
+    const corpo = document.getElementById('corpoTabelaAlmoxarifado');
+    if (!corpo) return;
+
+    if (materiaisEstoque.length === 0) {
+        corpo.innerHTML = '<tr class="empty-state"><td colspan="4">Nenhum material cadastrado no almoxarifado</td></tr>';
+        return;
+    }
+
+    const listaOrdenada = [...materiaisEstoque].sort((a, b) => a.nome.localeCompare(b.nome));
+
+    corpo.innerHTML = listaOrdenada.map(m => {
+        const qtd = parseFloat(m.quantidade) || 0;
+        const baixo = qtd <= 0;
+        return `
+        <tr>
+            <td>${m.nome}</td>
+            <td>${m.unidade || 'un'}</td>
+            <td style="font-weight:bold; color:${baixo ? '#e74c3c' : '#27ae60'};">${qtd}</td>
+            <td>
+                <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, 1)" title="Adicionar 1">➕</button>
+                <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, -1)" title="Retirar 1">➖</button>
+                <button type="button" class="btn-small" onclick="editarQuantidadeMaterialEstoque(${m.id})" title="Definir quantidade">✏️</button>
+                <button type="button" class="btn-small" style="background:#e74c3c; color:#fff;" onclick="removerMaterialEstoque(${m.id})" title="Excluir">🗑️</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// Popula o select de materiais no formulário de OT com os itens do almoxarifado
+function popularSelectMateriaisOT() {
+    const select = document.getElementById('materialSelecionado');
+    if (!select) return;
+    const valorAtual = select.value;
+    select.innerHTML = '<option value="">Selecione um material...</option>' +
+        materiaisEstoque
+            .slice()
+            .sort((a, b) => a.nome.localeCompare(b.nome))
+            .map(m => `<option value="${m.id}">${m.nome} (${m.unidade || 'un'}) — estoque: ${parseFloat(m.quantidade) || 0}</option>`)
+            .join('');
+    if (valorAtual) select.value = valorAtual;
+}
+
+// Adicionar material selecionado à lista temporária da OT atual
+function adicionarMaterialNaOT() {
+    const select = document.getElementById('materialSelecionado');
+    const qtdEl = document.getElementById('quantidadeMaterialOT');
+    if (!select || !select.value) {
+        alert('Selecione um material do almoxarifado!');
+        return;
+    }
+    const materialId = parseInt(select.value, 10);
+    const quantidade = parseFloat(qtdEl ? qtdEl.value : 1) || 1;
+    const material = materiaisEstoque.find(m => m.id === materialId);
+    if (!material) {
+        alert('Material não encontrado no almoxarifado!');
+        return;
+    }
+
+    materiaisTemp.push({
+        materialId: materialId,
+        nome: material.nome,
+        unidade: material.unidade || 'un',
+        quantidade: quantidade
+    });
+
+    atualizarListaMateriaisOT();
+
+    select.value = '';
+    if (qtdEl) qtdEl.value = '';
+}
+
+function removerMaterialDaOT(index) {
+    materiaisTemp.splice(index, 1);
+    atualizarListaMateriaisOT();
+}
+
+function atualizarListaMateriaisOT() {
+    const lista = document.getElementById('listaMateriaisOT');
+    const msgVazio = document.getElementById('msgMateriaisVazio');
+    if (!lista) return;
+
+    lista.innerHTML = '';
+
+    if (materiaisTemp.length === 0) {
+        if (msgVazio) msgVazio.style.display = 'block';
+        return;
+    } else {
+        if (msgVazio) msgVazio.style.display = 'none';
+    }
+
+    lista.innerHTML = materiaisTemp.map((m, index) => `
+        <div style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #16a085; color: white; border-radius: 5px; margin: 2px; font-size: 12px;">
+            <span>🧰 ${m.nome}: ${m.quantidade} ${m.unidade}</span>
+            <button type="button" onclick="removerMaterialDaOT(${index})" style="background: rgba(255,255,255,0.3); color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-weight: bold;">✕</button>
+        </div>
+    `).join('');
+}
+
+// Dá baixa no estoque conforme materiais usados numa OT
+function baixarEstoqueMateriais(materiaisUsados) {
+    if (!materiaisUsados || materiaisUsados.length === 0) return;
+    materiaisUsados.forEach(mu => {
+        const item = materiaisEstoque.find(m => m.id === mu.materialId);
+        if (item) {
+            const novaQtd = (parseFloat(item.quantidade) || 0) - (parseFloat(mu.quantidade) || 0);
+            item.quantidade = novaQtd < 0 ? 0 : novaQtd;
+        }
+    });
+    salvarMateriaisEstoque();
+}
+
+// Devolve ao estoque materiais previamente usados (usado ao editar/excluir uma OT)
+function devolverEstoqueMateriais(materiaisUsados) {
+    if (!materiaisUsados || materiaisUsados.length === 0) return;
+    materiaisUsados.forEach(mu => {
+        const item = materiaisEstoque.find(m => m.id === mu.materialId);
+        if (item) {
+            item.quantidade = (parseFloat(item.quantidade) || 0) + (parseFloat(mu.quantidade) || 0);
+        }
+    });
+    salvarMateriaisEstoque();
+}
+
+// ==================== RELATÓRIO DIÁRIO DE MATERIAIS/OTs ====================
+function obterOTsDoDia(dataISO) {
+    if (!dataISO) return [];
+    return ordensTrabalho.filter(ot => getDataISO(ot.data) === dataISO);
+}
+
+function gerarRelatorioDia() {
+    const dataEl = document.getElementById('relatorioDiaData');
+    const dataISO = dataEl ? dataEl.value : getHojeISO();
+    if (!dataISO) {
+        alert('Selecione uma data para gerar o relatório!');
+        return;
+    }
+
+    const otsDoDia = obterOTsDoDia(dataISO);
+    const container = document.getElementById('relatorioDiaResultado');
+    const btnPdf = document.getElementById('btnBaixarRelatorioDia');
+    if (!container) return;
+
+    if (otsDoDia.length === 0) {
+        container.innerHTML = '<p style="color:#888; padding:10px;">Nenhuma ordem de trabalho registrada nesta data.</p>';
+        if (btnPdf) btnPdf.style.display = 'none';
+        return;
+    }
+
+    // Agregar materiais usados no dia (soma por material)
+    const agregadoMateriais = new Map();
+    let totalValorDia = 0;
+
+    const linhasOT = otsDoDia.map(ot => {
+        totalValorDia += parseFloat(ot.valorServico) || 0;
+
+        const materiais = ot.materiaisUsados || [];
+        const materiaisTexto = materiais.length > 0
+            ? materiais.map(m => `${m.nome}: ${m.quantidade} ${m.unidade}`).join(', ')
+            : '-';
+
+        materiais.forEach(m => {
+            const chave = m.nome + '|' + m.unidade;
+            const atual = agregadoMateriais.get(chave) || { nome: m.nome, unidade: m.unidade, quantidade: 0 };
+            atual.quantidade += (parseFloat(m.quantidade) || 0);
+            agregadoMateriais.set(chave, atual);
+        });
+
+        const equipamentosTexto = (ot.equipamentos && ot.equipamentos.length > 0)
+            ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : (eq.mac || '')).filter(Boolean).join(', ')
+            : '-';
+
+        return `
+        <tr>
+            <td>${ot.numeroOT || '-'}</td>
+            <td>${formatarTipoTrabalho(ot.tipoTrabalho) || '-'}</td>
+            <td>${equipamentosTexto}</td>
+            <td>${materiaisTexto}</td>
+            <td>€ ${(parseFloat(ot.valorServico) || 0).toFixed(2)}</td>
+        </tr>`;
+    }).join('');
+
+    const linhasMateriaisAgregados = Array.from(agregadoMateriais.values())
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+        .map(m => `<tr><td>${m.nome}</td><td>${m.unidade}</td><td style="font-weight:bold;">${m.quantidade}</td></tr>`)
+        .join('');
+
+    container.innerHTML = `
+        <h3 style="margin-top:16px;">Ordens de Trabalho de ${dataISO.split('-').reverse().join('/')}</h3>
+        <div class="table-responsive">
+            <table class="acomp-results-table">
+                <thead>
+                    <tr><th>OT</th><th>Tipo</th><th>Equipamentos</th><th>Materiais Usados</th><th>Valor</th></tr>
+                </thead>
+                <tbody>${linhasOT}</tbody>
+            </table>
+        </div>
+        <h3 style="margin-top:16px;">Total de Materiais Usados no Dia</h3>
+        <div class="table-responsive">
+            <table class="acomp-results-table">
+                <thead><tr><th>Material</th><th>Unidade</th><th>Quantidade Total</th></tr></thead>
+                <tbody>${linhasMateriaisAgregados || '<tr><td colspan="3">Nenhum material registrado neste dia</td></tr>'}</tbody>
+            </table>
+        </div>
+        <p style="margin-top:12px; font-weight:bold; color:#27ae60;">Total do Dia: € ${totalValorDia.toFixed(2)} (${otsDoDia.length} OT${otsDoDia.length > 1 ? 's' : ''})</p>
+    `;
+
+    if (btnPdf) btnPdf.style.display = 'inline-block';
+}
+
+function baixarRelatorioDiaPDF() {
+    const dataEl = document.getElementById('relatorioDiaData');
+    const dataISO = dataEl ? dataEl.value : getHojeISO();
+    const otsDoDia = obterOTsDoDia(dataISO);
+
+    if (otsDoDia.length === 0) {
+        alert('Nenhuma OT para gerar PDF nesta data. Clique em "Gerar Relatório" primeiro.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape');
+    const temAutoTable = garantirAutoTablePronto(doc);
+
+    const dataFormatada = dataISO.split('-').reverse().join('/');
+
+    doc.setFontSize(18);
+    doc.text('Relatório Diário de Ordens e Materiais', 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Data: ${dataFormatada}`, 14, 28);
+
+    const agregadoMateriais = new Map();
+    let totalValorDia = 0;
+
+    const tableData = otsDoDia.map(ot => {
+        totalValorDia += parseFloat(ot.valorServico) || 0;
+        const materiais = ot.materiaisUsados || [];
+        materiais.forEach(m => {
+            const chave = m.nome + '|' + m.unidade;
+            const atual = agregadoMateriais.get(chave) || { nome: m.nome, unidade: m.unidade, quantidade: 0 };
+            atual.quantidade += (parseFloat(m.quantidade) || 0);
+            agregadoMateriais.set(chave, atual);
+        });
+        const materiaisTexto = materiais.length > 0
+            ? normalizarTextoPDF(materiais.map(m => `${m.nome}: ${m.quantidade} ${m.unidade}`).join(', '))
+            : '-';
+        const equipamentosTexto = (ot.equipamentos && ot.equipamentos.length > 0)
+            ? normalizarTextoPDF(ot.equipamentos.map(eq => typeof eq === 'string' ? eq : (eq.mac || '')).filter(Boolean).join(', '))
+            : '-';
+        return [
+            ot.numeroOT || '-',
+            normalizarTextoPDF(formatarTipoTrabalho(ot.tipoTrabalho)) || '-',
+            equipamentosTexto,
+            materiaisTexto,
+            formatarEuroPDF(ot.valorServico)
+        ];
+    });
+
+    let finalY = 34;
+
+    if (temAutoTable) {
+        doc.autoTable({
+            startY: finalY,
+            head: [['OT', 'Tipo', 'Equipamentos', 'Materiais Usados', 'Valor']],
+            body: tableData,
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [22, 160, 133] }
+        });
+        finalY = doc.lastAutoTable.finalY + 8;
+    } else {
+        doc.setFontSize(9);
+        tableData.forEach(row => {
+            doc.text(row.join(' | '), 14, finalY);
+            finalY += 6;
+        });
+        finalY += 6;
+    }
+
+    const materiaisData = Array.from(agregadoMateriais.values())
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+        .map(m => [m.nome, m.unidade, String(m.quantidade)]);
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.text('Total de Materiais Usados no Dia', 14, finalY);
+    doc.setFont(undefined, 'normal');
+    finalY += 4;
+
+    if (temAutoTable && materiaisData.length > 0) {
+        doc.autoTable({
+            startY: finalY + 2,
+            head: [['Material', 'Unidade', 'Quantidade Total']],
+            body: materiaisData,
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [39, 174, 96] }
+        });
+        finalY = doc.lastAutoTable.finalY + 8;
+    } else if (materiaisData.length > 0) {
+        doc.setFontSize(9);
+        materiaisData.forEach(row => {
+            doc.text(row.join(' | '), 14, finalY + 6);
+            finalY += 6;
+        });
+        finalY += 6;
+    } else {
+        doc.setFontSize(10);
+        doc.text('Nenhum material registrado neste dia.', 14, finalY + 6);
+        finalY += 10;
+    }
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.text(`TOTAL DO DIA: € ${totalValorDia.toFixed(2)} (${otsDoDia.length} OT${otsDoDia.length > 1 ? 's' : ''})`, 14, finalY + 6);
+
+    doc.save(`relatorio-dia-${dataISO}.pdf`);
+}
 
 // ==================== SINCRONIZAÇÃO (Firebase opcional) ====================
 // Opção 2: sincronizar desktop <-> mobile via Firestore.
@@ -572,6 +967,9 @@ document.addEventListener('DOMContentLoaded', function() {
     definirDataAtual();
     atualizarListaEquipamentos();
     carregarConfiguracaoVeiculo();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
+    atualizarListaMateriaisOT();
 
     // Data da OT: sempre sincronizar com a data do dispositivo
     sincronizarDataOTComDispositivo();
@@ -972,7 +1370,11 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             // Capturar dados antigos para verificar se precisa limpar prémios
             const otAntiga = ordensTrabalho[index];
             const dataAntigaISO = otAntiga ? getDataISO(otAntiga.data) : null;
-            
+
+            // Devolver ao estoque os materiais antigos e dar baixa nos novos
+            devolverEstoqueMateriais(otAntiga?.materiaisUsados || []);
+            baixarEstoqueMateriais(materiaisTemp);
+
             // Manter o ID original
             const otAtualizada = {
                 ...ordensTrabalho[index],
@@ -1002,6 +1404,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
                 bonusForaHoraAplicado: marcadoForaHora ? bonusForaHoraAplicado : 0,
                 diaSemana: diaSemana,
                 equipamentos: [...equipamentosTemp],
+                materiaisUsados: [...materiaisTemp],
                 tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
                 observacoes: document.getElementById('observacoes').value || '',
                 // Garantir que o valor salvo no registro inclui o bónus por OT e prémios de saída aplicados
@@ -1073,12 +1476,16 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         bonusForaHoraAplicado: bonusForaHoraAplicado,
         diaSemana: diaSemana, // Guardar dia da semana para referência
         equipamentos: [...equipamentosTemp], // Copiar array de equipamentos
+        materiaisUsados: [...materiaisTemp], // Copiar array de materiais usados (baixa no almoxarifado)
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
         observacoes: document.getElementById('observacoes').value || '',
         valorServico: valorTotalFinal
     };
     
     ordensTrabalho.push(ot);
+
+    // Dar baixa no estoque dos materiais usados nesta OT
+    baixarEstoqueMateriais(materiaisTemp);
 
     // Arquivar no histórico do mês (não apagar meses antigos)
     garantirOTNoHistorico(ot);
@@ -1150,6 +1557,9 @@ function limparFormulario() {
     
     adicionaisTemp = [];
     atualizarListaAdicionais();
+
+    materiaisTemp = [];
+    atualizarListaMateriaisOT();
 }
 
 function obterValorServico(itemMOI) {
@@ -1571,6 +1981,9 @@ function deletarOT(id) {
         const otRemovida = ordensTrabalho.find(ot => ot && ot.id === id);
         const dataISO = otRemovida ? getDataISO(otRemovida.data) : null;
 
+        // Devolver ao estoque os materiais usados nesta OT
+        devolverEstoqueMateriais(otRemovida?.materiaisUsados || []);
+
         ordensTrabalho = ordensTrabalho.filter(ot => ot.id !== id);
         removerOTDoHistorico(id);
         // Se essa OT era a última festiva do dia, limpar o map diário para não “travar” o checkbox
@@ -1681,6 +2094,10 @@ function editarOT(id) {
     // Equipamentos
     equipamentosTemp = ot.equipamentos ? [...ot.equipamentos] : [];
     atualizarListaEquipamentos();
+    
+    // Materiais usados
+    materiaisTemp = ot.materiaisUsados ? [...ot.materiaisUsados] : [];
+    atualizarListaMateriaisOT();
     
     // Adicionais
     adicionaisTemp = ot.adicionais ? [...ot.adicionais] : [];
@@ -3532,6 +3949,7 @@ function exportarBackup() {
             registrosLogistica: registrosLogistica,
             historicoOTPorMes: historicoOTPorMes,
             premiosFestivosPorDia: premiosFestivosPorDia,
+            materiaisEstoque: materiaisEstoque,
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -3580,6 +3998,7 @@ function importarBackup() {
                 const novaLogistica = Array.isArray(payload.registrosLogistica) ? payload.registrosLogistica : [];
                 const novoHistorico = (payload.historicoOTPorMes && typeof payload.historicoOTPorMes === 'object') ? payload.historicoOTPorMes : null;
                 const novosPremios = (payload.premiosFestivosPorDia && typeof payload.premiosFestivosPorDia === 'object') ? payload.premiosFestivosPorDia : null;
+                const novosMateriais = Array.isArray(payload.materiaisEstoque) ? payload.materiaisEstoque : null;
 
                 if (novasOTs.length === 0 && novaLogistica.length === 0) {
                     alert('Backup não contém registros para importar.');
@@ -3593,6 +4012,7 @@ function importarBackup() {
                     registrosLogistica = novaLogistica;
                     if (novoHistorico) historicoOTPorMes = novoHistorico;
                     if (novosPremios) premiosFestivosPorDia = novosPremios;
+                    if (novosMateriais) materiaisEstoque = novosMateriais;
                 } else {
                     // Mesclar por id evitando duplicatas
                     const mapOT = new Map();
@@ -3627,6 +4047,14 @@ function importarBackup() {
                             if (!premiosFestivosPorDia[d]) premiosFestivosPorDia[d] = novosPremios[d];
                         });
                     }
+                    if (novosMateriais) {
+                        const mapMat = new Map();
+                        materiaisEstoque.forEach(m => mapMat.set(m.id, m));
+                        novosMateriais.forEach(m => {
+                            if (!mapMat.has(m.id)) mapMat.set(m.id, m);
+                        });
+                        materiaisEstoque = Array.from(mapMat.values());
+                    }
                 }
 
                 // Persistir
@@ -3634,6 +4062,7 @@ function importarBackup() {
                 localStorage.setItem('registrosLogistica', JSON.stringify(registrosLogistica));
                 localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoOTPorMes || {}));
                 localStorage.setItem('premiosFestivosPorDia', JSON.stringify(premiosFestivosPorDia || {}));
+                localStorage.setItem('materiaisEstoque', JSON.stringify(materiaisEstoque || []));
 
                 notificarMudancaParaSync('importarBackup');
 
@@ -3642,6 +4071,8 @@ function importarBackup() {
                 atualizarResumos();
                 atualizarTabelaLogistica(obterMesFiltroLogisticaAtual());
                 atualizarUIFestivoPorDia();
+                atualizarTabelaAlmoxarifado();
+                popularSelectMateriaisOT();
 
                 alert('Backup importado com sucesso!');
             } catch (e) {
@@ -3794,6 +4225,7 @@ function mostrarAba(aba) {
         logistica: { tabId: 'aba-logistica', btnId: 'tab-btn-logistica' },
         analise: { tabId: 'aba-analise', btnId: 'tab-btn-analise' },
         comparacao: { tabId: 'aba-comparacao', btnId: 'tab-btn-comparacao' },
+        almoxarifado: { tabId: 'aba-almoxarifado', btnId: 'tab-btn-almoxarifado' },
     acompanhamento: { tabId: 'aba-acompanhamento' }
     };
 
@@ -3802,6 +4234,10 @@ function mostrarAba(aba) {
     const btnEl = document.getElementById(alvo.btnId);
     if (tabEl) tabEl.classList.add('active');
     if (btnEl) btnEl.classList.add('active');
+
+    if (aba === 'almoxarifado') {
+        atualizarTabelaAlmoxarifado();
+    }
 
     if (aba === 'logistica') {
         // Respeitar o filtro de mês atualmente selecionado (não resetar para "todos os meses")
