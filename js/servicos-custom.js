@@ -607,13 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
         garantirBotaoAtualizacaoDisponivel();
     });
 
-    // DEBUG: ouvir mudança do checkbox de Bônus para diagnosticar efeitos colaterais (remoção posterior)
-    const debugBonusCheck = document.getElementById('otPremioFestivo');
-    if (debugBonusCheck) {
-        debugBonusCheck.addEventListener('change', function(e) {
-            console.log('[DEBUG] otPremioFestivo change:', this.checked, 'event target:', e.target);
-        });
-    }
+    // (debug listener removed)
 
     // Estado inicial + reforço para carregamento assíncrono na página inicial
     garantirBotaoAtualizacaoDisponivel();
