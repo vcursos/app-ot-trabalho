@@ -2423,30 +2423,7 @@ function aplicarDesconto(valor) {
     return valor * (1 - pct / 100);
 }
 
-// Fallback: garantir que o clique no botão principal dispara o submit do formulário
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('formOT');
-    const btn = document.getElementById('btnSalvarOuAtualizarOT');
-    if (!form || !btn) return;
-
-    btn.addEventListener('click', function (e) {
-        // Se estivermos em modo edição, força o acionamento do evento submit
-        // evitando que algum bloqueio/interferência previna o envio
-        if (typeof otEmEdicao !== 'undefined' && !!otEmEdicao) {
-            e.preventDefault();
-            try {
-                if (typeof form.requestSubmit === 'function') {
-                    form.requestSubmit();
-                } else {
-                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-                }
-            } catch (err) {
-                // fallback: chamar submit tradicional (não dispara event listener)
-                try { form.submit(); } catch (e) {}
-            }
-        }
-    });
-});
+// (removed fallback submit hook which caused submission issues)
 
 function atualizarResumos() {
     const hoje = new Date().toDateString();
