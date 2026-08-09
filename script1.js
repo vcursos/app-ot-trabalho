@@ -4479,8 +4479,7 @@ function mostrarAba(aba) {
         logistica: { tabId: 'aba-logistica', btnId: 'tab-btn-logistica' },
         analise: { tabId: 'aba-analise', btnId: 'tab-btn-analise' },
         comparacao: { tabId: 'aba-comparacao', btnId: 'tab-btn-comparacao' },
-        almoxarifado: { tabId: 'aba-almoxarifado', btnId: 'tab-btn-almoxarifado' },
-    acompanhamento: { tabId: 'aba-acompanhamento' }
+        almoxarifado: { tabId: 'aba-almoxarifado', btnId: 'tab-btn-almoxarifado' }
     };
 
     const alvo = mapa[aba] || mapa.ordens;
@@ -4504,10 +4503,6 @@ function mostrarAba(aba) {
         }
         atualizarTabelaLogistica(mesFiltro);
         // NÃO atualizar hora fim automaticamente - usuário clica no botão quando quiser
-    }
-    if (aba === 'acompanhamento') {
-        // Ao abrir a aba de acompanhamento, executar análise rápida (se houver datas)
-        try { gerarAnalise(); } catch(e) { /* não bloquear */ }
     }
     if (aba === 'analise') {
         // Preencher mês atual e mês anterior e comparar automaticamente
