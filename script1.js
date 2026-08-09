@@ -3,6 +3,7 @@ let equipamentosTemp = []; // Array temporário para equipamentos antes de salva
 let adicionaisTemp = []; // Array temporário para adicionais antes de salvar OT
 let materiaisEstoque = JSON.parse(localStorage.getItem('materiaisEstoque')) || []; // Almoxarifado: [{id, nome, unidade, quantidade}]
 let materiaisTemp = []; // Array temporário de materiais usados na OT em edição/criação: [{materialId, nome, unidade, quantidade}]
+window.fotosOTAtual = window.fotosOTAtual || []; // Fotos anexadas à OT em edição/criação (via Firebase Storage)
 
 // ==================== ALMOXARIFADO (Materiais/Equipamentos em estoque) ====================
 function salvarMateriaisEstoque() {
@@ -126,12 +127,29 @@ function popularSelectMateriaisOT() {
 // Adicionar material selecionado à lista temporária da OT atual
 function adicionarMaterialNaOT() {
     const select = document.getElementById('materialSelecionado');
+    const busca = document.getElementById('buscarMaterialOT');
     const qtdEl = document.getElementById('quantidadeMaterialOT');
-    if (!select || !select.value) {
-        alert('Selecione um material do almoxarifado!');
+
+    let materialId = (select && select.value) ? parseInt(select.value, 10) : null;
+
+    // Fallback: usuário digitou o nome mas não clicou na sugestão — tenta casar pelo texto.
+    if (!materialId && busca && busca.value.trim()) {
+        const termo = busca.value.trim().toLowerCase();
+        let candidatos = materiaisEstoque.filter(m =>
+            m.nome.toLowerCase() === termo ||
+            `${m.nome} (${m.unidade || 'un'})`.toLowerCase() === termo
+        );
+        if (candidatos.length !== 1) {
+            candidatos = materiaisEstoque.filter(m => m.nome.toLowerCase().includes(termo));
+        }
+        if (candidatos.length === 1) materialId = candidatos[0].id;
+    }
+
+    if (!materialId) {
+        alert('Digite o nome/código do material e escolha uma opção da lista de sugestões!');
         return;
     }
-    const materialId = parseInt(select.value, 10);
+
     const quantidade = parseFloat(qtdEl ? qtdEl.value : 1) || 1;
     const material = materiaisEstoque.find(m => m.id === materialId);
     if (!material) {
@@ -148,8 +166,90 @@ function adicionarMaterialNaOT() {
 
     atualizarListaMateriaisOT();
 
-    select.value = '';
+    if (select) select.value = '';
+    if (busca) busca.value = '';
     if (qtdEl) qtdEl.value = '';
+}
+
+// ==================== BUSCA/AUTOCOMPLETE DE MATERIAL (por qualquer parte do texto) ====================
+function filtrarMateriaisEstoque(termo) {
+    const t = (termo || '').trim().toLowerCase();
+    if (!t) return [];
+    return materiaisEstoque
+        .filter(m => (m.nome || '').toLowerCase().includes(t))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+function renderSugestoesMaterial(lista) {
+    const box = document.getElementById('sugestoesMaterial');
+    if (!box) return;
+
+    if (!lista.length) {
+        box.innerHTML = '<div class="autocomplete-empty">Nenhum material encontrado</div>';
+        box.style.display = 'block';
+        return;
+    }
+
+    box.innerHTML = lista.map(m => `
+        <div class="autocomplete-item" data-id="${m.id}">
+            <span>🧰 ${m.nome}</span>
+            <span class="ac-badge">${m.unidade || 'un'} • estoque: ${parseFloat(m.quantidade) || 0}</span>
+        </div>
+    `).join('');
+    box.style.display = 'block';
+
+    box.querySelectorAll('.autocomplete-item[data-id]').forEach(item => {
+        item.addEventListener('mousedown', function(e) {
+            e.preventDefault(); // evita o blur fechar a lista antes do clique registrar
+            const id = parseInt(this.getAttribute('data-id'), 10);
+            selecionarMaterialSugerido(id);
+        });
+    });
+}
+
+function selecionarMaterialSugerido(materialId) {
+    const material = materiaisEstoque.find(m => m.id === materialId);
+    if (!material) return;
+    const select = document.getElementById('materialSelecionado');
+    const busca = document.getElementById('buscarMaterialOT');
+    const box = document.getElementById('sugestoesMaterial');
+    const qtdEl = document.getElementById('quantidadeMaterialOT');
+
+    if (select) select.value = String(materialId);
+    if (busca) busca.value = `${material.nome} (${material.unidade || 'un'})`;
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    if (qtdEl) qtdEl.focus();
+}
+
+function inicializarBuscaMaterial() {
+    const busca = document.getElementById('buscarMaterialOT');
+    const box = document.getElementById('sugestoesMaterial');
+    const select = document.getElementById('materialSelecionado');
+    if (!busca || !box) return;
+
+    busca.addEventListener('input', function() {
+        // Ao digitar manualmente, invalida a seleção anterior até o usuário escolher de novo
+        if (select) select.value = '';
+        const termo = this.value;
+        if (!termo.trim()) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
+        renderSugestoesMaterial(filtrarMateriaisEstoque(termo));
+    });
+
+    busca.addEventListener('focus', function() {
+        if (this.value.trim()) renderSugestoesMaterial(filtrarMateriaisEstoque(this.value));
+    });
+
+    busca.addEventListener('blur', function() {
+        setTimeout(() => { box.style.display = 'none'; }, 150);
+    });
+
+    busca.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') box.style.display = 'none';
+    });
 }
 
 function removerMaterialDaOT(index) {
@@ -970,6 +1070,8 @@ document.addEventListener('DOMContentLoaded', function() {
     atualizarTabelaAlmoxarifado();
     popularSelectMateriaisOT();
     atualizarListaMateriaisOT();
+    inicializarBuscaMaterial();
+    inicializarBuscaEquipamento();
 
     // Data da OT: sempre sincronizar com a data do dispositivo
     sincronizarDataOTComDispositivo();
@@ -1129,6 +1231,86 @@ function atualizarListaEquipamentos() {
 function removerEquipamento(index) {
     equipamentosTemp.splice(index, 1);
     atualizarListaEquipamentos();
+}
+
+// ==================== BUSCA/AUTOCOMPLETE DE EQUIPAMENTO (por qualquer parte do código) ====================
+function obterHistoricoEquipamentos() {
+    const set = new Set();
+    ordensTrabalho.forEach(ot => {
+        (ot.equipamentos || []).forEach(codigo => {
+            if (codigo) set.add(codigo);
+        });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function filtrarHistoricoEquipamentos(termo) {
+    const t = (termo || '').trim().toLowerCase();
+    if (!t) return [];
+    return obterHistoricoEquipamentos()
+        .filter(codigo => codigo.toLowerCase().includes(t))
+        .slice(0, 30);
+}
+
+function renderSugestoesEquipamento(lista) {
+    const box = document.getElementById('sugestoesEquipamento');
+    if (!box) return;
+
+    if (!lista.length) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+
+    box.innerHTML = lista.map(codigo => `
+        <div class="autocomplete-item" data-codigo="${codigo}">
+            <span>📦 ${codigo}</span>
+            <span class="ac-badge">já usado</span>
+        </div>
+    `).join('');
+    box.style.display = 'block';
+
+    box.querySelectorAll('.autocomplete-item[data-codigo]').forEach(item => {
+        item.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            const codigo = this.getAttribute('data-codigo');
+            const input = document.getElementById('macEquipamento');
+            if (input) {
+                input.value = codigo;
+                input.focus();
+            }
+            box.style.display = 'none';
+            box.innerHTML = '';
+        });
+    });
+}
+
+function inicializarBuscaEquipamento() {
+    const input = document.getElementById('macEquipamento');
+    const box = document.getElementById('sugestoesEquipamento');
+    if (!input || !box) return;
+
+    input.addEventListener('input', function() {
+        const termo = this.value;
+        if (!termo.trim()) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
+        renderSugestoesEquipamento(filtrarHistoricoEquipamentos(termo));
+    });
+
+    input.addEventListener('focus', function() {
+        if (this.value.trim()) renderSugestoesEquipamento(filtrarHistoricoEquipamentos(this.value));
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(() => { box.style.display = 'none'; }, 150);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') box.style.display = 'none';
+    });
 }
 
 // ==================== ADICIONAIS MÚLTIPLOS ====================
@@ -1560,6 +1742,12 @@ function limparFormulario() {
 
     materiaisTemp = [];
     atualizarListaMateriaisOT();
+
+    // Fechar sugestões abertas de equipamento/material, se houver
+    const boxMaterial = document.getElementById('sugestoesMaterial');
+    const boxEquipamento = document.getElementById('sugestoesEquipamento');
+    if (boxMaterial) { boxMaterial.style.display = 'none'; boxMaterial.innerHTML = ''; }
+    if (boxEquipamento) { boxEquipamento.style.display = 'none'; boxEquipamento.innerHTML = ''; }
 }
 
 function obterValorServico(itemMOI) {
@@ -2098,7 +2286,39 @@ function editarOT(id) {
     // Materiais usados
     materiaisTemp = ot.materiaisUsados ? [...ot.materiaisUsados] : [];
     atualizarListaMateriaisOT();
-    
+
+    // Fotos anexadas
+    window.fotosOTAtual = Array.isArray(ot.fotos) ? [...ot.fotos] : [];
+    const previewFotosEl = document.getElementById('previewFotosOT');
+    if (previewFotosEl) {
+        previewFotosEl.innerHTML = '';
+        window.fotosOTAtual.forEach(item => {
+            if (!item || !item.url) return;
+            const card = document.createElement('div');
+            card.style.cssText = 'position:relative; width:90px; height:90px; border-radius:8px; overflow:hidden; border:1px solid #ddd; background:#f5f5f5;';
+            card.dataset.caminho = item.caminho || '';
+            const img = document.createElement('img');
+            img.src = item.url;
+            img.style.cssText = 'width:100%; height:100%; object-fit:cover; display:block;';
+            card.appendChild(img);
+            const btnDel = document.createElement('button');
+            btnDel.type = 'button';
+            btnDel.textContent = '✕';
+            btnDel.style.cssText = 'position:absolute; top:2px; right:2px; background:rgba(231,76,60,0.9); color:#fff; border:none; border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px; line-height:1;';
+            btnDel.onclick = async function () {
+                try {
+                    if (item.caminho && typeof window.removerFotoDaNuvem === 'function') {
+                        await window.removerFotoDaNuvem(item.caminho);
+                    }
+                } catch {}
+                window.fotosOTAtual = (window.fotosOTAtual || []).filter(f => f.caminho !== item.caminho);
+                card.remove();
+            };
+            card.appendChild(btnDel);
+            previewFotosEl.appendChild(card);
+        });
+    }
+
     // Adicionais
     adicionaisTemp = ot.adicionais ? [...ot.adicionais] : [];
     atualizarListaAdicionais();
@@ -5656,17 +5876,34 @@ function abrirScanner() {
     const modal = document.getElementById('scannerModal');
     const video = document.getElementById('video');
     const resultado = document.getElementById('resultado');
-    
+
+    // Segurança: se a biblioteca do scanner não carregou (CDN bloqueado/offline),
+    // não abrir o modal em tela cheia — apenas avisar e sair.
+    if (typeof ZXing === 'undefined') {
+        alert('Não foi possível carregar o leitor de código de barras (sem internet ou bloqueado).\nVocê ainda pode digitar o código manualmente no campo.');
+        return;
+    }
+
     modal.classList.add('active');
     resultado.textContent = 'Iniciando câmera...';
     resultado.style.color = '#333';
     scannerAtivo = true;
-    
-    // Inicializar o scanner ZXing
-    if (!codeReader) {
-        codeReader = new ZXing.BrowserMultiFormatReader();
+
+    try {
+        // Inicializar o scanner ZXing
+        if (!codeReader) {
+            codeReader = new ZXing.BrowserMultiFormatReader();
+        }
+    } catch (err) {
+        console.error('Erro ao inicializar o leitor de código:', err);
+        resultado.textContent = '❌ Erro ao iniciar o leitor de código.';
+        resultado.style.color = '#e74c3c';
+        scannerAtivo = false;
+        // Fechar automaticamente para não travar a tela
+        setTimeout(fecharScanner, 1200);
+        return;
     }
-    
+
     // Listar câmeras disponíveis
     codeReader.listVideoInputDevices()
         .then(videoInputDevices => {
@@ -5694,6 +5931,8 @@ function abrirScanner() {
             resultado.textContent = '❌ Erro ao acessar câmera. Verifique as permissões.';
             resultado.style.color = '#e74c3c';
             scannerAtivo = false;
+            // Fechar automaticamente após mostrar o erro, para não travar a tela
+            setTimeout(fecharScanner, 2000);
         });
 }
 
@@ -5720,7 +5959,8 @@ function iniciarScanner() {
     codeReader.hints = hints;
     
     // Iniciar decodificação contínua com a câmera selecionada
-    codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+    try {
+        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
         if (result && scannerAtivo) {
             // Código detectado!
             const codigoDetectado = result.text;
@@ -5748,6 +5988,13 @@ function iniciarScanner() {
             console.warn('Erro no scanner:', err);
         }
     });
+    } catch (err) {
+        console.error('Erro ao iniciar decodificação da câmera:', err);
+        resultado.textContent = '❌ Erro ao iniciar a câmera.';
+        resultado.style.color = '#e74c3c';
+        scannerAtivo = false;
+        setTimeout(fecharScanner, 1200);
+    }
 }
 
 function trocarCamera() {
@@ -5814,6 +6061,19 @@ function fecharAjuda() {
     const modal = document.getElementById('ajudaModal');
     if (modal) modal.classList.remove('active');
 }
+
+// Rede de segurança: tecla Esc sempre fecha qualquer modal em tela cheia
+// que porventura tenha ficado "preso" (ex.: erro ao abrir a câmera do scanner).
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.scanner-modal.active').forEach(modal => {
+        if (modal.id === 'scannerModal') {
+            fecharScanner();
+        } else {
+            modal.classList.remove('active');
+        }
+    });
+});
 
 // ==================== INSTALAÇÃO PWA ====================
 let deferredPrompt = null;

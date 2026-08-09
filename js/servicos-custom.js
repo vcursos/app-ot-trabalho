@@ -328,6 +328,9 @@ function calcularValorTotalComMultiplicador() {
     
     // Atualizar indicador de bónus automático de domingo
     atualizarIndicadorBonusAuto(diaSemana, mult);
+
+    // Durante edição, manter botão de atualizar sempre disponível
+    garantirBotaoAtualizacaoDisponivel();
 }
 
 // Mostrar indicador quando bónus domingo é aplicado automaticamente
@@ -371,9 +374,9 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
     const badgeForaHora = document.getElementById('badgeForaHora');
     const checkForaHora = document.getElementById('otForaHora');
     const previewEl = document.getElementById('previewPremios');
-    const emEdicao = (typeof otEmEdicao !== 'undefined') && !!otEmEdicao;
+    const emEdicao = estaEmModoEdicaoOT();
     const bloquearPremioDia = premioJaAplicado && !emEdicao;
-    
+
     // Mostrar/esconder badges
     if (badgeSabado) badgeSabado.style.display = (checkSabado && checkSabado.checked) ? 'inline' : 'none';
     if (badgeDomingo) badgeDomingo.style.display = (checkDomingo && checkDomingo.checked) ? 'inline' : 'none';
@@ -424,6 +427,95 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
             previewEl.innerHTML = `Valores: Sáb €${sab.toFixed(2)} | Dom €${dom.toFixed(2)} | Festivo €${fest.toFixed(2)}${bfhLabel}`;
         }
     }
+}
+
+// Detectar de forma robusta se estamos editando uma OT já lançada
+function estaEmModoEdicaoOT() {
+    const globalEdit =
+        (typeof otEmEdicao !== 'undefined' && !!otEmEdicao) ||
+        (typeof window !== 'undefined' && (
+            !!window.otEmEdicao ||
+            !!window.otEditando ||
+            !!window.modoEdicao ||
+            !!window.isEditing
+        ));
+
+    if (globalEdit) return true;
+
+    // Flags/inputs comuns de edição na página inicial
+    const inputEdicao = document.getElementById('otEmEdicao')
+        || document.getElementById('indiceEdicao')
+        || document.getElementById('otIdEditando')
+        || document.querySelector('input[name="otEmEdicao"], input[name="indiceEdicao"], input[name="otIdEditando"]');
+
+    if (inputEdicao && String(inputEdicao.value || '').trim() !== '') return true;
+
+    // URL com parâmetro de edição (fallback)
+    try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('edit') || url.searchParams.has('otEdit')) return true;
+    } catch (_) {}
+
+    const btnAtualizar = document.getElementById('btnAtualizarOT')
+        || document.getElementById('btnAtualizar')
+        || document.getElementById('atualizarOT')
+        || document.querySelector('button[data-acao="atualizar"]');
+
+    return !!btnAtualizar;
+}
+
+// Garantir que botão de atualizar fique sempre disponível durante edição
+function garantirBotaoAtualizacaoDisponivel() {
+    if (!estaEmModoEdicaoOT()) return;
+
+    const seletores = [
+        '#btnAtualizarOT',
+        '#btnAtualizar',
+        '#atualizarOT',
+        'button[data-acao="atualizar"]',
+        'button[id*="Atualizar"]',
+        'button[name*="atualizar"]'
+    ];
+
+    seletores.forEach(sel => {
+        const btn = document.querySelector(sel);
+        if (!btn) return;
+
+        btn.disabled = false;
+        btn.removeAttribute('disabled');
+        btn.removeAttribute('aria-disabled');
+        btn.removeAttribute('hidden');
+        btn.classList.remove('disabled', 'btn-disabled', 'is-disabled', 'd-none', 'hidden');
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '';
+        if (btn.style.display === 'none') btn.style.display = '';
+        if (btn.type === 'submit') btn.formNoValidate = true; // evita travas por validação indevida na edição
+    });
+}
+
+// Monitorar alterações no botão de atualizar para evitar que outros scripts bloqueiem novamente.
+// IMPORTANTE: observar SOMENTE o botão (sem subtree/childList em document.body), pois observar
+// a página inteira dispara este callback a cada renderização da tabela de OTs/listas —
+// com muitos registros salvos isso trava a tela inicial (alto custo de CPU a cada mutação).
+let observerBotaoAtualizarOT = null;
+function iniciarMonitorBotaoAtualizarOT() {
+    if (observerBotaoAtualizarOT) return;
+
+    const btnAlvo = document.getElementById('btnSalvarOuAtualizarOT')
+        || document.getElementById('btnAtualizarOT')
+        || document.getElementById('btnAtualizar')
+        || document.getElementById('atualizarOT');
+
+    if (!btnAlvo) return;
+
+    observerBotaoAtualizarOT = new MutationObserver(() => {
+        garantirBotaoAtualizacaoDisponivel();
+    });
+
+    observerBotaoAtualizarOT.observe(btnAlvo, {
+        attributes: true,
+        attributeFilter: ['disabled', 'class', 'style', 'hidden', 'aria-disabled']
+    });
 }
 
 // Event listeners
@@ -489,6 +581,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (dataOTEl) {
         dataOTEl.addEventListener('change', calcularValorTotalComMultiplicador);
     }
+
+    // Reforço: qualquer alteração em campos do formulário mantém botão de atualizar habilitado em edição
+    document.addEventListener('input', function() {
+        garantirBotaoAtualizacaoDisponivel();
+    });
+    document.addEventListener('change', function() {
+        garantirBotaoAtualizacaoDisponivel();
+    });
+
+    // Estado inicial + reforço para carregamento assíncrono na página inicial
+    garantirBotaoAtualizacaoDisponivel();
+    setTimeout(garantirBotaoAtualizacaoDisponivel, 50);
+    setTimeout(garantirBotaoAtualizacaoDisponivel, 250);
+    setTimeout(garantirBotaoAtualizacaoDisponivel, 600);
+
+    iniciarMonitorBotaoAtualizarOT();
 });
 
 // Compatibilidade: manter nome da variável global para não quebrar código existente

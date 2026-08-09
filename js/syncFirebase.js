@@ -1,20 +1,7 @@
 // js/syncFirebase.js
 // Sincronização (desktop <-> mobile) usando Firebase (Auth por Google/Email + Firestore).
 // Mantém localStorage como cache offline: sempre lemos local, e depois aplicamos remoto.
-//
-// IMPORTANTE:
-// 1) Você precisa preencher firebaseConfig abaixo.
-// 2) No Firebase Console: habilite Authentication -> Google e/ou Email/Password
-// 3) Crie um Firestore Database (modo produção/teste conforme sua preferência)
-// 4) Regras sugeridas estão no README/DEPLOY (vamos adicionar depois se você quiser)
 
-// IMPORTANT: Este projeto é estático (GitHub Pages). Para funcionar no navegador
-// sem bundler, usamos os módulos ESM via CDN oficial do Firebase.
-// (Isso evita o erro: Failed to resolve module specifier "firebase/app".)
-
-// ATENÇÃO: este app roda como site estático (GitHub Pages), então NÃO dá pra usar
-// imports do tipo "firebase/app" (isso só funciona com bundler).
-// Aqui usamos os módulos ESM do Firebase via CDN.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
   getAuth,
@@ -40,9 +27,14 @@ import {
   onSnapshot,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 
-// Preencha com as credenciais do seu projeto Firebase.
-// (Config do Firebase Console -> Project settings -> SDK setup and configuration)
 export const firebaseConfig = {
   apiKey: 'AIzaSyDrXDix0uoEX6Cw9REZrNY3gMQgBlCLfYQ',
   authDomain: 'ottrabalho-34c3f.firebaseapp.com',
@@ -59,9 +51,9 @@ const STORAGE_KEYS = [
   'premiosFestivosPorDia',
   'historicoOTPorMes',
   'configuracaoVeiculo',
-  'tabelasCustomizadas',   // ← tabelas de preços configuradas
-  'multiplicadores',       // ← multiplicadores e prémios configurados
-  'tiposTrabalhoCustom'    // ← tipos de trabalho personalizados
+  'tabelasCustomizadas',
+  'multiplicadores',
+  'tiposTrabalhoCustom'
 ];
 
 function safeParse(json, fallback) {
@@ -76,7 +68,6 @@ function safeParse(json, fallback) {
 function getLocalSnapshot() {
   const snap = {};
   for (const k of STORAGE_KEYS) {
-    // Determinar fallback correto por tipo de dados
     let fallback;
     if (k === 'configuracaoVeiculo' || k === 'tabelasCustomizadas' || k === 'multiplicadores') {
       fallback = null;
@@ -99,10 +90,6 @@ function applySnapshotToLocalStorage(snapshot) {
   }
 }
 
-// ── Persistência de sessão visível ──────────────────────────────────────────
-// Guarda uid/email no localStorage para que ao recarregar a página (ou navegar
-// entre páginas) a UI mostre imediatamente o estado "logado", sem esperar o
-// Firebase validar a sessão (~1-3 s). Quando o Firebase confirma, actualiza.
 function saveSessionCache(uid, email) {
   try {
     if (uid) {
@@ -126,10 +113,6 @@ function loadSessionCache() {
 }
 
 function mergePreferNewest(localSnap, remoteSnap) {
-  // Estratégia simples e previsível:
-  // - Se remoto tem updatedAt mais novo => aplicar remoto.
-  // - Se local é mais novo => manter local.
-  // - Se algum lado não tem updatedAt => preferir o que tiver mais dados (fallback), senão remoto.
   const localAt = localSnap?.meta?.updatedAt ? new Date(localSnap.meta.updatedAt).getTime() : 0;
   const remoteAt = remoteSnap?.meta?.updatedAt ? new Date(remoteSnap.meta.updatedAt).getTime() : 0;
 
@@ -137,7 +120,6 @@ function mergePreferNewest(localSnap, remoteSnap) {
     return remoteAt >= localAt ? remoteSnap : localSnap;
   }
 
-  // Fallback: se remoto existe, usar remoto; senão local.
   if (remoteSnap && Object.keys(remoteSnap).length > 0) return remoteSnap;
   return localSnap;
 }
@@ -169,10 +151,11 @@ export class FirebaseSync {
     this._app = null;
     this._auth = null;
     this._db = null;
+    this._storage = null;
     this._uid = null;
     this._isAnonymous = true;
     this._unsub = null;
-  this._authUnsub = null;
+    this._authUnsub = null;
     this._initialized = false;
 
     this._lastPushedHash = '';
@@ -189,7 +172,6 @@ export class FirebaseSync {
   }
 
   isConfigured() {
-    // Config mínimo p/ funcionar.
     return !!(firebaseConfig && firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId);
   }
 
@@ -208,20 +190,16 @@ export class FirebaseSync {
 
     this.onStatus({ state: 'initializing' });
 
-    // ── Restaurar UI imediatamente com cache de sessão anterior ───────────
-    // Evita o "flash" de deslogado ao navegar entre páginas.
     const cached = loadSessionCache();
     if (cached) {
       this.onStatus({ state: 'ready', uid: cached.uid, email: cached.email, fromCache: true });
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     this._app = initializeApp(firebaseConfig);
     this._auth = getAuth(this._app);
     this._db = getFirestore(this._app);
+    this._storage = getStorage(this._app);
 
-    // Persistência de sessão: tentar IndexedDB primeiro (melhor para PWA),
-    // depois localStorage como fallback (Android WebView às vezes falha com IndexedDB).
     let persistenceOk = false;
     try {
       await setPersistence(this._auth, indexedDBLocalPersistence);
@@ -230,17 +208,12 @@ export class FirebaseSync {
       try {
         await setPersistence(this._auth, browserLocalPersistence);
         persistenceOk = true;
-      } catch {
-        // continua com o default do Firebase (session persistence)
-      }
+      } catch {}
     }
-    // No Android PWA, forçar re-login via cookie/localStorage se IndexedDB falhou
-    // e temos cache de sessão — o Firebase pode não ter restaurado a sessão.
     if (!persistenceOk) {
       try { localStorage.setItem('__syncPersistFallback', '1'); } catch {}
     }
 
-    // Se veio de redirect (mobile/PWA), precisamos capturar o resultado.
     try {
       const res = await getRedirectResult(this._auth);
       if (res && this._auth.currentUser) {
@@ -248,31 +221,22 @@ export class FirebaseSync {
         this._isAnonymous = !!this._auth.currentUser.isAnonymous;
       }
     } catch (e) {
-      // Em alguns casos pode falhar (ex.: sem resultado). Não é fatal.
       this.onStatus({ state: 'redirect-error', error: this._formatError(e) });
     }
 
-  // Mantém um listener de auth ativo: evita que o app "perca" sessão após login/reload
-  // por race conditions. (E também detecta logout real.)
-  await this._ensureAuthListener();
+    await this._ensureAuthListener();
 
     this._initialized = true;
     if (!this._uid) {
-      // Sessão não restaurada pelo Firebase.
-      // Se temos cache local (ex.: Android que não restaurou IndexedDB),
-      // tentar pull directo dos dados remotos assim que o utilizador reconectar.
-      // Por agora emitir logged-out para a UI mostrar botão de login.
-      saveSessionCache(null); // limpar cache stale
+      saveSessionCache(null);
       this.onStatus({ state: 'logged-out' });
       return;
     }
 
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
 
-    // Sessão restaurada automaticamente: puxar dados remotos primeiro,
-    // depois iniciar listener em tempo real e enviar local se for mais novo.
     this._startRealtimeListener();
-    await this._pullRemoteOnLogin();   // ← Pull automático ao abrir o app
+    await this._pullRemoteOnLogin();
     await this._pushLocalIfNewer('init');
   }
 
@@ -286,39 +250,31 @@ export class FirebaseSync {
         this._uid = user?.uid || null;
         this._isAnonymous = !!user?.isAnonymous;
 
-        // Guardar/limpar cache de sessão para restauração rápida de UI
         if (this._uid) {
           saveSessionCache(this._uid, user?.email || '');
         } else {
           saveSessionCache(null);
         }
 
-        // Primeiro evento: só sinaliza que já sabemos se existe sessão.
         if (first) {
           first = false;
           resolve();
         }
 
-        // Eventos subsequentes: refletem login/logout real
         if (!this._initialized) return;
 
         if (!this._uid) {
           this._unsub?.();
           this._unsub = null;
-          // explicit:true → já não há cache (foi limpa antes do signOut),
-          // então script1.js sempre mostra botão Entrar.
           this.onStatus({ state: 'logged-out', explicit: true });
           return;
         }
 
-        // Se mudou de usuário (ou recuperou sessão), garantir listener e status ready.
         if (this._uid !== prevUid) {
           try {
             this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
           } catch {}
           this._startRealtimeListener();
-          // Pull automático quando Firebase recupera sessão em segundo plano.
-          // Nota: onAuthStateChanged não é async — disparar sem await para não bloquear.
           Promise.resolve()
             .then(() => this._pullRemoteOnLogin())
             .then(() => this._pushLocalIfNewer('session-restored'))
@@ -329,9 +285,38 @@ export class FirebaseSync {
   }
 
   _docRef() {
-    // Documento por usuário.
-    // Coleção: users/{uid}/appData/main
     return doc(this._db, 'users', this._uid, 'appData', 'main');
+  }
+
+  // ── Upload de Fotos ─────────────────────────────────────────────────────
+  async uploadFoto(file, otId) {
+    if (!this._initialized || !this._uid) {
+      throw new Error('Usuário não está logado. Faça login com Google antes de enviar fotos.');
+    }
+    if (!file) throw new Error('Nenhum arquivo fornecido.');
+
+    const safeOtId = String(otId || 'sem-ot').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const nomeSeguro = String(file.name || 'foto.jpg').replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const caminho = `users/${this._uid}/fotos/${safeOtId}/${Date.now()}_${nomeSeguro}`;
+
+    const ref = storageRef(this._storage, caminho);
+    await uploadBytes(ref, file, { contentType: file.type || 'image/jpeg' });
+    const url = await getDownloadURL(ref);
+
+    return { url, caminho, uid: this._uid, nomeArquivo: nomeSeguro, criadoEm: new Date().toISOString() };
+  }
+
+  async removerFoto(caminho) {
+    if (!this._initialized || !this._uid) return false;
+    if (!caminho) return false;
+    try {
+      const ref = storageRef(this._storage, caminho);
+      await deleteObject(ref);
+      return true;
+    } catch (e) {
+      console.warn('Falha ao remover foto:', e);
+      return false;
+    }
   }
 
   async _readDocForUid(uid) {
@@ -355,13 +340,11 @@ export class FirebaseSync {
   }
 
   async _migrateFromAnonymousIfNeeded(prevAnonUid, newUid) {
-    // Migra dados do doc do UID anônimo para o UID da conta, sem perder dados locais.
     if (!prevAnonUid || !newUid || prevAnonUid === newUid) return;
 
     const anonRemote = await this._readDocForUid(prevAnonUid);
     const newRemote = await this._readDocForUid(newUid);
 
-    // Base: sempre respeita o localStorage (offline-first)
     const localData = getLocalSnapshot();
     const mergedPayload = {
       meta: {
@@ -372,9 +355,7 @@ export class FirebaseSync {
       data: localData
     };
 
-    // Se existia anonRemote, e ele tem dados mais recentes que local, aplica nele
     if (anonRemote && anonRemote.data) {
-      // preferir "novo" pelo meta.updatedAt
       const localWrap = { meta: { updatedAt: mergedPayload.meta.updatedAt } };
       const choice = mergePreferNewest(localWrap, anonRemote);
       if (choice === anonRemote) {
@@ -382,11 +363,9 @@ export class FirebaseSync {
       }
     }
 
-    // Se o newRemote já tem coisa, preferir o mais novo entre newRemote e mergedPayload
     if (newRemote && newRemote.meta) {
       const choice = mergePreferNewest(mergedPayload, newRemote);
       if (choice === newRemote) {
-        // Já tem mais novo, não sobrescreve
         applySnapshotToLocalStorage(newRemote.data || {});
         this.onRemoteApplied(newRemote.data || {});
         return;
@@ -401,21 +380,18 @@ export class FirebaseSync {
   async entrarGoogle() {
     if (!this._initialized) await this.init();
 
-  const prevAnonUid = this._uid;
+    const prevAnonUid = this._uid;
 
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      // Preferência: sempre popup para manter o usuário na mesma página.
-      // Só usar redirect como fallback quando o popup for bloqueado.
       try {
         await signInWithPopup(this._auth, provider);
       } catch (ePopup) {
         const code = String(ePopup?.code || '');
         const msg = String(ePopup?.message || ePopup);
 
-        // Somente fallback quando realmente for erro de popup.
         if (code.includes('popup') || msg.toLowerCase().includes('popup')) {
           await signInWithRedirect(this._auth, provider);
           return;
@@ -427,23 +403,19 @@ export class FirebaseSync {
       throw e;
     }
 
-    // Após login
     const u = this._auth.currentUser;
     if (!u) return;
     this._uid = u.uid;
     this._isAnonymous = !!u.isAnonymous;
     saveSessionCache(this._uid, u.email || '');
 
-    // Puxa dados da conta antes de fazer qualquer push.
     await this._pullRemoteOnLogin();
 
     this.onStatus({ state: 'ready', uid: this._uid, ...this.getUserInfo() });
     this._startRealtimeListener();
 
-    // Mantido por compatibilidade (mas agora não existe mais anon automático)
     await this._migrateFromAnonymousIfNeeded(prevAnonUid, this._uid);
 
-    // Só faz push se o local for mais novo (ou se remoto não existir)
     await this._pushLocalIfNewer('login-google');
   }
 
@@ -453,7 +425,6 @@ export class FirebaseSync {
     const prevAnonUid = this._uid;
 
     try {
-      // Se o usuário atual é anônimo, nós LINKAMOS para não perder dados
       const current = this._auth.currentUser;
       if (current && current.isAnonymous) {
         const cred = EmailAuthProvider.credential(email, senha);
@@ -517,21 +488,15 @@ export class FirebaseSync {
       }
 
       const localData = getLocalSnapshot();
-      // Usar o timestamp do último push guardado, não "agora".
-      // Sem este fix, o localWrap sempre parecia mais recente que o remoto.
       const localUpdatedAt = localStorage.getItem('__syncLocalUpdatedAt') || null;
       const localWrap = { meta: { updatedAt: localUpdatedAt || '1970-01-01T00:00:00.000Z' }, data: localData };
       const merged = mergePreferNewest(localWrap, remote);
       const localHas = hasAnyData(localData);
       const remoteHas = hasAnyData(remote.data);
 
-      // Aplicar remoto se:
-      // - Remoto tem dados e local está vazio
-      // - Remoto é mais recente que o último push local
       const shouldApplyRemote = (remoteHas && !localHas) || (merged === remote);
       if (shouldApplyRemote) {
         applySnapshotToLocalStorage(remote.data || {});
-        // Atualizar o timestamp para o do remoto (para não aplicar de novo desnecessariamente)
         try { localStorage.setItem('__syncLocalUpdatedAt', remote?.meta?.updatedAt || new Date().toISOString()); } catch {}
         this.onRemoteApplied(remote.data || {});
         this.onStatus({ state: 'remote-applied', at: remote?.meta?.updatedAt || null });
@@ -565,24 +530,18 @@ export class FirebaseSync {
 
   async sair() {
     if (!this._initialized) return;
-    // Limpar cache ANTES do signOut para que o onAuthStateChanged
-    // emita logged-out sem ser ignorado pelo "hasCached" do script1.js.
     saveSessionCache(null);
     try {
       await signOut(this._auth);
     } catch {}
-    // Volta a ficar DESLOGADO
     this._uid = null;
     this._isAnonymous = false;
     this._unsub?.();
     this._unsub = null;
-    // explicit:true → o script1.js SEMPRE mostra botão Entrar, sem verificar cache
     this.onStatus({ state: 'logged-out', explicit: true });
   }
 
   _computeHash(obj) {
-    // Hash bem simples para evitar pushes repetidos.
-    // Não precisa ser criptográfico.
     try {
       return String(
         (JSON.stringify(obj).length || 0) + ':' +
@@ -616,8 +575,6 @@ export class FirebaseSync {
         const local = { ...getLocalSnapshot(), meta: { updatedAt: new Date().toISOString() } };
         const merged = mergePreferNewest(local, remote);
 
-        // Se o merged escolheu remoto, aplicamos no localStorage + chamamos callback.
-        // Se escolheu local, não faz nada (pushLocal cuidará disso quando houver mudanças).
         const choseRemote = merged === remote;
         if (choseRemote) {
           applySnapshotToLocalStorage(remote?.data || {});
@@ -652,7 +609,6 @@ export class FirebaseSync {
 
     try {
       await setDoc(this._docRef(), payload, { merge: true });
-      // Guardar o timestamp do push para uso na comparação de merge
       try { localStorage.setItem('__syncLocalUpdatedAt', now); } catch {}
       this.onStatus({ state: 'pushed', at: now, reason });
     } catch (e) {
@@ -661,10 +617,6 @@ export class FirebaseSync {
     }
   }
 
-  // Força sincronização agora (útil em PWA instalado quando o listener demora a disparar).
-  // Fluxo:
-  // 1) Puxa o remoto e aplica se for mais novo.
-  // 2) Em seguida, envia o local (se for mais novo) para garantir consistência.
   async forceSync(reason = 'manual') {
     if (!this._initialized) await this.init();
     if (!this._uid) {
@@ -700,14 +652,8 @@ export class FirebaseSync {
 }
 
 // ── Auto-inicialização ────────────────────────────────────────────────────────
-// Este módulo é carregado como <script type="module"> no index.html.
-// O script1.js (não-módulo) regista os callbacks em window.__syncCallbacks ANTES
-// do DOMContentLoaded. Aqui criamos window.__firebaseSync e chamamos init().
-// Desta forma o script1.js NUNCA precisa de usar import() dinâmico.
 (async function autoInitFirebaseSync() {
   try {
-    // Aguardar até window.__syncCallbacks estar disponível (script1.js já registou)
-    // Máx 5s; se não aparecer, usamos callbacks vazios (só inicializa o sync base).
     let callbacks = null;
     for (let i = 0; i < 50; i++) {
       if (window.__syncCallbacks) { callbacks = window.__syncCallbacks; break; }
@@ -725,7 +671,15 @@ export class FirebaseSync {
 
     await window.__firebaseSync.init();
 
-    // Registar auto-save ao sair/minimizar (feito aqui porque document já está disponível)
+    window.uploadFotoParaNuvem = async function (file, otId) {
+      if (!window.__firebaseSync) throw new Error('Sync não inicializado.');
+      return await window.__firebaseSync.uploadFoto(file, otId);
+    };
+    window.removerFotoDaNuvem = async function (caminho) {
+      if (!window.__firebaseSync) return false;
+      return await window.__firebaseSync.removerFoto(caminho);
+    };
+
     if (typeof document !== 'undefined') {
       const autoSave = () => {
         try { window.salvarAgora?.(true); } catch {}
@@ -737,7 +691,6 @@ export class FirebaseSync {
       window.addEventListener('pagehide', autoSave);
     }
 
-    // Sinalizar que o sync está pronto para quem esteja à espera
     try { window.__syncReady = true; } catch {}
   } catch (e) {
     console.warn('[syncFirebase] auto-init falhou:', e);

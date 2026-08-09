@@ -837,3 +837,46 @@ tbody tr td:nth-child(5) span {
     transition: opacity .25s ease;
 }
 
+/* Lista de sugestões (autocomplete) para busca de equipamento/material */
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 60;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    margin-top: 4px;
+}
+.autocomplete-item {
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #2c3e50;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover,
+.autocomplete-item.active {
+    background: #eef3ff;
+}
+.autocomplete-item .ac-badge {
+    font-size: 11px;
+    color: #607d8b;
+    white-space: nowrap;
+}
+.autocomplete-empty {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #999;
+    font-style: italic;
+}
+
