@@ -1,8 +1,8 @@
 let ordensTrabalho = JSON.parse(localStorage.getItem('ordensTrabalho')) || [];
 let equipamentosTemp = []; // Array temporário para equipamentos antes de salvar OT
 let adicionaisTemp = []; // Array temporário para adicionais antes de salvar OT
-let materiaisEstoque = JSON.parse(localStorage.getItem('materiaisEstoque')) || []; // Almoxarifado: [{id, nome, unidade, quantidade}]
-let materiaisTemp = []; // Array temporário de materiais usados na OT em edição/criação: [{materialId, nome, unidade, quantidade}]
+let materiaisEstoque = JSON.parse(localStorage.getItem('materiaisEstoque')) || []; // Almoxarifado: [{id, nome, quantidade}]
+let materiaisTemp = []; // Array temporário de materiais usados na OT em edição/criação: [{materialId, nome, quantidade}]
 window.fotosOTAtual = window.fotosOTAtual || []; // Fotos anexadas à OT em edição/criação (via Firebase Storage)
 
 // ==================== ALMOXARIFADO (Materiais/Equipamentos em estoque) ====================
@@ -158,9 +158,8 @@ function adicionarMaterialNaOT() {
     }
 
     materiaisTemp.push({
-        materialId: materialId,
+        materialId: material.id,
         nome: material.nome,
-        unidade: material.unidade || 'un',
         quantidade: quantidade
     });
 
@@ -273,7 +272,7 @@ function atualizarListaMateriaisOT() {
 
     lista.innerHTML = materiaisTemp.map((m, index) => `
         <div style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #16a085; color: white; border-radius: 5px; margin: 2px; font-size: 12px;">
-            <span>🧰 ${m.nome}: ${m.quantidade} ${m.unidade}</span>
+            <span>🧰 ${m.nome}: ${m.quantidade}</span>
             <button type="button" onclick="removerMaterialDaOT(${index})" style="background: rgba(255,255,255,0.3); color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-weight: bold;">✕</button>
         </div>
     `).join('');
@@ -364,7 +363,7 @@ function gerarRelatorioDia() {
 
     const linhasMateriaisAgregados = Array.from(agregadoMateriais.values())
         .sort((a, b) => a.nome.localeCompare(b.nome))
-        .map(m => `<tr><td>${m.nome}</td><td>${m.unidade}</td><td style="font-weight:bold;">${m.quantidade}</td></tr>`)
+        .map(m => `<tr><td>${m.nome}</td><td style="font-weight:bold;">${m.quantidade}</td></tr>`)
         .join('');
 
     container.innerHTML = `
@@ -380,8 +379,8 @@ function gerarRelatorioDia() {
         <h3 style="margin-top:16px;">Total de Materiais Usados no Dia</h3>
         <div class="table-responsive">
             <table class="acomp-results-table">
-                <thead><tr><th>Material</th><th>Unidade</th><th>Quantidade Total</th></tr></thead>
-                <tbody>${linhasMateriaisAgregados || '<tr><td colspan="3">Nenhum material registrado neste dia</td></tr>'}</tbody>
+                <thead><tr><th>Material</th><th>Quantidade Total</th></tr></thead>
+                <tbody>${linhasMateriaisAgregados || '<tr><td colspan="2">Nenhum material registrado neste dia</td></tr>'}</tbody>
             </table>
         </div>
         <p style="margin-top:12px; font-weight:bold; color:#27ae60;">Total do Dia: € ${totalValorDia.toFixed(2)} (${otsDoDia.length} OT${otsDoDia.length > 1 ? 's' : ''})</p>
@@ -460,7 +459,7 @@ function baixarRelatorioDiaPDF() {
 
     const materiaisData = Array.from(agregadoMateriais.values())
         .sort((a, b) => a.nome.localeCompare(b.nome))
-        .map(m => [m.nome, m.unidade, String(m.quantidade)]);
+        .map(m => [m.nome, String(m.quantidade)]);
 
     doc.setFontSize(13);
     doc.setFont(undefined, 'bold');
@@ -471,7 +470,7 @@ function baixarRelatorioDiaPDF() {
     if (temAutoTable && materiaisData.length > 0) {
         doc.autoTable({
             startY: finalY + 2,
-            head: [['Material', 'Unidade', 'Quantidade Total']],
+            head: [['Material', 'Quantidade Total']],
             body: materiaisData,
             styles: { fontSize: 9 },
             headStyles: { fillColor: [39, 174, 96] }
