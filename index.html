@@ -1753,5 +1753,91 @@
     });
 })();
 </script>
+<script>
+(function () {
+    const STORAGE_KEY = 'bonusOTPadrao';
+
+    function el(id) { return document.getElementById(id); }
+
+    function enable(node) {
+        if (!node) return;
+        node.disabled = false;
+        node.removeAttribute('disabled');
+        node.style.pointerEvents = 'auto';
+        node.style.opacity = '';
+    }
+
+    function atualizarUnidade() {
+        const tipo = el('bonusTipo')?.value;
+        const lbl = el('bonusUnidadeLabel');
+        if (!lbl) return;
+        lbl.textContent = tipo === 'valor' ? '€' : (tipo === 'multiplicador' ? 'x' : '%');
+    }
+
+    function aplicarVisibilidade() {
+        const chk = el('otPremioFestivo');
+        const box = el('bonusOpcoesWrapper');
+        if (!chk || !box) return;
+        box.style.display = chk.checked ? 'block' : 'none';
+    }
+
+    function salvarPadrao() {
+        const tipo = el('bonusTipo')?.value || 'percentual';
+        const valor = el('bonusValor')?.value || '';
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ tipo, valor }));
+    }
+
+    function carregarPadrao() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const cfg = JSON.parse(raw);
+            if (cfg?.tipo && el('bonusTipo')) el('bonusTipo').value = cfg.tipo;
+            if (cfg?.valor !== undefined && el('bonusValor')) el('bonusValor').value = cfg.valor;
+        } catch {}
+    }
+
+    function reforcarBonus() {
+        enable(el('otPremioFestivo'));
+        enable(el('bonusTipo'));
+        enable(el('bonusValor'));
+        aplicarVisibilidade();
+        atualizarUnidade();
+    }
+
+    function bind() {
+        const chk = el('otPremioFestivo');
+        const tipo = el('bonusTipo');
+        const valor = el('bonusValor');
+        if (!chk || !tipo || !valor) return;
+
+        chk.addEventListener('change', () => {
+            reforcarBonus();
+            salvarPadrao();
+            window.calcularValorTotal?.();
+        });
+        tipo.addEventListener('change', () => {
+            atualizarUnidade();
+            salvarPadrao();
+            window.calcularValorTotal?.();
+        });
+        valor.addEventListener('input', () => {
+            salvarPadrao();
+            window.calcularValorTotal?.();
+        });
+
+        new MutationObserver(reforcarBonus).observe(chk, { attributes: true, attributeFilter: ['disabled', 'style', 'class'] });
+        new MutationObserver(reforcarBonus).observe(el('bonusOpcoesWrapper'), { attributes: true, attributeFilter: ['style', 'class'] });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        carregarPadrao();
+        reforcarBonus();
+        bind();
+        setTimeout(reforcarBonus, 80);
+        setTimeout(reforcarBonus, 300);
+    });
+})();
+</script>
 </body>
 </html>

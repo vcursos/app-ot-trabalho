@@ -938,10 +938,41 @@ function atualizarUIFestivoPorDia() {
         if (checkboxDomingo) checkboxDomingo.disabled = false;
         if (checkboxFestivo) checkboxFestivo.disabled = false;
         if (checkboxPremioFestivo) {
-            const fest = parseFloat(mult.premioFestivo) || 0;
-            const podePremioFestivo = fest > 0;
-            checkboxPremioFestivo.disabled = !podePremioFestivo;
-            if (!podePremioFestivo) checkboxPremioFestivo.checked = false;
+            // Permitir que o operador marque manualmente o Bônus.
+            // Apenas bloquear quando o prémio do dia já foi aplicado (bloquearPremioDia).
+            checkboxPremioFestivo.disabled = bloquearPremioDia;
+            // Se habilitado, manter estado do checkbox (não forçar desmarcar)
+        }
+        // Mostrar/ocultar o painel de opções do bônus quando o checkbox estiver marcado
+        const bonusOpcoesWrapper = document.getElementById('bonusOpcoesWrapper');
+        const bonusTipoEl = document.getElementById('bonusTipo');
+        const bonusValorEl = document.getElementById('bonusValor');
+        const bonusUnidadeLabel = document.getElementById('bonusUnidadeLabel');
+        if (bonusOpcoesWrapper) {
+            const mostrar = !!(checkboxPremioFestivo && checkboxPremioFestivo.checked);
+            bonusOpcoesWrapper.style.display = mostrar ? 'block' : 'none';
+            // Atualizar label de unidade conforme o tipo selecionado
+            if (bonusUnidadeLabel && bonusTipoEl) {
+                const tipo = bonusTipoEl.value;
+                if (tipo === 'percentual') bonusUnidadeLabel.textContent = '%';
+                else if (tipo === 'valor') bonusUnidadeLabel.textContent = '€';
+                else if (tipo === 'multiplicador') bonusUnidadeLabel.textContent = 'x';
+            }
+            // Atualizar preview calculado do bônus se os campos existirem
+            const previewBonusCalculado = document.getElementById('previewBonusCalculado');
+            if (previewBonusCalculado && bonusTipoEl && bonusValorEl) {
+                const val = parseFloat(bonusValorEl.value) || 0;
+                if (val > 0 && checkboxPremioFestivo && checkboxPremioFestivo.checked) {
+                    const tipo = bonusTipoEl.value;
+                    let texto = '';
+                    if (tipo === 'valor') texto = `Bônus: €${val.toFixed(2)} (adicionado)`;
+                    else if (tipo === 'percentual') texto = `Bônus: ${val}% do valor (calculado no total)`;
+                    else texto = `Bônus: x${val} do valor`;
+                    previewBonusCalculado.innerHTML = texto;
+                } else {
+                    previewBonusCalculado.innerHTML = '';
+                }
+            }
         }
         if (previewEl) {
             const sab = parseFloat(mult.premioSabado) || 0;

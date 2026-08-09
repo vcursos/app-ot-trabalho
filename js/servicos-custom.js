@@ -278,11 +278,26 @@ function calcularValorTotalComMultiplicador() {
 
     // Prémio festivo opcional (independente do checkbox Festivo)
     if (checkPremioFestivo && checkPremioFestivo.checked && !premioJaAplicado) {
-        const premioFest = parseFloat(mult.premioFestivo) || 0;
-        if (premioFest > 0) {
-            premiosAplicados.push(`Bônus: €${premioFest.toFixed(2)} (adicionado)`);
+        // Permitir que o operador escolha tipo e valor do prémio (percentual/valor/multiplicador)
+        const premioTipoEl = document.getElementById('bonusTipo');
+        const premioValorEl = document.getElementById('bonusValor');
+        let premioTipo = premioTipoEl ? premioTipoEl.value : 'valor';
+        let premioFestRaw = premioValorEl ? parseFloat(premioValorEl.value) || 0 : (parseFloat(mult.premioFestivo) || 0);
+
+        if (premioFestRaw > 0) {
+            let premioCalculado = 0;
+            if (premioTipo === 'valor') {
+                premioCalculado = premioFestRaw;
+                premiosAplicados.push(`Bônus: €${premioCalculado.toFixed(2)} (adicionado)`);
+            } else if (premioTipo === 'percentual') {
+                premioCalculado = valorFinal * premioFestRaw / 100;
+                premiosAplicados.push(`Bônus: ${premioFestRaw}%=€${premioCalculado.toFixed(2)} (adicionado)`);
+            } else if (premioTipo === 'multiplicador') {
+                premioCalculado = valorFinal * premioFestRaw;
+                premiosAplicados.push(`Bônus: x${premioFestRaw}=€${premioCalculado.toFixed(2)} (adicionado)`);
+            }
             // Somar o prémio opcional ao valor final exibido (é um prémio escolhido pelo operador)
-            valorFinal = valorFinal + premioFest;
+            valorFinal = valorFinal + premioCalculado;
         }
     }
 
@@ -397,10 +412,12 @@ function atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados) 
         if (checkFestivo) checkFestivo.disabled = false;
 
         if (checkPremioFestivo) {
-            const premioFest = parseFloat(mult.premioFestivo) || 0;
-            const podeUsarPremioFestivo = premioFest > 0;
-            checkPremioFestivo.disabled = !podeUsarPremioFestivo;
-            if (!podeUsarPremioFestivo) checkPremioFestivo.checked = false;
+            // Permitir que o operador marque manualmente o Bônus
+            // O único bloqueio deve ser se o prémio do dia já foi aplicado (bloquearPremioDia)
+            const bloquearPremioDia = premioJaAplicado && !emEdicao;
+            checkPremioFestivo.disabled = !!bloquearPremioDia;
+            if (bloquearPremioDia) checkPremioFestivo.checked = false;
+            // Não forçar desmarcar quando não bloqueado — o operador decide
         }
     }
     // O bônus "Fora de Hora" é por OT — nunca é bloqueado pelo prémio diário
@@ -589,6 +606,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('change', function() {
         garantirBotaoAtualizacaoDisponivel();
     });
+
+    // DEBUG: ouvir mudança do checkbox de Bônus para diagnosticar efeitos colaterais (remoção posterior)
+    const debugBonusCheck = document.getElementById('otPremioFestivo');
+    if (debugBonusCheck) {
+        debugBonusCheck.addEventListener('change', function(e) {
+            console.log('[DEBUG] otPremioFestivo change:', this.checked, 'event target:', e.target);
+        });
+    }
 
     // Estado inicial + reforço para carregamento assíncrono na página inicial
     garantirBotaoAtualizacaoDisponivel();
