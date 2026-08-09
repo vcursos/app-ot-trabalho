@@ -1482,11 +1482,27 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
     }
     
-    // Valor total com multiplicador mostrado no preview (pode já incluir o bónus se o preview somou)
-    const _valorTotalStr = document.getElementById('valorTotal').value;
-    const valorTotalFinal = (_valorTotalStr !== '' && !isNaN(parseFloat(_valorTotalStr)))
-        ? parseFloat(_valorTotalStr)
-        : (valorServicoBase + valorAdicionalBase);
+    // Calcular multiplicadores e valor base multiplicado (inclui adicionais)
+    const multObj = obterMultiplicadores();
+    const tipoMultSelecionado = tipoMultiplicador || 'normal';
+    let valorBaseMultiplicado = (valorServicoBase + valorAdicionalBase) * (multObj[tipoMultSelecionado] || 1.0);
+    // Aplicar multiplicador automático de domingo se aplicável
+    if (diaSemana === 0) {
+        const multDomingo = parseFloat(multObj.bonusDomingo) || 1.0;
+        if (multDomingo > 0 && multDomingo !== 1.0) {
+            valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
+        }
+    }
+    // Aplicar multiplicador feriado se checkbox estiver marcado
+    if (marcadoFestivo) {
+        const multFeriado = parseFloat(multObj.bonusFeriado) || 1.0;
+        if (multFeriado > 0 && multFeriado !== 1.0) {
+            valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
+        }
+    }
+
+    // Valor total final inicial (será ajustado com prémios/bónus abaixo)
+    let valorTotalFinal = valorBaseMultiplicado;
 
     // Checkboxes de prémios de saída
     const checkboxSabado = document.getElementById('otSabado');
@@ -1546,35 +1562,14 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             } else if (bfhTipo === 'multiplicador') {
                 bonusForaHoraAplicado = valorBaseMultiplicado * bfhValor;
             }
-            // Atualizar o valor total final para incluir o bónus por OT
-            // Se o preview já somou o bónus, valorTotalFinal já inclui; mas para consistência, usamos valorTotalFinal + bonus caso não.
-            // Preferir recalcular valorServicoFinal como valorBaseMultiplicado + bonus
-            // porém manter compatibilidade com valorTotalFinal se o campo tiver sido manualmente alterado.
         }
     }
-        // Para calcular o bónus "Fora de Hora" corretamente sem duplicação, recomputar o valor base
-        // aplicado pelo multiplicador (mas sem incluir o bónus por OT que o preview também soma)
-        const multObj = obterMultiplicadores();
-        const tipoMultSelecionado = tipoMultiplicador || 'normal';
-        // Valor base multiplicado (inclui multiplicadores automáticos como domingo ou feriado multiplicador)
-        let valorBaseMultiplicado = (valorServicoBase + valorAdicionalBase) * (multObj[tipoMultSelecionado] || 1.0);
-        // Aplicar multiplicador automático de domingo se aplicável
-        if (diaSemana === 0) {
-            const multDomingo = parseFloat(multObj.bonusDomingo) || 1.0;
-            if (multDomingo > 0 && multDomingo !== 1.0) {
-                valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
-            }
-        }
-        // Aplicar multiplicador feriado se checkbox estiver marcado
-        if (marcadoFestivo) {
-            const multFeriado = parseFloat(multObj.bonusFeriado) || 1.0;
-            if (multFeriado > 0 && multFeriado !== 1.0) {
-                valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
-            }
-        }
     
     // Total de prémios aplicados
     const premioTotalAplicado = premioSabadoAplicado + premioDomingoAplicado + premioFestivoAplicado;
+
+    // Valor final do serviço que será salvo na OT
+    const valorServicoFinal = valorBaseMultiplicado + premioTotalAplicado + (typeof bonusForaHoraAplicado === 'number' ? bonusForaHoraAplicado : 0);
     
     // Se está em modo edição, atualizar ao invés de criar nova
     if (otEmEdicao) {
@@ -1626,6 +1621,12 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
             ordensTrabalho[index] = otAtualizada;
             
             salvarDados();
+
+            // Garantir atualização imediata de todas as views que mostram OTs
+            try { atualizarTabela(); } catch (e) {}
+            try { atualizarResumos(); } catch (e) {}
+            try { if (typeof atualizarTabelaLogistica === 'function') atualizarTabelaLogistica(); } catch (e) {}
+            try { if (typeof atualizarListaAdicionais === 'function') atualizarListaAdicionais(); } catch (e) {}
 
             // Sincronizar histórico para refletir mudanças em relatórios/consultas
             removerOTDoHistorico(otAtualizada.id);
@@ -1692,7 +1693,7 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         materiaisUsados: [...materiaisTemp], // Copiar array de materiais usados (baixa no almoxarifado)
         tipoTrabalho: document.getElementById('tipoTrabalho').value || '-',
         observacoes: document.getElementById('observacoes').value || '',
-        valorServico: valorTotalFinal
+        valorServico: valorServicoFinal
     };
     
     ordensTrabalho.push(ot);
