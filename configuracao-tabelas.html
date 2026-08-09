@@ -666,150 +666,164 @@
     });
     </script>
     <script type="module">
-import { FirebaseSync } from './js/syncFirebase.js';
+    // ── Sync Firebase para a página de Opções/Tabelas ─────────────────────────
+    import { FirebaseSync } from './js/syncFirebase.js';
 
-let _sync = null;
+    let _sync = null;
 
-function setStatus(msg) {
-    const el = document.getElementById('syncStatusTabelas');
-    if (el) el.textContent = msg;
-}
-
-function setBotoes(visivel) {
-    const s = document.getElementById('btnSalvarTabelas');
-    const c = document.getElementById('btnCarregarTabelas');
-    if (s) s.style.display = visivel ? 'inline-block' : 'none';
-    if (c) c.style.display = visivel ? 'inline-block' : 'none';
-}
-
-function autoSalvar() {
-    try {
-        if (_sync && _sync.getUserInfo?.()?.uid) _sync.pushLocal('auto-save-tabelas');
-    } catch {}
-}
-
-async function iniciarSync() {
-    const cachedUid = localStorage.getItem('__syncSessionUid');
-    if (cachedUid) {
-        setStatus('🔄 A verificar sessão...');
-        setBotoes(true);
+    function setStatus(msg) {
+        const el = document.getElementById('syncStatusTabelas');
+        if (el) el.textContent = msg;
     }
 
-    _sync = new FirebaseSync({
-        enabled: true,
-        onRemoteApplied: () => {
-            try {
-                const tabelas = JSON.parse(localStorage.getItem('tabelasCustomizadas') || '{}');
-                if (typeof renderizarTabela === 'function') {
-                    if (tabelas.instalacoes) renderizarTabela('instalacoes', tabelas.instalacoes);
-                    if (tabelas.avarias) renderizarTabela('avarias', tabelas.avarias);
-                    if (tabelas.adicionais) renderizarTabela('adicionais', tabelas.adicionais);
+    function setBotoes(visivel) {
+        const s = document.getElementById('btnSalvarTabelas');
+        const c = document.getElementById('btnCarregarTabelas');
+        if (s) s.style.display = visivel ? 'inline-block' : 'none';
+        if (c) c.style.display = visivel ? 'inline-block' : 'none';
+    }
+
+    async function iniciarSync() {
+        // Restaurar UI imediatamente se há sessão cached
+        const cachedUid = localStorage.getItem('__syncSessionUid');
+        const cachedEmail = localStorage.getItem('__syncSessionEmail') || '';
+        if (cachedUid) {
+            setStatus(`🔄 A verificar sessão...`);
+            setBotoes(true);
+        }
+
+        _sync = new FirebaseSync({
+            enabled: true,
+            onRemoteApplied: () => {
+                // Recarregar tabelas na interface após sync remoto
+                try {
+                    const tabelas = JSON.parse(localStorage.getItem('tabelasCustomizadas'));
+                    if (tabelas) {
+                        if (typeof renderizarTabela === 'function') {
+                            if (tabelas.instalacoes) renderizarTabela('instalacoes', tabelas.instalacoes);
+                            if (tabelas.avarias) renderizarTabela('avarias', tabelas.avarias);
+                            if (tabelas.adicionais) renderizarTabela('adicionais', tabelas.adicionais);
+                        }
+                    }
+                    // Recarregar multiplicadores
+                    const mult = JSON.parse(localStorage.getItem('multiplicadores'));
+                    if (mult) {
+                        const fields = {
+                            multDobrado: mult.dobrado,
+                            bonusDomingo: mult.bonusDomingo,
+                            bonusFeriado: mult.bonusFeriado,
+                            bonusFeriadoTipo: mult.bonusFeriadoTipo,
+                            premioSabado: mult.premioSabado,
+                            premioDomingo: mult.premioDomingo,
+                            descontoPercentual: mult.descontoPercentual,
+                            bonusOTForaHora: mult.bonusOTForaHora,
+                            bonusOTForaHoraTipo: mult.bonusOTForaHoraTipo
+                        };
+                        Object.entries(fields).forEach(([id, val]) => {
+                            const el = document.getElementById(id);
+                            if (el && val !== undefined) el.value = val;
+                        });
+                    }
+                    // Recarregar tipos de trabalho personalizados
+                    if (typeof renderizarTiposTrabalho === 'function') renderizarTiposTrabalho();
+                    setStatus('✅ Dados carregados da nuvem');
+                } catch {}
+            },
+            onStatus: (st) => {
+                if (!st || !st.state) return;
+                if (st.state === 'logged-out') {
+                    const hasCached = !!localStorage.getItem('__syncSessionUid');
+                    if (!hasCached) {
+                        setStatus('⚠️ Sem sessão — faça login na página principal');
+                        setBotoes(false);
+                    }
+                    return;
                 }
-
-                const mult = JSON.parse(localStorage.getItem('multiplicadores') || '{}');
-                const fields = {
-                    multDobrado: mult.dobrado,
-                    bonusDomingo: mult.bonusDomingo,
-                    bonusFeriado: mult.bonusFeriado,
-                    bonusFeriadoTipo: mult.bonusFeriadoTipo,
-                    premioSabado: mult.premioSabado,
-                    premioDomingo: mult.premioDomingo,
-                    descontoPercentual: mult.descontoPercentual,
-                    bonusOTForaHora: mult.bonusOTForaHora,
-                    bonusOTForaHoraTipo: mult.bonusOTForaHoraTipo
-                };
-                Object.entries(fields).forEach(([id, val]) => {
-                    const el = document.getElementById(id);
-                    if (el && val !== undefined) el.value = val;
-                });
-
-                if (typeof renderizarTiposTrabalho === 'function') renderizarTiposTrabalho();
-                setStatus('✅ Dados carregados da nuvem');
-            } catch {}
-        },
-        onStatus: (st) => {
-            if (!st?.state) return;
-
-            if (st.state === 'logged-out') {
-                const hasCached = !!localStorage.getItem('__syncSessionUid');
-                if (!hasCached) {
-                    setStatus('⚠️ Sem sessão — faça login na página principal');
-                    setBotoes(false);
+                if (st.state === 'ready') {
+                    const email = st.email ? ` (${st.email})` : '';
+                    const label = st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`;
+                    setStatus(label);
+                    setBotoes(true);
+                    return;
                 }
-                return;
+                if (st.state === 'syncing') { setStatus('🔄 A sincronizar...'); return; }
+                if (st.state === 'pushed' || st.state === 'sync-ok') { setStatus('✅ Guardado na nuvem'); return; }
+                if (st.state === 'remote-applied') { setStatus('✅ Dados carregados da nuvem'); return; }
+        await _sync.init();st.state).includes('error')) { setStatus('⚠️ Erro de sync (ver consola)'); }
             }
-
-            if (st.state === 'ready') {
-                const email = st.email ? ` (${st.email})` : '';
-                setStatus(st.fromCache ? '🔄 A verificar sessão...' : `✅ Sync ativo${email}`);
-                setBotoes(true);
-                return;
+        // Auto-save ao sair da página
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') autoSalvar();
+        });
+        window.addEventListener('beforeunload', autoSalvar);
+        window.addEventListener('pagehide', autoSalvar); => {
+    }       if (document.visibilityState === 'hidden') autoSalvar();
+        });
+    function autoSalvar() {ener('beforeunload', autoSalvar);
+        try {w.addEventListener('pagehide', autoSalvar);
+            if (_sync && _sync.getUserInfo?.()?.uid) {
+                _sync.pushLocal('auto-save-tabelas');
+            }autoSalvar() {
+        } catch {}
+    }       if (_sync && _sync.getUserInfo?.()?.uid) {
+                _sync.pushLocal('auto-save-tabelas');
+    // Funções globais para os botões
+    window.syncTabelasSalvar = async function() {
+        const btn = document.getElementById('btnSalvarTabelas');
+        try {
+            if (!_sync || !_sync.getUserInfo?.()?.uid) {
+                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                return;ument.getElementById('btnSalvarTabelas');
             }
-
-            if (st.state === 'syncing') return setStatus('🔄 A sincronizar...');
-            if (st.state === 'pushed' || st.state === 'sync-ok') return setStatus('✅ Guardado na nuvem');
-            if (st.state === 'remote-applied') return setStatus('✅ Dados carregados da nuvem');
-            if (String(st.state).includes('error')) return setStatus('⚠️ Erro de sync (ver consola)');
-        }
-    });
-
-    await _sync.init();
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') autoSalvar();
-    });
-    window.addEventListener('beforeunload', autoSalvar);
-    window.addEventListener('pagehide', autoSalvar);
-}
-
-window.syncTabelasSalvar = async function () {
-    const btn = document.getElementById('btnSalvarTabelas');
-    try {
-        if (!_sync || !_sync.getUserInfo?.()?.uid) {
-            alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
-            return;
-        }
-        if (btn) { btn.textContent = '⏳ A guardar...'; btn.disabled = true; }
-        await _sync.pushLocal('manual-save-tabelas');
-        if (btn) { btn.textContent = '✅ Guardado!'; btn.disabled = false; }
-        setTimeout(() => { if (btn) btn.textContent = '💾 Salvar na nuvem'; }, 2500);
-    } catch (e) {
-        alert('Erro ao guardar: ' + (e?.message || e));
-        if (btn) { btn.textContent = '💾 Salvar na nuvem'; btn.disabled = false; }
-    }
-};
-
-window.syncTabelasCarregar = async function () {
-    const btn = document.getElementById('btnCarregarTabelas');
-    try {
-        if (!_sync || !_sync.getUserInfo?.()?.uid) {
-            alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
-            return;
-        }
-        if (btn) { btn.textContent = '⏳ A carregar...'; btn.disabled = true; }
-        await _sync.forceSync('manual-load-tabelas');
-        if (btn) { btn.textContent = '✅ Carregado!'; btn.disabled = false; }
-        setTimeout(() => { if (btn) btn.textContent = '🔄 Carregar da nuvem'; }, 2500);
-    } catch (e) {
-        alert('Erro ao carregar: ' + (e?.message || e));
-        if (btn) { btn.textContent = '🔄 Carregar da nuvem'; btn.disabled = false; }
-    }
-};
-
-iniciarSync().catch(e => {
-    setStatus('⚠️ Sync indisponível');
-    console.warn('Sync tabelas:', e);
-});
-
-window._syncTabelasNotificar = function () {
-    try {
-        if (_sync && _sync.getUserInfo?.()?.uid) {
-            _sync.pushLocal('tabela-alterada');
-            setStatus('💾 A guardar alterações...');
-            setTimeout(() => setStatus('✅ Alterações guardadas na nuvem'), 1500);
-        }
-    } catch {}
-};
-</script>
+            if (btn) { btn.textContent = '⏳ A guardar...'; btn.disabled = true; }
+            await _sync.pushLocal('manual-save-tabelas');da (Google) na página principal primeiro.');
+            if (btn) { btn.textContent = '✅ Guardado!'; btn.disabled = false; }
+            setTimeout(() => { if (btn) btn.textContent = '💾 Salvar na nuvem'; }, 2500);
+        } catch (e) {{ btn.textContent = '⏳ A guardar...'; btn.disabled = true; }
+            alert('Erro ao guardar: ' + (e?.message || e));
+            if (btn) { btn.textContent = '💾 Salvar na nuvem'; btn.disabled = false; }
+        }   setTimeout(() => { if (btn) btn.textContent = '💾 Salvar na nuvem'; }, 2500);
+    };  } catch (e) {
+            alert('Erro ao guardar: ' + (e?.message || e));
+    window.syncTabelasCarregar = async function() { na nuvem'; btn.disabled = false; }
+        const btn = document.getElementById('btnCarregarTabelas');
+        try {
+            if (!_sync || !_sync.getUserInfo?.()?.uid) {
+                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                return;ument.getElementById('btnCarregarTabelas');
+            }
+            if (btn) { btn.textContent = '⏳ A carregar...'; btn.disabled = true; }
+            await _sync.forceSync('manual-load-tabelas');da (Google) na página principal primeiro.');
+            if (btn) { btn.textContent = '✅ Carregado!'; btn.disabled = false; }
+            setTimeout(() => { if (btn) btn.textContent = '🔄 Carregar da nuvem'; }, 2500);
+        } catch (e) {{ btn.textContent = '⏳ A carregar...'; btn.disabled = true; }
+            alert('Erro ao carregar: ' + (e?.message || e));
+            if (btn) { btn.textContent = '🔄 Carregar da nuvem'; btn.disabled = false; }
+        }   setTimeout(() => { if (btn) btn.textContent = '🔄 Carregar da nuvem'; }, 2500);
+    };  } catch (e) {
+            alert('Erro ao carregar: ' + (e?.message || e));
+    // Iniciar (btn) { btn.textContent = '🔄 Carregar da nuvem'; btn.disabled = false; }
+    iniciarSync().catch(e => {
+        setStatus('⚠️ Sync indisponível');
+        console.warn('Sync tabelas:', e);
+    });Iniciar
+    iniciarSync().catch(e => {
+    // Expor notificador para config-tabelas.js (script não-module) usar
+    window._syncTabelasNotificar = function() {
+        try {
+            if (_sync && _sync.getUserInfo?.()?.uid) {
+                _sync.pushLocal('tabela-alterada');ript não-module) usar
+                setStatus('💾 A guardar alterações...');
+                setTimeout(() => {
+                    setStatus('✅ Alterações guardadas na nuvem');
+                }, 1500);hLocal('tabela-alterada');
+            }   setStatus('💾 A guardar alterações...');
+        } catch {}tTimeout(() => {
+    };              setStatus('✅ Alterações guardadas na nuvem');
+    </script>   }, 1500);
+</body>     }
+</html> } catch {}
+    };
+    </script>
 </body>
 </html>

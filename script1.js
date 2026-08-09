@@ -1482,28 +1482,6 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         pontosServicoBase = servicoInfo ? (parseFloat(servicoInfo.pontos) || 0) : 0;
     }
     
-    // Calcular multiplicadores e valor base multiplicado (inclui adicionais)
-    const multObj = obterMultiplicadores();
-    const tipoMultSelecionado = tipoMultiplicador || 'normal';
-    let valorBaseMultiplicado = (valorServicoBase + valorAdicionalBase) * (multObj[tipoMultSelecionado] || 1.0);
-    // Aplicar multiplicador automático de domingo se aplicável
-    if (diaSemana === 0) {
-        const multDomingo = parseFloat(multObj.bonusDomingo) || 1.0;
-        if (multDomingo > 0 && multDomingo !== 1.0) {
-            valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
-        }
-    }
-    // Aplicar multiplicador feriado se checkbox estiver marcado
-    if (marcadoFestivo) {
-        const multFeriado = parseFloat(multObj.bonusFeriado) || 1.0;
-        if (multFeriado > 0 && multFeriado !== 1.0) {
-            valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
-        }
-    }
-
-    // Valor total final inicial (será ajustado com prémios/bónus abaixo)
-    let valorTotalFinal = valorBaseMultiplicado;
-
     // Checkboxes de prémios de saída
     const checkboxSabado = document.getElementById('otSabado');
     const checkboxDomingo = document.getElementById('otDomingo');
@@ -1531,6 +1509,28 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     const horaForaHora = marcadoForaHora
         ? (String(campoHoraForaHora?.value || '').trim() || obterHoraAtualHHMM())
         : '';
+
+    // Calcular multiplicadores e valor base multiplicado (inclui adicionais)
+    const multObj = obterMultiplicadores();
+    const tipoMultSelecionado = tipoMultiplicador || 'normal';
+    let valorBaseMultiplicado = (valorServicoBase + valorAdicionalBase) * (multObj[tipoMultSelecionado] || 1.0);
+    // Aplicar multiplicador automático de domingo se aplicável
+    if (diaSemana === 0) {
+        const multDomingo = parseFloat(multObj.bonusDomingo) || 1.0;
+        if (multDomingo > 0 && multDomingo !== 1.0) {
+            valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
+        }
+    }
+    // Aplicar multiplicador feriado se checkbox estiver marcado
+    if (marcadoFestivo) {
+        const multFeriado = parseFloat(multObj.bonusFeriado) || 1.0;
+        if (multFeriado > 0 && multFeriado !== 1.0) {
+            valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
+        }
+    }
+
+    // Valor total final inicial (será ajustado com prémios/bónus abaixo)
+    let valorTotalFinal = valorBaseMultiplicado;
     
     let premioSabadoAplicado = 0;
     let premioDomingoAplicado = 0;
@@ -1539,20 +1539,20 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
     
     if (permitirAplicarHoje) {
         if (marcadoSabado) {
-            premioSabadoAplicado = parseFloat(mult?.premioSabado) || 0;
+            premioSabadoAplicado = parseFloat(multObj?.premioSabado) || 0;
         }
         if (marcadoDomingo) {
-            premioDomingoAplicado = parseFloat(mult?.premioDomingo) || 0;
+            premioDomingoAplicado = parseFloat(multObj?.premioDomingo) || 0;
         }
         if (marcadoPremioFestivo) {
-            premioFestivoAplicado = parseFloat(mult?.premioFestivo) || 0;
+            premioFestivoAplicado = parseFloat(multObj?.premioFestivo) || 0;
         }
     }
 
     // Bônus por OT Fora de Hora — aplica por OT (sem restrição de 1x por dia)
     if (marcadoForaHora) {
-        const bfhValor = parseFloat(mult?.bonusOTForaHora) || 0;
-        const bfhTipo = mult?.bonusOTForaHoraTipo || 'valor';
+        const bfhValor = parseFloat(multObj?.bonusOTForaHora) || 0;
+        const bfhTipo = multObj?.bonusOTForaHoraTipo || 'valor';
         if (bfhValor > 0) {
             if (bfhTipo === 'valor') {
                 bonusForaHoraAplicado = bfhValor;
