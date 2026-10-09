@@ -2922,29 +2922,37 @@ function gerarPDF(comDesconto = false) {
             const chave = normalizarCodigoServico(codigo || '');
             if (!chave) return '';
 
-            if (window.servicosCustomizados && typeof window.servicosCustomizados === 'object') {
-                const lista = Object.values(window.servicosCustomizados);
-                const item = lista.find(s => {
-                    const cod = normalizarCodigoServico(s?.item || s?.codigo || '');
-                    return cod === chave;
-                });
-                if (item) {
-                    const nome = normalizarTextoPDF(item.descricao || item.nome || item.tipologia || item.item || '');
-                    if (nome && !/^[A-Z]{2,}\d+$/i.test(nome)) return nome;
+            const candidatos = [];
+            try {
+                const tabelas = JSON.parse(localStorage.getItem('tabelasCustomizadas') || '{}');
+                candidatos.push(...(tabelas.adicionais || []), ...(tabelas.instalacoes || []), ...(tabelas.avarias || []));
+            } catch (e) {}
+            try {
+                if (typeof carregarServicosCustomizados === 'function') {
+                    candidatos.push(...carregarServicosCustomizados());
                 }
+            } catch (e) {}
+            if (window.servicosCustomizados && typeof window.servicosCustomizados === 'object') {
+                candidatos.push(...Object.values(window.servicosCustomizados));
             }
 
-            return '';
+            const item = candidatos.find(s => normalizarCodigoServico(s?.codigo || s?.item || '') === chave);
+            if (!item) return '';
+            const nome = normalizarTextoPDF(item.descricao || item.tipologia || item.nome || '');
+            return (nome && !/^[A-Z]{2,}\d+$/i.test(nome)) ? nome : '';
         };
 
         const adicionaisLista = [];
         if (Array.isArray(ot.adicionais) && ot.adicionais.length > 0) {
             ot.adicionais.forEach(a => {
-                const codigoObj = typeof a === 'object' ? (a.item || a.codigo || '') : '';
-                const nomeObj = typeof a === 'object' ? (a.descricao || a.nome || a.titulo || '') : '';
-                const nomeOrig = typeof a === 'string' ? a : (nomeObj || codigoObj || '');
-                const nomeMapeado = codigoParaNome(codigoObj || nomeOrig);
-                const nome = obterNomeLegivelServico(nomeMapeado || nomeOrig);
+                const descricaoSalva = (typeof a === 'object')
+                    ? normalizarTextoPDF(a.tipologia || a.descricao || a.nome || a.titulo || '')
+                    : '';
+                const codigoObj = typeof a === 'string' ? a : (a.item || a.codigo || '');
+                const nomeDaTabela = codigoParaNome(codigoObj);
+                const nome = (descricaoSalva && !/^ADIC\d+$/i.test(descricaoSalva))
+                    ? descricaoSalva
+                    : (nomeDaTabela || normalizarTextoPDF(codigoObj));
                 const valor = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
                 if (!nome) return;
                 adicionaisLista.push({ nome, valor });
@@ -2991,7 +2999,7 @@ function gerarPDF(comDesconto = false) {
             data:        '',
             ot:          normalizarTextoPDF(ot.numeroOT || '-'),
             tipoTrab:    'Adicional',
-            tipoServ:    `↳ ${add.nome}`,
+            tipoServ:    add.nome,
             adicionais:  add.valor > 0 ? `Valor do adicional: ${formatarEuroPDF(add.valor)}` : 'Valor do adicional: incluído',
             equipamentos,
             observacoes: '',
