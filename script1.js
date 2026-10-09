@@ -2883,10 +2883,68 @@ function gerarPDF(comDesconto = false) {
         const equipamentos = normalizarTextoPDF(equipamentosRaw);
 
         // Adicionais (novo layout: cada adicional em linha própria abaixo da OT)
+        const normalizarCodigoServico = (texto) => {
+            const bruto = normalizarTextoPDF(texto || '').toUpperCase();
+            if (!bruto) return '';
+
+            // Remove ruídos de encoding e qualquer caractere não alfanumérico
+            const semRuido = bruto
+                .replace(/[^A-Z0-9]+/g, '')
+                .trim();
+
+            // Corrigir padrões com separadores (ex: "A D I C 0 1" -> "ADIC01")
+            return semRuido;
+        };
+
+        const obterNomeLegivelServico = (texto) => {
+            const bruto = normalizarTextoPDF(texto || '').trim();
+            if (!bruto) return '';
+
+            const codigoNormalizado = normalizarCodigoServico(bruto);
+
+            // Se não parecer código, já está legível
+            if (!/^[A-Z]{2,}\d+$/i.test(codigoNormalizado)) return bruto;
+
+            try {
+                if (typeof getServicoInfo === 'function') {
+                    const info = getServicoInfo(codigoNormalizado);
+                    if (info) {
+                        const nome = normalizarTextoPDF(info.descricao || info.nome || info.tipologia || info.item || '');
+                        if (nome && !/^[A-Z]{2,}\d+$/i.test(nome)) return nome;
+                    }
+                }
+            } catch (e) {}
+
+            return bruto;
+        };
+
+        const codigoParaNome = (codigo) => {
+            const chave = normalizarCodigoServico(codigo || '');
+            if (!chave) return '';
+
+            if (window.servicosCustomizados && typeof window.servicosCustomizados === 'object') {
+                const lista = Object.values(window.servicosCustomizados);
+                const item = lista.find(s => {
+                    const cod = normalizarCodigoServico(s?.item || s?.codigo || '');
+                    return cod === chave;
+                });
+                if (item) {
+                    const nome = normalizarTextoPDF(item.descricao || item.nome || item.tipologia || item.item || '');
+                    if (nome && !/^[A-Z]{2,}\d+$/i.test(nome)) return nome;
+                }
+            }
+
+            return '';
+        };
+
         const adicionaisLista = [];
         if (Array.isArray(ot.adicionais) && ot.adicionais.length > 0) {
             ot.adicionais.forEach(a => {
-                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.descricao || a.nome || a.item || ''));
+                const codigoObj = typeof a === 'object' ? (a.item || a.codigo || '') : '';
+                const nomeObj = typeof a === 'object' ? (a.descricao || a.nome || a.titulo || '') : '';
+                const nomeOrig = typeof a === 'string' ? a : (nomeObj || codigoObj || '');
+                const nomeMapeado = codigoParaNome(codigoObj || nomeOrig);
+                const nome = obterNomeLegivelServico(nomeMapeado || nomeOrig);
                 const valor = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
                 if (!nome) return;
                 adicionaisLista.push({ nome, valor });
@@ -2894,7 +2952,11 @@ function gerarPDF(comDesconto = false) {
         } else if (ot.adicional && String(ot.adicional).trim() && String(ot.adicional).trim() !== '-') {
             String(ot.adicional)
                 .split(',')
-                .map(t => normalizarTextoPDF(t))
+                .map(t => {
+                    const tLimpo = normalizarTextoPDF(t || '').trim();
+                    const nomeMapeado = codigoParaNome(tLimpo);
+                    return obterNomeLegivelServico(nomeMapeado || tLimpo);
+                })
                 .filter(Boolean)
                 .forEach(nome => adicionaisLista.push({ nome, valor: 0 }));
         }
@@ -2931,7 +2993,7 @@ function gerarPDF(comDesconto = false) {
             tipoTrab:    'Adicional',
             tipoServ:    `↳ ${add.nome}`,
             adicionais:  add.valor > 0 ? `Valor do adicional: ${formatarEuroPDF(add.valor)}` : 'Valor do adicional: incluído',
-            equipamentos: '',
+            equipamentos,
             observacoes: '',
             valor:       add.valor > 0 ? formatarEuroPDF(add.valor) : '',
             valorLiquido: add.valor > 0 ? formatarEuroPDF(aplicarDesconto(add.valor)) : '',
