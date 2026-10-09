@@ -2886,7 +2886,7 @@ function gerarPDF(comDesconto = false) {
         const adicionaisLista = [];
         if (Array.isArray(ot.adicionais) && ot.adicionais.length > 0) {
             ot.adicionais.forEach(a => {
-                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.nome || a.descricao || a.item || ''));
+                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.descricao || a.nome || a.item || ''));
                 const valor = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
                 if (!nome) return;
                 adicionaisLista.push({ nome, valor });
@@ -3070,6 +3070,20 @@ function gerarPDF(comDesconto = false) {
         ? (doc.lastAutoTable.finalY + 10)
         : (filtrosTexto.length > 0 ? 60 : 55);
 
+    const iniciarNovaSecao = (titulo) => {
+        doc.addPage('landscape');
+        doc.setFillColor(243, 244, 246);
+        doc.roundedRect(10, 8, 277, 18, 3, 3, 'F');
+        doc.setTextColor(31, 41, 55);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.text(titulo, 14, 19);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text(`Período: ${periodoLabel}`, 210, 19);
+        return 32;
+    };
+
     // Linha divisória antes dos resumos
     doc.setDrawColor(209, 213, 219);
     doc.setLineWidth(0.3);
@@ -3082,9 +3096,10 @@ function gerarPDF(comDesconto = false) {
     
     // Mostrar prémios de saída se houver
     if (totalPremiosSaida > 0 || diasPremio.length > 0) {
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-        doc.text(`Prémios de Saída (1x por dia): € ${totalPremiosSaida.toFixed(2)}`, 14, finalY + 14);
+        finalY = iniciarNovaSecao('Resumo de Prémios de Saída');
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Prémios de Saída (1x por dia): € ${totalPremiosSaida.toFixed(2)}`, 14, finalY);
 
         // Tabela separada: Data + Tipo + Valor (1x por dia)
         const tablePremios = diasPremio.map(d => {
@@ -3099,7 +3114,7 @@ function gerarPDF(comDesconto = false) {
 
         if (temAutoTable) {
             doc.autoTable({
-                startY: finalY + 18,
+                startY: finalY + 4,
                 head: [['Data', 'Tipo', 'Opções marcadas', 'Prémio']],
                 body: tablePremios,
                 theme: 'striped',
@@ -3113,10 +3128,10 @@ function gerarPDF(comDesconto = false) {
                     3: { cellWidth: 25, fontStyle: 'bold' }
                 }
             });
-            finalY = doc.lastAutoTable.finalY + 6;
+            finalY = doc.lastAutoTable.finalY + 8;
         } else {
             // Fallback sem tabela: listar datas/valores como texto
-            let y = finalY + 20;
+            let y = finalY + 8;
             doc.setFontSize(10);
             doc.text('Prémios de Saída:', 14, y);
             y += 6;
@@ -3133,9 +3148,10 @@ function gerarPDF(comDesconto = false) {
 
     // Mostrar bônus OT Fora de Hora se houver
     if (totalBonusForaHora > 0) {
+        finalY = iniciarNovaSecao('Resumo de Bônus Fora de Hora');
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(`⏱️ Bônus Fora de Hora (${otsForaHora.length} OTs): € ${totalBonusForaHora.toFixed(2)}`, 14, finalY + 8);
+        doc.text(`⏱️ Bônus Fora de Hora (${otsForaHora.length} OTs): € ${totalBonusForaHora.toFixed(2)}`, 14, finalY);
 
         const tableForaHora = otsForaHora.map(ot => [
             formatarDataBRFromISODate(getDataISO(ot.data)),
@@ -3146,7 +3162,7 @@ function gerarPDF(comDesconto = false) {
 
         if (temAutoTable) {
             doc.autoTable({
-                startY: finalY + 12,
+                startY: finalY + 4,
                 head: [['Data', 'OT', 'Hora', 'Bônus Fora Hora']],
                 body: tableForaHora,
                 theme: 'striped',
@@ -3160,9 +3176,9 @@ function gerarPDF(comDesconto = false) {
                     3: { cellWidth: 35, fontStyle: 'bold' }
                 }
             });
-            finalY = doc.lastAutoTable.finalY + 6;
+            finalY = doc.lastAutoTable.finalY + 8;
         } else {
-            let y = finalY + 14;
+            let y = finalY + 8;
             doc.setFontSize(10);
             otsForaHora.forEach(ot => {
                 const hora = String(ot.horaForaHora || '').trim() || '-';
@@ -3173,37 +3189,29 @@ function gerarPDF(comDesconto = false) {
         }
     }
 
-    if (finalY > 168) {
-        doc.addPage('landscape');
-        finalY = 22;
-    }
+    finalY = iniciarNovaSecao('Resumo Financeiro Final');
 
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
+    const descPct = obterDescontoPercentual();
+    const valorLiquido = aplicarDesconto(valorReceber);
 
     // Card de total
     doc.setFillColor(236, 253, 245);
     doc.setDrawColor(16, 185, 129);
-    doc.roundedRect(14, finalY + 4, 132, comDesconto ? 30 : 18, 3, 3, 'FD');
+    doc.roundedRect(14, finalY + 4, 200, 30, 3, 3, 'FD');
 
-    if (comDesconto) {
-        const descPct = obterDescontoPercentual();
-        const valorLiquido = aplicarDesconto(valorReceber);
-        doc.setTextColor(21, 128, 61);
-        doc.text(`VALOR BRUTO: € ${valorReceber.toFixed(2)}`, 18, finalY + 13);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        doc.setTextColor(22, 101, 52);
-        doc.text(`Desconto do chefe (${descPct}%): - € ${(valorReceber - valorLiquido).toFixed(2)}`, 18, finalY + 20);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.setTextColor(6, 78, 59);
-        doc.text(`VALOR LÍQUIDO A RECEBER: € ${valorLiquido.toFixed(2)}`, 18, finalY + 28);
-    } else {
-        doc.setTextColor(6, 78, 59);
-        doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 18, finalY + 14);
-    }
+    doc.setTextColor(21, 128, 61);
+    doc.text(`VALOR A RECEBER DO CHEFE (BRUTO): € ${valorReceber.toFixed(2)}`, 18, finalY + 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(22, 101, 52);
+    doc.text(`Desconto do chefe (${descPct}%): - € ${(valorReceber - valorLiquido).toFixed(2)}`, 18, finalY + 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(6, 78, 59);
+    doc.text(`VALOR A RECEBER LIMPO (LÍQUIDO): € ${valorLiquido.toFixed(2)}`, 18, finalY + 28);
 
     doc.setTextColor(33, 33, 33);
     
