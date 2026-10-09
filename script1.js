@@ -1916,6 +1916,11 @@ function calcularValorTotal() {
         atualizarUIFestivoPorDia();
 
         document.getElementById('valorTotal').value = ` ${total.toFixed(2)}`;
+
+        const descontoPct = (typeof obterDescontoPercentual === 'function') ? (parseFloat(obterDescontoPercentual()) || 0) : 0;
+        const valorLiquido = Math.max(0, total * (1 - (descontoPct / 100)));
+        const valorLiquidoEl = document.getElementById('valorLiquidoTecnico');
+        if (valorLiquidoEl) valorLiquidoEl.value = valorLiquido.toFixed(2);
     }
 }
 
@@ -1966,6 +1971,8 @@ function limparCamposServico() {
     document.getElementById('valorServico').value = '';
     document.getElementById('categoriaServico').value = '';
     document.getElementById('valorTotal').value = '';
+    const valorLiquidoEl = document.getElementById('valorLiquidoTecnico');
+    if (valorLiquidoEl) valorLiquidoEl.value = '';
 }
 
 function atualizarValorServico() {
@@ -2287,6 +2294,12 @@ function editarOT(id) {
     // Valor total (usa o valor total guardado na OT)
     const valorTotalEl = document.getElementById('valorTotal');
     if (valorTotalEl) valorTotalEl.value = (ot.valorServico !== undefined && ot.valorServico !== null) ? ot.valorServico.toFixed(2) : '';
+    const valorLiquidoEl = document.getElementById('valorLiquidoTecnico');
+    if (valorLiquidoEl) {
+        const bruto = (ot.valorServico !== undefined && ot.valorServico !== null) ? (parseFloat(ot.valorServico) || 0) : 0;
+        const liquido = aplicarDesconto(bruto);
+        valorLiquidoEl.value = liquido.toFixed(2);
+    }
     
     // Multiplicador
     const multiplicadorEl = document.getElementById('multiplicadorServico');
@@ -2821,39 +2834,70 @@ function gerarPDF(comDesconto = false) {
     };
 
     let otsMes = obterOTsVisiveisNaTabela();
-    
-    // Cabeçalho
+    const periodoLabel = new Date(mesAtual + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    // Cabeçalho visual moderno
+    doc.setFillColor(31, 41, 55);
+    doc.roundedRect(10, 8, 277, 28, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
-    doc.text('Relatório de Ordens de Trabalho', 14, 20);
-    doc.setFontSize(11);
-    doc.text(`Período: ${new Date(mesAtual + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`, 14, 28);
-    
-    // Mostrar filtros aplicados
+    doc.text('Relatório de Produção - OTs', 16, 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Período: ${periodoLabel}`, 16, 27);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 208, 27);
+
+    // Mostrar filtros aplicados em "chips"
     let filtrosTexto = [];
     if (categoriaFiltro) filtrosTexto.push(`Categoria: ${categoriaFiltro}`);
     if (diaSemanaFiltro) filtrosTexto.push(`Dias: ${diaSemanaTexto[diaSemanaFiltro] || diaSemanaFiltro}`);
-    
+
+    let yInicioTabela = 44;
     if (filtrosTexto.length > 0) {
-        doc.text(`Filtros: ${filtrosTexto.join(' | ')}`, 14, 34);
+        let xChip = 14;
+        const yChip = 34;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        filtrosTexto.forEach((txt) => {
+            const label = ` ${txt} `;
+            const largura = Math.min(100, doc.getTextWidth(label) + 6);
+            if (xChip + largura > 285) return;
+            doc.setFillColor(239, 246, 255);
+            doc.setDrawColor(147, 197, 253);
+            doc.roundedRect(xChip, yChip - 4.6, largura, 7, 2, 2, 'FD');
+            doc.setTextColor(30, 64, 175);
+            doc.text(label, xChip + 2, yChip);
+            xChip += largura + 4;
+        });
+        yInicioTabela = 42;
     }
+    doc.setTextColor(33, 33, 33);
     
     // Tabela — espelha exactamente o que está visível em "Ordens de Trabalho"
-    const tableData = otsMes.map(ot => {
+    const tableData = otsMes.flatMap(ot => {
         // Equipamentos (omitir coluna se todos vazios — tratado depois com hasEquip)
         const equipamentosRaw = (ot.equipamentos && ot.equipamentos.length > 0)
             ? ot.equipamentos.map(eq => (typeof eq === 'string') ? eq : (eq.mac || '')).filter(Boolean).join(', ')
             : (ot.macEquipamento || '');
         const equipamentos = normalizarTextoPDF(equipamentosRaw);
 
-        // Adicionais
-        const adicionaisTexto = (ot.adicionais && ot.adicionais.length > 0)
-            ? ot.adicionais.map(a => {
-                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.nome || a.descricao || ''));
-                const valNum = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
-                                const val = valNum > 0 ? ` ${formatarEuroPDF(valNum)}` : '';
-                return `${nome}${val}`.trim();
-              }).filter(Boolean).join(', ')
-            : '';
+        // Adicionais (novo layout: cada adicional em linha própria abaixo da OT)
+        const adicionaisLista = [];
+        if (Array.isArray(ot.adicionais) && ot.adicionais.length > 0) {
+            ot.adicionais.forEach(a => {
+                const nome = normalizarTextoPDF(typeof a === 'string' ? a : (a.nome || a.descricao || a.item || ''));
+                const valor = (typeof a === 'object') ? (parseFloat(a.valor) || 0) : 0;
+                if (!nome) return;
+                adicionaisLista.push({ nome, valor });
+            });
+        } else if (ot.adicional && String(ot.adicional).trim() && String(ot.adicional).trim() !== '-') {
+            String(ot.adicional)
+                .split(',')
+                .map(t => normalizarTextoPDF(t))
+                .filter(Boolean)
+                .forEach(nome => adicionaisLista.push({ nome, valor: 0 }));
+        }
 
         // Indicador de dia especial
         const dataOT = new Date(ot.data);
@@ -2868,16 +2912,33 @@ function gerarPDF(comDesconto = false) {
         const tipoTrabalhoTexto = normalizarTextoPDF(formatarTipoTrabalho(ot.tipoTrabalho).replace(/[🔧⚙️📦🔌]/g, '').trim());
         const tipoServicoTexto  = normalizarTextoPDF(ot.tipologia || ot.tipoServico || '-');
 
-        return {
+        const linhaPrincipal = {
             data:        dataOT.toLocaleDateString('pt-BR') + diaIndicador,
             ot:          normalizarTextoPDF(ot.numeroOT || '-'),
             tipoTrab:    tipoTrabalhoTexto || '-',
             tipoServ:    tipoServicoTexto,
-            adicionais:  adicionaisTexto,
+            adicionais:  adicionaisLista.length > 0 ? `Possui ${adicionaisLista.length} adicional(is)` : '',
             equipamentos,
             observacoes: normalizarTextoPDF(ot.observacoes || ''),
-            valor:       formatarEuroPDF(ot.valorServico)
+            valor:       formatarEuroPDF(ot.valorServico),
+            valorLiquido: formatarEuroPDF(aplicarDesconto(parseFloat(ot.valorServico) || 0)),
+            isAdicionalRow: false
         };
+
+        const linhasAdicionais = adicionaisLista.map(add => ({
+            data:        '',
+            ot:          normalizarTextoPDF(ot.numeroOT || '-'),
+            tipoTrab:    'Adicional',
+            tipoServ:    `↳ ${add.nome}`,
+            adicionais:  add.valor > 0 ? `Valor do adicional: ${formatarEuroPDF(add.valor)}` : 'Valor do adicional: incluído',
+            equipamentos: '',
+            observacoes: '',
+            valor:       add.valor > 0 ? formatarEuroPDF(add.valor) : '',
+            valorLiquido: add.valor > 0 ? formatarEuroPDF(aplicarDesconto(add.valor)) : '',
+            isAdicionalRow: true
+        }));
+
+        return [linhaPrincipal, ...linhasAdicionais];
     });
 
     // Verificar se alguma OT tem equipamentos ou observações (só incluir colunas se existirem dados)
@@ -2891,6 +2952,7 @@ function gerarPDF(comDesconto = false) {
     if (hasEquip) head.push('Equipamentos');
     if (hasObs)   head.push('Observações');
     head.push('Valor');
+    head.push('Líquido');
 
     const body = tableData.map(r => {
         const row = [r.data, r.ot, r.tipoTrab, r.tipoServ];
@@ -2898,34 +2960,57 @@ function gerarPDF(comDesconto = false) {
         if (hasEquip) row.push(r.equipamentos);
         if (hasObs)   row.push(r.observacoes);
         row.push(r.valor);
+        row.push(r.valorLiquido || '');
         return row;
     });
 
     // Larguras das colunas (total ~270mm em landscape A4)
     const colWidths = {};
     let col = 0;
-    colWidths[col++] = { cellWidth: 24 }; // Data
-    colWidths[col++] = { cellWidth: 22 }; // OT
-    colWidths[col++] = { cellWidth: 30 }; // Tipo de Trabalho
-    colWidths[col++] = { cellWidth: 50 }; // Tipo de Serviço
-    if (hasAdic)  colWidths[col++] = { cellWidth: 40 }; // Adicionais
-    if (hasEquip) colWidths[col++] = { cellWidth: 40 }; // Equipamentos
-    if (hasObs)   colWidths[col++] = { cellWidth: 50 }; // Observações
-    colWidths[col++] = { cellWidth: 22, fontStyle: 'bold' }; // Valor
+    colWidths[col++] = { cellWidth: 22 }; // Data
+    colWidths[col++] = { cellWidth: 18 }; // OT
+    colWidths[col++] = { cellWidth: 27 }; // Tipo de Trabalho
+    colWidths[col++] = { cellWidth: 42 }; // Tipo de Serviço
+    if (hasAdic)  colWidths[col++] = { cellWidth: 34 }; // Adicionais
+    if (hasEquip) colWidths[col++] = { cellWidth: 34 }; // Equipamentos
+    if (hasObs)   colWidths[col++] = { cellWidth: 40 }; // Observações
+    colWidths[col++] = { cellWidth: 21, fontStyle: 'bold' }; // Valor
+    colWidths[col++] = { cellWidth: 21, fontStyle: 'bold' }; // Líquido
     
     if (temAutoTable) {
         doc.autoTable({
-            startY: filtrosTexto.length > 0 ? 40 : 35,
+            startY: yInicioTabela,
             head: [head],
             body,
             theme: 'striped',
-            headStyles: { fillColor: [102, 126, 234] },
-            styles: { fontSize: 8, overflow: 'linebreak', cellPadding: 2 },
-            columnStyles: colWidths
+            headStyles: {
+                fillColor: [55, 65, 81],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8.5
+            },
+            alternateRowStyles: { fillColor: [249, 250, 251] },
+            styles: {
+                fontSize: 8,
+                overflow: 'linebreak',
+                cellPadding: 2.2,
+                lineColor: [229, 231, 235],
+                lineWidth: 0.1,
+                textColor: [31, 41, 55]
+            },
+            columnStyles: colWidths,
+            didParseCell: (data) => {
+                const rowMeta = tableData[data.row.index];
+                if (rowMeta?.isAdicionalRow) {
+                    data.cell.styles.fillColor = [239, 246, 255];
+                    data.cell.styles.textColor = [30, 64, 175];
+                    data.cell.styles.fontStyle = 'italic';
+                }
+            }
         });
     } else {
         doc.setFontSize(10);
-        doc.text('Tabela não suportada neste dispositivo (autoTable indisponível).', 14, filtrosTexto.length > 0 ? 44 : 38);
+        doc.text('Tabela não suportada neste dispositivo (autoTable indisponível).', 14, yInicioTabela + 4);
     }
     
     // Resumo
@@ -2983,15 +3068,22 @@ function gerarPDF(comDesconto = false) {
     
     let finalY = (temAutoTable && doc.lastAutoTable && doc.lastAutoTable.finalY)
         ? (doc.lastAutoTable.finalY + 10)
-        : (categoriaFiltro || redeFiltro ? 60 : 55);
+        : (filtrosTexto.length > 0 ? 60 : 55);
+
+    // Linha divisória antes dos resumos
+    doc.setDrawColor(209, 213, 219);
+    doc.setLineWidth(0.3);
+    doc.line(14, finalY - 4, 282, finalY - 4);
+
     doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
     doc.text(`Total de OTs: ${otsMes.length}`, 14, finalY);
-    doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 14, finalY + 7);
+    doc.text(`Total de Pontos: ${totalPontos.toFixed(1)}`, 62, finalY);
     
     // Mostrar prémios de saída se houver
     if (totalPremiosSaida > 0 || diasPremio.length > 0) {
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'normal');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
         doc.text(`Prémios de Saída (1x por dia): € ${totalPremiosSaida.toFixed(2)}`, 14, finalY + 14);
 
         // Tabela separada: Data + Tipo + Valor (1x por dia)
@@ -3011,8 +3103,9 @@ function gerarPDF(comDesconto = false) {
                 head: [['Data', 'Tipo', 'Opções marcadas', 'Prémio']],
                 body: tablePremios,
                 theme: 'striped',
-                headStyles: { fillColor: [102, 126, 234] },
-                styles: { fontSize: 9 },
+                headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
+                alternateRowStyles: { fillColor: [245, 243, 255] },
+                styles: { fontSize: 9, textColor: [31, 41, 55] },
                 columnStyles: {
                     0: { cellWidth: 30 },
                     1: { cellWidth: 25 },
@@ -3041,7 +3134,7 @@ function gerarPDF(comDesconto = false) {
     // Mostrar bônus OT Fora de Hora se houver
     if (totalBonusForaHora > 0) {
         doc.setFontSize(11);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         doc.text(`⏱️ Bônus Fora de Hora (${otsForaHora.length} OTs): € ${totalBonusForaHora.toFixed(2)}`, 14, finalY + 8);
 
         const tableForaHora = otsForaHora.map(ot => [
@@ -3057,8 +3150,9 @@ function gerarPDF(comDesconto = false) {
                 head: [['Data', 'OT', 'Hora', 'Bônus Fora Hora']],
                 body: tableForaHora,
                 theme: 'striped',
-                headStyles: { fillColor: [33, 150, 243] },
-                styles: { fontSize: 9 },
+                headStyles: { fillColor: [3, 105, 161], textColor: [255, 255, 255] },
+                alternateRowStyles: { fillColor: [239, 246, 255] },
+                styles: { fontSize: 9, textColor: [31, 41, 55] },
                 columnStyles: {
                     0: { cellWidth: 30 },
                     1: { cellWidth: 30 },
@@ -3079,22 +3173,39 @@ function gerarPDF(comDesconto = false) {
         }
     }
 
+    if (finalY > 168) {
+        doc.addPage('landscape');
+        finalY = 22;
+    }
+
     doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     const valorReceber = totalValor + totalPremiosSaida + totalBonusForaHora;
+
+    // Card de total
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(16, 185, 129);
+    doc.roundedRect(14, finalY + 4, 132, comDesconto ? 30 : 18, 3, 3, 'FD');
+
     if (comDesconto) {
         const descPct = obterDescontoPercentual();
         const valorLiquido = aplicarDesconto(valorReceber);
-        doc.text(`VALOR BRUTO: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
-        doc.setFont(undefined, 'normal');
+        doc.setTextColor(21, 128, 61);
+        doc.text(`VALOR BRUTO: € ${valorReceber.toFixed(2)}`, 18, finalY + 13);
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(11);
-        doc.text(`Desconto do chefe (${descPct}%): - € ${(valorReceber - valorLiquido).toFixed(2)}`, 14, finalY + 20);
-        doc.setFont(undefined, 'bold');
+        doc.setTextColor(22, 101, 52);
+        doc.text(`Desconto do chefe (${descPct}%): - € ${(valorReceber - valorLiquido).toFixed(2)}`, 18, finalY + 20);
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
-        doc.text(`VALOR LÍQUIDO A RECEBER: € ${valorLiquido.toFixed(2)}`, 14, finalY + 28);
+        doc.setTextColor(6, 78, 59);
+        doc.text(`VALOR LÍQUIDO A RECEBER: € ${valorLiquido.toFixed(2)}`, 18, finalY + 28);
     } else {
-        doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 14, finalY + 12);
+        doc.setTextColor(6, 78, 59);
+        doc.text(`VALOR A RECEBER: € ${valorReceber.toFixed(2)}`, 18, finalY + 14);
     }
+
+    doc.setTextColor(33, 33, 33);
     
     doc.save(`relatorio-ot-${mesAtual}${comDesconto ? '-liquido' : ''}.pdf`);
 }

@@ -204,6 +204,7 @@ function calcularValorTotalComMultiplicador() {
     const valorAdicionalEl = document.getElementById('valorAdicional');
     const multiplicadorEl = document.getElementById('multiplicadorServico');
     const valorTotalEl = document.getElementById('valorTotal');
+    const valorLiquidoEl = document.getElementById('valorLiquidoTecnico');
     const dataOTEl = document.getElementById('dataOT');
     
     // Checkboxes de prémios
@@ -326,6 +327,12 @@ function calcularValorTotalComMultiplicador() {
 
     // Somar prémios de saída não — continuam separados no PDF. Já somamos apenas o bónus por OT aqui.
     valorTotalEl.value = valorFinal.toFixed(2);
+
+    // Valor líquido do técnico (com desconto do chefe)
+    const descontoPercentual = parseFloat(mult.descontoPercentual) || 0;
+    const fatorLiquido = Math.max(0, 1 - (descontoPercentual / 100));
+    const valorLiquido = valorFinal * fatorLiquido;
+    if (valorLiquidoEl) valorLiquidoEl.value = valorLiquido.toFixed(2);
     
     // Atualizar UI dos checkboxes e preview
     atualizarUICheckboxesPremios(mult, premioJaAplicado, premiosAplicados);
@@ -578,9 +585,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const categoriaEl = document.getElementById('categoriaServico');
                 const valorEl = document.getElementById('valorServico');
                 const valorTotalEl = document.getElementById('valorTotal');
+                const valorLiquidoEl = document.getElementById('valorLiquidoTecnico');
                 if (categoriaEl) categoriaEl.value = '';
                 if (valorEl) valorEl.value = '';
                 if (valorTotalEl) valorTotalEl.value = '';
+                if (valorLiquidoEl) valorLiquidoEl.value = '';
             }
         });
     }
