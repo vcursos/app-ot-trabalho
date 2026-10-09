@@ -40,6 +40,188 @@ const multiplicadoresPadrao = {
     domingoFeriado: 1.5
 };
 
+const CONFIG_BACKUP_KEY = 'configuracoesTabelasBackup';
+const MAX_CONFIG_BACKUPS = 10;
+
+function parseJSONSeguro(valor, fallback) {
+    try {
+        const parsed = JSON.parse(valor);
+        return parsed ?? fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+function salvarBackupConfiguracao(motivo = 'Atualização de tabelas') {
+    const tabelasAtuaisRaw = localStorage.getItem('tabelasCustomizadas');
+    const multiplicadoresAtuaisRaw = localStorage.getItem('multiplicadores');
+
+    if (!tabelasAtuaisRaw && !multiplicadoresAtuaisRaw) return;
+
+    const backups = parseJSONSeguro(localStorage.getItem(CONFIG_BACKUP_KEY), []);
+    const ultimo = Array.isArray(backups) && backups.length > 0 ? backups[backups.length - 1] : null;
+
+    const snapshot = {
+        id: Date.now(),
+        criadoEm: new Date().toISOString(),
+        motivo,
+        tabelas: parseJSONSeguro(tabelasAtuaisRaw, null),
+        multiplicadores: parseJSONSeguro(multiplicadoresAtuaisRaw, null)
+    };
+
+    // Evitar backups duplicados consecutivos
+    const ultimoStr = ultimo ? JSON.stringify({ tabelas: ultimo.tabelas, multiplicadores: ultimo.multiplicadores }) : '';
+    const novoStr = JSON.stringify({ tabelas: snapshot.tabelas, multiplicadores: snapshot.multiplicadores });
+    if (ultimoStr && ultimoStr === novoStr) return;
+
+    const lista = Array.isArray(backups) ? backups : [];
+    lista.push(snapshot);
+
+    // Limitar histórico de backups para não crescer indefinidamente
+    const inicio = Math.max(0, lista.length - MAX_CONFIG_BACKUPS);
+    localStorage.setItem(CONFIG_BACKUP_KEY, JSON.stringify(lista.slice(inicio)));
+}
+
+function mapearServicosPorCodigo(tabelas) {
+    const mapa = new Map();
+    ['instalacoes', 'avarias', 'adicionais'].forEach(cat => {
+        (tabelas?.[cat] || []).forEach(item => {
+            const codigo = String(item?.codigo || '').trim();
+            if (!codigo) return;
+            mapa.set(codigo, {
+                valor: parseFloat(item?.valor) || 0,
+                pontos: parseFloat(item?.pontos) || 0
+            });
+        });
+    });
+    return mapa;
+}
+
+function extrairMesAno(dataISO) {
+    if (!dataISO) return '';
+    const d = new Date(dataISO);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function recalcularOTsComConfiguracaoAtual() {
+    const ordens = parseJSONSeguro(localStorage.getItem('ordensTrabalho'), []);
+    if (!Array.isArray(ordens) || ordens.length === 0) {
+        return { alteradas: 0, meses: [] };
+    }
+
+    const tabelas = carregarTabelas();
+    const mult = carregarMultiplicadores();
+    const servicosPorCodigo = mapearServicosPorCodigo(tabelas);
+
+    let alteradas = 0;
+    const mesesAlterados = new Set();
+
+    const ordensAtualizadas = ordens.map((ot) => {
+        if (!ot || !ot.tipoServico) return ot;
+
+        const servicoAtual = servicosPorCodigo.get(String(ot.tipoServico).trim());
+        if (!servicoAtual) return ot;
+
+        const valorAdicional = parseFloat(ot.valorAdicional) || 0;
+        const multiplicadorTipo = ot.multiplicador || 'normal';
+        let valorBaseMultiplicado = (servicoAtual.valor + valorAdicional) * (parseFloat(mult[multiplicadorTipo]) || 1.0);
+
+        const dataOT = ot.data ? new Date(ot.data) : null;
+        const diaSemana = dataOT && !isNaN(dataOT.getTime()) ? dataOT.getDay() : null;
+
+        if (diaSemana === 0) {
+            const multDomingo = parseFloat(mult.bonusDomingo) || 1.0;
+            if (multDomingo > 0 && multDomingo !== 1.0) {
+                valorBaseMultiplicado = valorBaseMultiplicado * multDomingo;
+            }
+        }
+
+        if (ot.otFestivo) {
+            const multFeriado = parseFloat(mult.bonusFeriado) || 1.0;
+            if (multFeriado > 0 && multFeriado !== 1.0) {
+                valorBaseMultiplicado = valorBaseMultiplicado * multFeriado;
+            }
+        }
+
+        const premioSabadoAplicado = ot.otSabado ? (parseFloat(mult.premioSabado) || 0) : 0;
+        const premioDomingoAplicado = ot.otDomingo ? (parseFloat(mult.premioDomingo) || 0) : 0;
+        const premioFestivoAplicado = ot.otPremioFestivo ? (parseFloat(mult.premioFestivo) || 0) : 0;
+
+        let bonusForaHoraAplicado = 0;
+        if (ot.otForaHora) {
+            const bfhValor = parseFloat(mult.bonusOTForaHora) || 0;
+            const bfhTipo = mult.bonusOTForaHoraTipo || 'valor';
+            if (bfhValor > 0) {
+                if (bfhTipo === 'valor') {
+                    bonusForaHoraAplicado = bfhValor;
+                } else if (bfhTipo === 'percentagem') {
+                    bonusForaHoraAplicado = valorBaseMultiplicado * bfhValor / 100;
+                } else if (bfhTipo === 'multiplicador') {
+                    bonusForaHoraAplicado = valorBaseMultiplicado * bfhValor;
+                }
+            }
+        }
+
+        const valorServico = valorBaseMultiplicado + premioSabadoAplicado + premioDomingoAplicado + premioFestivoAplicado + bonusForaHoraAplicado;
+
+        const valorAnterior = parseFloat(ot.valorServico) || 0;
+        const baseAnterior = parseFloat(ot.valorServicoBase) || 0;
+        const pontosAnterior = parseFloat(ot.pontosServico) || 0;
+
+        const mudouValor = Math.abs(valorAnterior - valorServico) > 0.009;
+        const mudouBase = Math.abs(baseAnterior - servicoAtual.valor) > 0.009;
+        const mudouPontos = Math.abs(pontosAnterior - servicoAtual.pontos) > 0.009;
+
+        if (!(mudouValor || mudouBase || mudouPontos)) return ot;
+
+        alteradas += 1;
+        const mesAno = extrairMesAno(ot.data);
+        if (mesAno) mesesAlterados.add(mesAno);
+
+        return {
+            ...ot,
+            valorServicoBase: servicoAtual.valor,
+            pontosServico: servicoAtual.pontos,
+            valorMultiplicador: parseFloat(mult[multiplicadorTipo]) || 1.0,
+            premioSabadoAplicado,
+            premioDomingoAplicado,
+            premioFestivoAplicado,
+            bonusForaHoraAplicado,
+            valorServico
+        };
+    });
+
+    if (alteradas > 0) {
+        localStorage.setItem('ordensTrabalho', JSON.stringify(ordensAtualizadas));
+
+        const historico = parseJSONSeguro(localStorage.getItem('historicoOTPorMes'), {});
+        const ordensPorId = new Map(ordensAtualizadas.map(ot => [ot?.id, ot]));
+        const historicoAtualizado = { ...(historico || {}) };
+
+        Object.keys(historicoAtualizado).forEach(mes => {
+            const lista = Array.isArray(historicoAtualizado[mes]) ? historicoAtualizado[mes] : [];
+            historicoAtualizado[mes] = lista.map(item => ordensPorId.get(item?.id) || item);
+        });
+
+        ordensAtualizadas.forEach(ot => {
+            const mes = extrairMesAno(ot?.data);
+            if (!mes) return;
+            if (!Array.isArray(historicoAtualizado[mes])) historicoAtualizado[mes] = [];
+            const idx = historicoAtualizado[mes].findIndex(item => item && item.id === ot.id);
+            if (idx >= 0) {
+                historicoAtualizado[mes][idx] = ot;
+            } else {
+                historicoAtualizado[mes].push(ot);
+            }
+        });
+
+        localStorage.setItem('historicoOTPorMes', JSON.stringify(historicoAtualizado));
+    }
+
+    return { alteradas, meses: Array.from(mesesAlterados).sort() };
+}
+
 // Carregar ou inicializar tabelas
 function carregarTabelas() {
     let tabelas = localStorage.getItem('tabelasCustomizadas');
@@ -78,17 +260,104 @@ function carregarMultiplicadores() {
 }
 
 // Salvar tabelas
-function salvarTabelasNoStorage(tabelas) {
-    localStorage.setItem('tabelasCustomizadas', JSON.stringify(tabelas));
+function salvarTabelasNoStorage(tabelas, opcoes = {}) {
+    const { motivoBackup = 'Atualização de tabela', criarBackup = true, recalcularOrdens = true } = opcoes;
+    const tabelasAtuais = localStorage.getItem('tabelasCustomizadas');
+    const novoConteudo = JSON.stringify(tabelas);
+
+    if (criarBackup && tabelasAtuais && tabelasAtuais !== novoConteudo) {
+        salvarBackupConfiguracao(motivoBackup);
+    }
+
+    localStorage.setItem('tabelasCustomizadas', novoConteudo);
+
+    let resumoRecalculo = null;
+    if (recalcularOrdens) {
+        resumoRecalculo = recalcularOTsComConfiguracaoAtual();
+    }
+
     // Notificar sync (se disponível nesta página via módulo)
     try { if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar(); } catch {}
+
+    return resumoRecalculo;
 }
 
 // Salvar multiplicadores
-function salvarMultiplicadoresNoStorage(mult) {
-    localStorage.setItem('multiplicadores', JSON.stringify(mult));
+function salvarMultiplicadoresNoStorage(mult, opcoes = {}) {
+    const { motivoBackup = 'Atualização de multiplicadores', criarBackup = true, recalcularOrdens = true } = opcoes;
+    const atuais = localStorage.getItem('multiplicadores');
+    const novoConteudo = JSON.stringify(mult);
+
+    if (criarBackup && atuais && atuais !== novoConteudo) {
+        salvarBackupConfiguracao(motivoBackup);
+    }
+
+    localStorage.setItem('multiplicadores', novoConteudo);
+
+    let resumoRecalculo = null;
+    if (recalcularOrdens) {
+        resumoRecalculo = recalcularOTsComConfiguracaoAtual();
+    }
+
     // Notificar sync (se disponível nesta página via módulo)
     try { if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar(); } catch {}
+
+    return resumoRecalculo;
+}
+
+function restaurarUltimoBackupConfiguracao() {
+    const backups = parseJSONSeguro(localStorage.getItem(CONFIG_BACKUP_KEY), []);
+    if (!Array.isArray(backups) || backups.length === 0) {
+        alert('Não existe backup anterior para restaurar.');
+        return;
+    }
+
+    const ultimo = backups[backups.length - 1];
+    const dataBR = ultimo?.criadoEm ? new Date(ultimo.criadoEm).toLocaleString('pt-BR') : 'data desconhecida';
+    const motivo = ultimo?.motivo || 'sem descrição';
+
+    if (!confirm(`Restaurar configuração anterior de ${dataBR}?\nMotivo salvo: ${motivo}`)) return;
+
+    if (ultimo?.tabelas) {
+        localStorage.setItem('tabelasCustomizadas', JSON.stringify(ultimo.tabelas));
+    }
+    if (ultimo?.multiplicadores) {
+        localStorage.setItem('multiplicadores', JSON.stringify(ultimo.multiplicadores));
+    }
+
+    const tabelas = carregarTabelas();
+    const mult = carregarMultiplicadores();
+
+    renderizarTabela('instalacoes', tabelas.instalacoes || []);
+    renderizarTabela('avarias', tabelas.avarias || []);
+    renderizarTabela('adicionais', tabelas.adicionais || []);
+
+    const multNormalEl = document.getElementById('multNormal');
+    if (multNormalEl) multNormalEl.value = mult.normal;
+    const multDobradoEl = document.getElementById('multDobrado');
+    if (multDobradoEl) multDobradoEl.value = mult.dobrado;
+    const inputBonusDomingo = document.getElementById('bonusDomingo');
+    if (inputBonusDomingo) inputBonusDomingo.value = mult.bonusDomingo ?? 1.0;
+    const inputBonusFeriado = document.getElementById('bonusFeriado');
+    if (inputBonusFeriado) inputBonusFeriado.value = mult.bonusFeriado ?? 1.0;
+    const inputPremioSabado = document.getElementById('premioSabado');
+    if (inputPremioSabado) inputPremioSabado.value = mult.premioSabado ?? 0;
+    const inputPremioDomingo = document.getElementById('premioDomingo');
+    if (inputPremioDomingo) inputPremioDomingo.value = mult.premioDomingo ?? 0;
+    const inputPremioFestivo = document.getElementById('premioFestivo');
+    if (inputPremioFestivo) inputPremioFestivo.value = mult.premioFestivo ?? 0;
+    const inputDesconto = document.getElementById('descontoPercentual');
+    if (inputDesconto) inputDesconto.value = mult.descontoPercentual ?? 0;
+    const inputBonusForaHora = document.getElementById('bonusOTForaHora');
+    if (inputBonusForaHora) inputBonusForaHora.value = mult.bonusOTForaHora ?? 0;
+    const selectBonusForaHoraTipo = document.getElementById('bonusOTForaHoraTipo');
+    if (selectBonusForaHoraTipo) selectBonusForaHoraTipo.value = mult.bonusOTForaHoraTipo ?? 'valor';
+
+    const resumo = recalcularOTsComConfiguracaoAtual();
+    try { if (typeof window._syncTabelasNotificar === 'function') window._syncTabelasNotificar(); } catch {}
+
+    const meses = resumo.meses.length > 0 ? resumo.meses.join(', ') : 'nenhum mês';
+    alert(`✅ Configuração anterior restaurada!\nOTs atualizadas: ${resumo.alteradas}\nMeses afetados: ${meses}`);
 }
 
 // Inicializar página (apenas se estiver na página de configuração)
@@ -283,9 +552,10 @@ function salvarTabela(categoria) {
     });
 
     tabelas[categoria] = dados;
-    salvarTabelasNoStorage(tabelas);
-    
-    alert('Tabela salva com sucesso! ✅');
+    const resumo = salvarTabelasNoStorage(tabelas, { motivoBackup: `Salvar tabela: ${categoria}` });
+
+    const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
+    alert(`Tabela salva com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
 }
 
 // Salvar multiplicadores
@@ -305,8 +575,9 @@ function salvarMultiplicadores() {
         domingoFeriado: 1.5
     };
     
-    salvarMultiplicadoresNoStorage(mult);
-    alert('Configurações salvas com sucesso! ✅');
+    const resumo = salvarMultiplicadoresNoStorage(mult, { motivoBackup: 'Salvar multiplicadores' });
+    const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
+    alert(`Configurações salvas com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
 }
 
 // Exportar tabela para JSON
@@ -364,10 +635,11 @@ function importarTabela(categoria, inputElement) {
             // Salvar
             const tabelas = carregarTabelas();
             tabelas[categoria] = dadosFinal;
-            salvarTabelasNoStorage(tabelas);
+            const resumo = salvarTabelasNoStorage(tabelas, { motivoBackup: `Importação JSON: ${categoria}` });
             renderizarTabela(categoria, dadosFinal);
-            
-            alert('Tabela importada com sucesso! ✅');
+
+            const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
+            alert(`Tabela importada com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
         } catch (error) {
             alert('Erro ao importar tabela: ' + error.message);
         }
@@ -481,10 +753,11 @@ function importarTabelaExcel(categoria, inputElement) {
             // Salvar
             const tabelas = carregarTabelas();
             tabelas[categoria] = dadosFinal;
-            salvarTabelasNoStorage(tabelas);
+            const resumo = salvarTabelasNoStorage(tabelas, { motivoBackup: `Importação Excel: ${categoria}` });
             renderizarTabela(categoria, dadosFinal);
-            
-            alert(`✅ Tabela importada com sucesso! ${dadosFinal.length} serviços carregados.`);
+
+            const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
+            alert(`✅ Tabela importada com sucesso! ${dadosFinal.length} serviços carregados.\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
         } catch (error) {
             alert('❌ Erro ao importar Excel: ' + error.message);
         }
@@ -690,7 +963,9 @@ function aplicarEdicao() {
     }
     
     // Salvar
-    salvarTabelasNoStorage(tabelas);
+    const resumo = salvarTabelasNoStorage(tabelas, {
+        motivoBackup: modalIndexAtual === -1 ? `Novo serviço: ${modalCategoriaAtual}` : `Edição de serviço: ${modalCategoriaAtual}`
+    });
     
     // Re-renderizar tabela
     renderizarTabela(modalCategoriaAtual, tabelas[modalCategoriaAtual]);
@@ -698,7 +973,9 @@ function aplicarEdicao() {
     // Fechar modal
     fecharModal();
     
-    alert(modalIndexAtual === -1 ? 'Serviço adicionado com sucesso! ✅' : 'Alterações salvas com sucesso! ✅');
+    const acao = modalIndexAtual === -1 ? 'Serviço adicionado com sucesso! ✅' : 'Alterações salvas com sucesso! ✅';
+    const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
+    alert(`${acao}\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
 }
 
 // Fechar modal ao clicar fora
