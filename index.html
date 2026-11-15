@@ -255,6 +255,7 @@
                         <label>Materiais Usados (🧰 Almoxarifado)</label>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; position: relative;">
                             <input type="text" id="buscarMaterialOT" placeholder="Digite o nome/código do material..." style="flex: 2; min-width: 160px;" autocomplete="off">
+                            <button type="button" class="btn-scan" onclick="escanearMaterialOT()" title="Ler serial do material">📷</button>
                             <select id="materialSelecionado" style="display:none;">
                                 <option value="">Selecione um material...</option>
                             </select>
@@ -356,6 +357,7 @@
                     <div class="form-group">
                         <label>Seriais (opcional)</label>
                         <textarea id="almox-novo-seriais" rows="2" placeholder="Um por linha ou separados por vírgula. Pode deixar em branco."></textarea>
+                        <button type="button" class="btn-scan" onclick="escanearSerialAlmoxarifado()" style="margin-top:6px;">📷 Ler código de barras</button>
                     </div>
                 </div>
                 <div class="form-actions">
