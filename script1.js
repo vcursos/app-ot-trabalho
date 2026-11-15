@@ -2809,6 +2809,89 @@ function obterOpcoesPremioMarcadas(ot, { incluirForaHora = false } = {}) {
     return opcoes;
 }
 
+function gerarPDFResumoMensal() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape');
+    const ots = obterOTsVisiveisNaTabela();
+    if (!ots.length) {
+        alert('Nenhuma OT para o resumo com os filtros atuais.');
+        return;
+    }
+
+    const mes = document.getElementById('filtroMes')?.value || getMesAtualISO();
+    const periodo = new Date(mes + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const valorOT = (ot) => parseFloat(ot.valorServico) || 0;
+
+    const porCategoria = {};
+    const porDia = {};
+    ots.forEach(ot => {
+        const cat = normalizarTextoPDF(ot.categoria) || 'Sem categoria';
+        porCategoria[cat] = porCategoria[cat] || { qtd: 0, total: 0 };
+        porCategoria[cat].qtd++;
+        porCategoria[cat].total += valorOT(ot);
+
+        const dia = new Date(ot.data).getDate();
+        porDia[dia] = (porDia[dia] || 0) + valorOT(ot);
+    });
+
+    const total = ots.reduce((s, ot) => s + valorOT(ot), 0);
+    const diasTrabalhados = Object.keys(porDia).length;
+
+    doc.setFillColor(31, 41, 55);
+    doc.roundedRect(10, 8, 277, 22, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Resumo Mensal', 16, 18);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Período: ${periodo}`, 16, 25);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 208, 25);
+
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(11);
+    doc.text(`OTs: ${ots.length}   |   Dias trabalhados: ${diasTrabalhados}   |   Total: ${formatarEuroPDF(total)}   |   Média/dia: ${formatarEuroPDF(total / diasTrabalhados)}`, 14, 40);
+
+    const linhas = Object.entries(porCategoria)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([cat, d]) => [cat, d.qtd, formatarEuroPDF(d.total)]);
+
+    let yGrafico = 54;
+    if (typeof doc.autoTable === 'function' || garantirAutoTablePronto(doc)) {
+        doc.autoTable({
+            startY: 46,
+            head: [['Categoria', 'OTs', 'Total']],
+            body: linhas,
+            theme: 'striped',
+            headStyles: { fillColor: [31, 41, 55] },
+            styles: { fontSize: 9 },
+            margin: { left: 14, right: 150 }
+        });
+        yGrafico = Math.max(doc.lastAutoTable.finalY + 10, 54);
+    }
+
+    // Gráfico de barras: valor por dia, à direita da tabela
+    const gx = 150, gy = 50, gw = 130, gh = 70;
+    const dias = Object.keys(porDia).map(Number).sort((a, b) => a - b);
+    const max = Math.max(...dias.map(d => porDia[d]), 1);
+    const largura = gw / dias.length;
+    doc.setFontSize(9);
+    doc.text('Valor por dia', gx, gy - 3);
+    doc.setDrawColor(150);
+    doc.line(gx, gy + gh, gx + gw, gy + gh);
+    dias.forEach((d, i) => {
+        const h = (porDia[d] / max) * gh;
+        doc.setFillColor(59, 130, 246);
+        doc.rect(gx + i * largura + 1, gy + gh - h, Math.max(largura - 2, 1), h, 'F');
+        if (dias.length <= 31) {
+            doc.setFontSize(6);
+            doc.text(String(d), gx + i * largura + largura / 2, gy + gh + 4, { align: 'center' });
+        }
+    });
+
+    doc.save(`resumo-mensal-${mes}.pdf`);
+}
+
 function gerarPDF(comDesconto = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape'); // Modo paisagem para mais colunas
