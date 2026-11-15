@@ -183,61 +183,6 @@ function popularSelectMateriaisOT() {
     if (valorAtual) select.value = valorAtual;
 }
 
-// Adicionar material selecionado à lista temporária da OT atual
-function adicionarMaterialNaOT() {
-    const select = document.getElementById('materialSelecionado');
-    const busca = document.getElementById('buscarMaterialOT');
-    const qtdEl = document.getElementById('quantidadeMaterialOT');
-
-    let materialId = (select && select.value) ? parseInt(select.value, 10) : null;
-
-    // Fallback: usuário digitou o nome mas não clicou na sugestão — tenta casar pelo texto.
-    if (!materialId && busca && busca.value.trim()) {
-        const termo = busca.value.trim().toLowerCase();
-        let candidatos = materiaisEstoque.filter(m =>
-            m.nome.toLowerCase() === termo ||
-            `${m.nome} (${m.unidade || 'un'})`.toLowerCase() === termo
-        );
-        if (candidatos.length !== 1) {
-            candidatos = materiaisEstoque.filter(m => m.nome.toLowerCase().includes(termo));
-        }
-        if (candidatos.length === 1) materialId = candidatos[0].id;
-    }
-
-    if (!materialId) {
-        alert('Digite o nome/código do material e escolha uma opção da lista de sugestões!');
-        return;
-    }
-
-    const serialSel = document.getElementById('serialMaterialOT');
-    const serial = serialSel ? serialSel.value : '';
-    const quantidade = serial ? 1 : (parseFloat(qtdEl ? qtdEl.value : 1) || 1);
-    const material = materiaisEstoque.find(m => m.id === materialId);
-    if (!material) {
-        alert('Material não encontrado no almoxarifado!');
-        return;
-    }
-
-    if (serial && materiaisTemp.some(m => (m.seriais || []).includes(serial))) {
-        alert('Este serial já foi adicionado à OT!');
-        return;
-    }
-
-    materiaisTemp.push({
-        materialId: material.id,
-        nome: material.nome,
-        quantidade: quantidade,
-        seriais: serial ? [serial] : []
-    });
-
-    atualizarListaMateriaisOT();
-    atualizarSelectSerialOT(null);
-
-    if (select) select.value = '';
-    if (busca) busca.value = '';
-    if (qtdEl) qtdEl.value = '';
-}
-
 // ==================== BUSCA/AUTOCOMPLETE DE MATERIAL (por qualquer parte do texto) ====================
 function filtrarMateriaisEstoque(termo) {
     const t = (termo || '').trim().toLowerCase();
@@ -278,33 +223,80 @@ function renderSugestoesMaterial(lista) {
     });
 }
 
-// Mostra o seletor de serial (opcional) quando o material escolhido tem seriais disponíveis
-function atualizarSelectSerialOT(materialId) {
-    const sel = document.getElementById('serialMaterialOT');
-    if (!sel) return;
-    const material = materialId ? materiaisEstoque.find(m => m.id === materialId) : null;
-    const usados = new Set(materiaisTemp.flatMap(m => m.seriais || []));
-    const disponiveis = ((material && material.seriais) || []).filter(s => !usados.has(s));
-    sel.innerHTML = '<option value="">Sem serial</option>' +
-        disponiveis.map(s => `<option value="${s}">${s}</option>`).join('');
-    sel.style.display = disponiveis.length ? '' : 'none';
+function adicionarMaterialDireto(material, serial, quantidade) {
+    if (serial && materiaisTemp.some(m => (m.seriais || []).includes(serial))) {
+        alert('Este serial já foi adicionado à OT!');
+        return;
+    }
+    materiaisTemp.push({
+        materialId: material.id,
+        nome: material.nome,
+        quantidade: serial ? 1 : quantidade,
+        seriais: serial ? [serial] : []
+    });
+    atualizarListaMateriaisOT();
 }
 
+// Ao escolher um material: serial específico entra direto; sem serial, abre o pop-up de quantidade
 function selecionarMaterialSugerido(materialId, serial = '') {
     const material = materiaisEstoque.find(m => m.id === materialId);
     if (!material) return;
-    atualizarSelectSerialOT(materialId);
-    const serialSel = document.getElementById('serialMaterialOT');
-    if (serialSel && serial) serialSel.value = serial;
-    const select = document.getElementById('materialSelecionado');
     const busca = document.getElementById('buscarMaterialOT');
     const box = document.getElementById('sugestoesMaterial');
-    const qtdEl = document.getElementById('quantidadeMaterialOT');
-
-    if (select) select.value = String(materialId);
-    if (busca) busca.value = `${material.nome} (${material.unidade || 'un'})`;
     if (box) { box.style.display = 'none'; box.innerHTML = ''; }
-    if (qtdEl) qtdEl.focus();
+    if (busca) busca.value = '';
+
+    if (serial) {
+        adicionarMaterialDireto(material, serial, 1);
+        return;
+    }
+    abrirPopupQuantidadeMaterial(material);
+}
+
+function abrirPopupQuantidadeMaterial(material) {
+    document.getElementById('popupQuantidadeMaterial')?.remove();
+    const usados = new Set(materiaisTemp.flatMap(m => m.seriais || []));
+    const seriais = (material.seriais || []).filter(s => !usados.has(s));
+
+    const overlay = document.createElement('div');
+    overlay.id = 'popupQuantidadeMaterial';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; display:flex; align-items:center; justify-content:center; padding:12px;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:10px; padding:18px; max-width:360px; width:100%;">
+            <h3 style="margin:0 0 4px;">🧰 ${material.nome}</h3>
+            <p style="margin:0 0 10px; color:#607d8b; font-size:13px;">Estoque: ${parseFloat(material.quantidade) || 0} ${material.unidade || 'un'}</p>
+            <label style="font-size:13px;">Quantidade</label>
+            <input type="number" id="popupQtdMaterial" value="1" min="0.01" step="0.01" style="width:100%; margin-bottom:10px; font-size:18px;">
+            ${seriais.length ? `<label style="font-size:13px;">Serial (opcional)</label>
+            <select id="popupSerialMaterial" style="width:100%; margin-bottom:10px;"><option value="">Sem serial</option>${seriais.map(s => `<option value="${s}">${s}</option>`).join('')}</select>` : ''}
+            <div style="display:flex; gap:8px;">
+                <button type="button" id="popupAddMaterial" class="btn-primary" style="flex:1;">Adicionar</button>
+                <button type="button" id="popupCancelMaterial" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const qtdEl = overlay.querySelector('#popupQtdMaterial');
+    qtdEl.focus();
+    qtdEl.select();
+
+    const adicionar = () => {
+        const serialEl = overlay.querySelector('#popupSerialMaterial');
+        const quantidade = parseFloat(qtdEl.value) || 0;
+        const serial = serialEl ? serialEl.value : '';
+        if (!serial && quantidade <= 0) {
+            alert('Informe uma quantidade válida!');
+            return;
+        }
+        adicionarMaterialDireto(material, serial, quantidade);
+        overlay.remove();
+    };
+    overlay.querySelector('#popupAddMaterial').addEventListener('click', adicionar);
+    overlay.querySelector('#popupCancelMaterial').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); adicionar(); }
+        if (e.key === 'Escape') overlay.remove();
+    });
 }
 
 function inicializarBuscaMaterial() {
@@ -316,7 +308,6 @@ function inicializarBuscaMaterial() {
     busca.addEventListener('input', function() {
         // Ao digitar manualmente, invalida a seleção anterior até o usuário escolher de novo
         if (select) select.value = '';
-        atualizarSelectSerialOT(null);
         const termo = this.value;
         if (!termo.trim()) {
             box.style.display = 'none';
