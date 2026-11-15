@@ -10,31 +10,42 @@ function salvarMateriaisEstoque() {
     localStorage.setItem('materiaisEstoque', JSON.stringify(materiaisEstoque));
 }
 
+function parseSeriais(texto) {
+    return [...new Set(String(texto || '').split(/[\n,;]+/).map(s => s.trim()).filter(Boolean))];
+}
+
 function adicionarMaterialEstoque() {
     const nomeEl = document.getElementById('almox-novo-nome');
     const unidadeEl = document.getElementById('almox-novo-unidade');
     const qtdEl = document.getElementById('almox-novo-quantidade');
+    const seriaisEl = document.getElementById('almox-novo-seriais');
     if (!nomeEl) return;
 
     const nome = nomeEl.value.trim();
     const unidade = unidadeEl ? (unidadeEl.value.trim() || 'un') : 'un';
-    const quantidade = parseFloat(qtdEl ? qtdEl.value : 0) || 0;
+    let quantidade = parseFloat(qtdEl ? qtdEl.value : 0) || 0;
+    const seriais = parseSeriais(seriaisEl ? seriaisEl.value : '');
 
     if (!nome) {
         alert('Digite o nome do material/equipamento!');
         return;
     }
 
+    // Seriais são opcionais; sem quantidade informada, cada serial conta como 1 unidade
+    if (!quantidade && seriais.length) quantidade = seriais.length;
+
     // Se já existe material com mesmo nome (case-insensitive), soma ao estoque existente
     const existente = materiaisEstoque.find(m => m.nome.toLowerCase() === nome.toLowerCase());
     if (existente) {
         existente.quantidade = (parseFloat(existente.quantidade) || 0) + quantidade;
+        existente.seriais = [...new Set([...(existente.seriais || []), ...seriais])];
     } else {
         materiaisEstoque.push({
             id: Date.now(),
             nome: nome,
             unidade: unidade,
-            quantidade: quantidade
+            quantidade: quantidade,
+            seriais: seriais
         });
     }
 
@@ -45,6 +56,23 @@ function adicionarMaterialEstoque() {
     nomeEl.value = '';
     if (unidadeEl) unidadeEl.value = '';
     if (qtdEl) qtdEl.value = '';
+    if (seriaisEl) seriaisEl.value = '';
+}
+
+function editarSeriaisMaterialEstoque(id) {
+    const item = materiaisEstoque.find(m => m.id === id);
+    if (!item) return;
+    const atuais = item.seriais || [];
+    const texto = prompt(`Seriais disponíveis de "${item.nome}" (separe por vírgula). Remova ou adicione conforme necessário:`, atuais.join(', '));
+    if (texto === null) return;
+    const novos = parseSeriais(texto);
+    // Seriais novos entram no estoque; seriais removidos saem dele
+    const delta = novos.length - atuais.length;
+    item.seriais = novos;
+    item.quantidade = Math.max(0, (parseFloat(item.quantidade) || 0) + delta);
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+    popularSelectMateriaisOT();
 }
 
 function removerMaterialEstoque(id) {
@@ -97,10 +125,11 @@ function atualizarTabelaAlmoxarifado() {
         const baixo = qtd <= 0;
         return `
         <tr>
-            <td>${m.nome}</td>
+            <td>${m.nome}${(m.seriais && m.seriais.length) ? `<br><small style="color:#607d8b;">🔢 ${m.seriais.length} serial(is): ${m.seriais.join(', ')}</small>` : ''}</td>
             <td>${m.unidade || 'un'}</td>
             <td style="font-weight:bold; color:${baixo ? '#e74c3c' : '#27ae60'};">${qtd}</td>
             <td>
+                <button type="button" class="btn-small" onclick="editarSeriaisMaterialEstoque(${m.id})" title="Seriais">🔢</button>
                 <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, 1)" title="Adicionar 1">➕</button>
                 <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, -1)" title="Retirar 1">➖</button>
                 <button type="button" class="btn-small" onclick="editarQuantidadeMaterialEstoque(${m.id})" title="Definir quantidade">✏️</button>
@@ -150,20 +179,29 @@ function adicionarMaterialNaOT() {
         return;
     }
 
-    const quantidade = parseFloat(qtdEl ? qtdEl.value : 1) || 1;
+    const serialSel = document.getElementById('serialMaterialOT');
+    const serial = serialSel ? serialSel.value : '';
+    const quantidade = serial ? 1 : (parseFloat(qtdEl ? qtdEl.value : 1) || 1);
     const material = materiaisEstoque.find(m => m.id === materialId);
     if (!material) {
         alert('Material não encontrado no almoxarifado!');
         return;
     }
 
+    if (serial && materiaisTemp.some(m => (m.seriais || []).includes(serial))) {
+        alert('Este serial já foi adicionado à OT!');
+        return;
+    }
+
     materiaisTemp.push({
         materialId: material.id,
         nome: material.nome,
-        quantidade: quantidade
+        quantidade: quantidade,
+        seriais: serial ? [serial] : []
     });
 
     atualizarListaMateriaisOT();
+    atualizarSelectSerialOT(null);
 
     if (select) select.value = '';
     if (busca) busca.value = '';
@@ -206,9 +244,22 @@ function renderSugestoesMaterial(lista) {
     });
 }
 
+// Mostra o seletor de serial (opcional) quando o material escolhido tem seriais disponíveis
+function atualizarSelectSerialOT(materialId) {
+    const sel = document.getElementById('serialMaterialOT');
+    if (!sel) return;
+    const material = materialId ? materiaisEstoque.find(m => m.id === materialId) : null;
+    const usados = new Set(materiaisTemp.flatMap(m => m.seriais || []));
+    const disponiveis = ((material && material.seriais) || []).filter(s => !usados.has(s));
+    sel.innerHTML = '<option value="">Sem serial</option>' +
+        disponiveis.map(s => `<option value="${s}">${s}</option>`).join('');
+    sel.style.display = disponiveis.length ? '' : 'none';
+}
+
 function selecionarMaterialSugerido(materialId) {
     const material = materiaisEstoque.find(m => m.id === materialId);
     if (!material) return;
+    atualizarSelectSerialOT(materialId);
     const select = document.getElementById('materialSelecionado');
     const busca = document.getElementById('buscarMaterialOT');
     const box = document.getElementById('sugestoesMaterial');
@@ -229,7 +280,7 @@ function inicializarBuscaMaterial() {
     busca.addEventListener('input', function() {
         // Ao digitar manualmente, invalida a seleção anterior até o usuário escolher de novo
         if (select) select.value = '';
-        const termo = this.value;
+        atualizarSelectSerialOT(null);
         if (!termo.trim()) {
             box.style.display = 'none';
             box.innerHTML = '';
@@ -272,7 +323,7 @@ function atualizarListaMateriaisOT() {
 
     lista.innerHTML = materiaisTemp.map((m, index) => `
         <div style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #16a085; color: white; border-radius: 5px; margin: 2px; font-size: 12px;">
-            <span>🧰 ${m.nome}: ${m.quantidade}</span>
+            <span>🧰 ${m.nome}: ${m.quantidade}${(m.seriais && m.seriais.length) ? ` (S/N: ${m.seriais.join(', ')})` : ''}</span>
             <button type="button" onclick="removerMaterialDaOT(${index})" style="background: rgba(255,255,255,0.3); color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-weight: bold;">✕</button>
         </div>
     `).join('');
@@ -286,6 +337,9 @@ function baixarEstoqueMateriais(materiaisUsados) {
         if (item) {
             const novaQtd = (parseFloat(item.quantidade) || 0) - (parseFloat(mu.quantidade) || 0);
             item.quantidade = novaQtd < 0 ? 0 : novaQtd;
+            if (mu.seriais && mu.seriais.length) {
+                item.seriais = (item.seriais || []).filter(s => !mu.seriais.includes(s));
+            }
         }
     });
     salvarMateriaisEstoque();
@@ -298,6 +352,9 @@ function devolverEstoqueMateriais(materiaisUsados) {
         const item = materiaisEstoque.find(m => m.id === mu.materialId);
         if (item) {
             item.quantidade = (parseFloat(item.quantidade) || 0) + (parseFloat(mu.quantidade) || 0);
+            if (mu.seriais && mu.seriais.length) {
+                item.seriais = [...new Set([...(item.seriais || []), ...mu.seriais])];
+            }
         }
     });
     salvarMateriaisEstoque();
@@ -1448,6 +1505,7 @@ function abrirModalMateriaisInstalacao() {
         <label style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #eee;">
             <input type="checkbox" class="chk-mat-ot" data-id="${m.id}" ${sugerido ? 'checked' : ''}>
             <span style="flex:1;">${m.nome} <small style="color:#607d8b;">(estoque: ${parseFloat(m.quantidade) || 0} ${m.unidade || 'un'})</small></span>
+            ${(m.seriais && m.seriais.length) ? `<select class="serial-mat-ot" data-id="${m.id}" style="max-width:130px;"><option value="">Sem serial</option>${m.seriais.map(s => `<option value="${s}">${s}</option>`).join('')}</select>` : ''}
             <input type="number" class="qtd-mat-ot" data-id="${m.id}" value="1" min="0.01" step="0.01" style="width:70px;">
         </label>`;
     }).join('') : '<p style="color:#607d8b;">Nenhum material cadastrado no Almoxarifado.</p>';
@@ -1481,7 +1539,11 @@ function abrirModalMateriaisInstalacao() {
             const id = parseInt(chk.dataset.id, 10);
             const material = materiaisEstoque.find(m => m.id === id);
             const qtd = parseFloat(overlay.querySelector(`.qtd-mat-ot[data-id="${id}"]`).value) || 0;
-            if (material && qtd > 0) escolhidos.push({ materialId: id, nome: material.nome, quantidade: qtd });
+            const serialEl = overlay.querySelector(`.serial-mat-ot[data-id="${id}"]`);
+            const serial = serialEl ? serialEl.value : '';
+            if (material && (qtd > 0 || serial)) {
+                escolhidos.push({ materialId: id, nome: material.nome, quantidade: serial ? 1 : qtd, seriais: serial ? [serial] : [] });
+            }
         });
         materiaisTemp = escolhidos;
         atualizarListaMateriaisOT();
