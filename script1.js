@@ -59,6 +59,38 @@ function adicionarMaterialEstoque() {
     if (seriaisEl) seriaisEl.value = '';
 }
 
+// Leitor de código de barras: adiciona o serial lido ao campo de seriais do almoxarifado
+function escanearSerialAlmoxarifado() {
+    abrirScanner(codigo => {
+        const el = document.getElementById('almox-novo-seriais');
+        if (!el) return;
+        const atuais = parseSeriais(el.value);
+        if (!atuais.includes(codigo)) atuais.push(codigo);
+        el.value = atuais.join('\n');
+    });
+}
+
+// Leitor de código de barras na OT: encontra o material pelo serial lido e preenche automaticamente
+function escanearMaterialOT() {
+    abrirScanner(codigo => {
+        const lido = String(codigo).trim().toLowerCase();
+        const material = materiaisEstoque.find(m => (m.seriais || []).some(s => s.toLowerCase() === lido));
+        const busca = document.getElementById('buscarMaterialOT');
+        if (!material) {
+            if (busca) {
+                busca.value = codigo;
+                busca.dispatchEvent(new Event('input'));
+            }
+            alert(`Serial "${codigo}" não encontrado no almoxarifado.`);
+            return;
+        }
+        selecionarMaterialSugerido(material.id);
+        const serial = material.seriais.find(s => s.toLowerCase() === lido);
+        const sel = document.getElementById('serialMaterialOT');
+        if (sel) sel.value = serial;
+    });
+}
+
 function editarSeriaisMaterialEstoque(id) {
     const item = materiaisEstoque.find(m => m.id === id);
     if (!item) return;
@@ -6307,7 +6339,10 @@ let scannerAtivo = false;
 let camerasDisponiveis = [];
 let cameraAtualIndex = 0;
 
-function abrirScanner() {
+let scannerCallback = null;
+
+function abrirScanner(callback) {
+    scannerCallback = typeof callback === 'function' ? callback : null;
     const modal = document.getElementById('scannerModal');
     const video = document.getElementById('video');
     const resultado = document.getElementById('resultado');
@@ -6404,7 +6439,11 @@ function iniciarScanner() {
             // Tocar som de beep
             tocarSomBeep();
             
-            atualizarMACScanner(codigoDetectado);
+            scannerAtivo = false; // evita leituras repetidas enquanto o modal fecha
+            scannerAtivo = false; // evita leituras repetidas enquanto o modal fecha
+            if (scannerCallback) scannerCallback(codigoDetectado);
+            else atualizarMACScanner(codigoDetectado);
+            resultado.textContent = `✅ Código: ${codigoDetectado}`;
             resultado.textContent = `✅ Código: ${codigoDetectado}`;
             resultado.style.color = '#27ae60';
             
