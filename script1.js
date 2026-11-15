@@ -1425,6 +1425,72 @@ function definirDataAtual() {
     document.getElementById('filtroMes').value = `${ano}-${mes}`;
 }
 
+// ==================== CONFIRMAÇÃO DE MATERIAIS NA INSTALAÇÃO ====================
+let materiaisConfirmadosParaOT = false;
+
+function otEhInstalacao() {
+    const tipo = document.getElementById('tipoTrabalho')?.value || '';
+    const categoria = (document.getElementById('categoriaServico')?.value || '').toLowerCase();
+    return tipo === 'instalacao' || categoria.includes('instal');
+}
+
+function abrirModalMateriaisInstalacao() {
+    document.getElementById('modalMateriaisOT')?.remove();
+
+    const ehEquipamentoPadrao = (m) => /\b(router|ont)\b/i.test(m.nome || '');
+    const itens = materiaisEstoque
+        .slice()
+        .sort((a, b) => (ehEquipamentoPadrao(b) - ehEquipamentoPadrao(a)) || a.nome.localeCompare(b.nome));
+
+    const linhas = itens.length ? itens.map(m => {
+        const sugerido = ehEquipamentoPadrao(m);
+        return `
+        <label style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #eee;">
+            <input type="checkbox" class="chk-mat-ot" data-id="${m.id}" ${sugerido ? 'checked' : ''}>
+            <span style="flex:1;">${m.nome} <small style="color:#607d8b;">(estoque: ${parseFloat(m.quantidade) || 0} ${m.unidade || 'un'})</small></span>
+            <input type="number" class="qtd-mat-ot" data-id="${m.id}" value="1" min="0.01" step="0.01" style="width:70px;">
+        </label>`;
+    }).join('') : '<p style="color:#607d8b;">Nenhum material cadastrado no Almoxarifado.</p>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modalMateriaisOT';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; display:flex; align-items:center; justify-content:center; padding:12px;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:10px; padding:18px; max-width:480px; width:100%; max-height:85vh; display:flex; flex-direction:column;">
+            <h3 style="margin:0 0 6px;">🧰 Materiais usados na instalação</h3>
+            <p style="margin:0 0 10px; color:#607d8b; font-size:13px;">Selecione o que foi usado. Será descontado do Almoxarifado ao registrar a OT.</p>
+            <div style="overflow-y:auto; flex:1;">${linhas}</div>
+            <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+                <button type="button" id="btnConfirmarMateriaisOT" class="btn-primary" style="flex:1;">✅ Confirmar e registrar OT</button>
+                <button type="button" id="btnSemMateriaisOT" class="btn-secondary" style="flex:1;">Registrar sem materiais</button>
+                <button type="button" id="btnCancelarMateriaisOT" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const fechar = () => overlay.remove();
+    const registrar = () => {
+        fechar();
+        materiaisConfirmadosParaOT = true;
+        document.getElementById('formOT').requestSubmit();
+    };
+
+    overlay.querySelector('#btnConfirmarMateriaisOT').addEventListener('click', () => {
+        const escolhidos = [];
+        overlay.querySelectorAll('.chk-mat-ot:checked').forEach(chk => {
+            const id = parseInt(chk.dataset.id, 10);
+            const material = materiaisEstoque.find(m => m.id === id);
+            const qtd = parseFloat(overlay.querySelector(`.qtd-mat-ot[data-id="${id}"]`).value) || 0;
+            if (material && qtd > 0) escolhidos.push({ materialId: id, nome: material.nome, quantidade: qtd });
+        });
+        materiaisTemp = escolhidos;
+        atualizarListaMateriaisOT();
+        registrar();
+    });
+    overlay.querySelector('#btnSemMateriaisOT').addEventListener('click', registrar);
+    overlay.querySelector('#btnCancelarMateriaisOT').addEventListener('click', fechar);
+}
+
 // Formulário
 document.getElementById('formOT').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -1437,6 +1503,13 @@ document.getElementById('formOT').addEventListener('submit', function(e) {
         alert('Preencha pelo menos o Número da OT ou o Tipo de Serviço!');
         return;
     }
+
+    // Instalação nova sem materiais informados: pedir confirmação (pode registrar sem materiais)
+    if (!materiaisConfirmadosParaOT && !otEmEdicao && materiaisTemp.length === 0 && otEhInstalacao()) {
+        abrirModalMateriaisInstalacao();
+        return;
+    }
+    materiaisConfirmadosParaOT = false;
     
     let servicoInfo = null;
     if (tipoServico) {
