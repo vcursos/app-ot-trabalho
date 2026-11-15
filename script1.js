@@ -8,6 +8,74 @@ window.fotosOTAtual = window.fotosOTAtual || []; // Fotos anexadas à OT em edi�
 // ==================== ALMOXARIFADO (Materiais/Equipamentos em estoque) ====================
 function salvarMateriaisEstoque() {
     localStorage.setItem('materiaisEstoque', JSON.stringify(materiaisEstoque));
+    if (typeof atualizarPainelInicial === 'function') atualizarPainelInicial();
+}
+
+// ==================== PAINEL INICIAL (resumo/lembrete antes de registrar a OT) ====================
+const LIMITE_ESTOQUE_BAIXO = 2;
+
+function atualizarPainelInicial() {
+    const el = document.getElementById('painelInicialConteudo');
+    if (!el) return;
+
+    const hojeISO = getDataISO(new Date());
+    const mesISO = hojeISO.slice(0, 7);
+    const valor = ot => parseFloat(ot.valorServico) || 0;
+    const pontos = ot => (parseFloat(ot.pontosServico) || 0) + (parseFloat(ot.pontosAdicional) || 0);
+    const eur = n => `€ ${n.toFixed(2).replace('.', ',')}`;
+
+    const otsDia = ordensTrabalho.filter(ot => getDataISO(ot.data) === hojeISO);
+    const otsMes = ordensTrabalho.filter(ot => getDataISO(ot.data).slice(0, 7) === mesISO);
+    const valorDia = otsDia.reduce((s, ot) => s + valor(ot), 0);
+    const valorMes = otsMes.reduce((s, ot) => s + valor(ot), 0);
+    const pontosDia = otsDia.reduce((s, ot) => s + pontos(ot), 0);
+    const diasTrabalhados = new Set(otsMes.map(ot => getDataISO(ot.data))).size;
+    const mediaDia = diasTrabalhados ? valorMes / diasTrabalhados : 0;
+    const liquido = typeof aplicarDesconto === 'function' ? aplicarDesconto : (v => v);
+    const descPct = typeof obterDescontoPercentual === 'function' ? obterDescontoPercentual() : 0;
+
+    const cartao = (titulo, principal, detalhe, cor) => `
+        <div style="flex:1; min-width:150px; background:${cor}; color:#fff; border-radius:10px; padding:12px;">
+            <div style="font-size:12px; opacity:.9;">${titulo}</div>
+            <div style="font-size:22px; font-weight:bold;">${principal}</div>
+            <div style="font-size:12px; opacity:.9;">${detalhe}</div>
+        </div>`;
+
+    const instalacoesDia = otsDia.filter(ot => /instal/i.test(`${ot.categoria || ''} ${ot.tipoTrabalho || ''}`)).length;
+    const detalheLiquido = descPct > 0 ? ` • líquido ${eur(liquido(valorDia))}` : '';
+
+    const itens = materiaisEstoque.slice().sort((a, b) => a.nome.localeCompare(b.nome));
+    const qtd = m => parseFloat(m.quantidade) || 0;
+    const zerados = itens.filter(m => qtd(m) <= 0);
+    const baixos = itens.filter(m => qtd(m) > 0 && qtd(m) <= LIMITE_ESTOQUE_BAIXO);
+
+    const alertas = [];
+    if (!otsDia.length) alertas.push('📝 Nenhuma OT registada hoje ainda.');
+    if (zerados.length) alertas.push(`⛔ Sem estoque: ${zerados.map(m => m.nome).join(', ')}`);
+    if (baixos.length) alertas.push(`⚠️ Estoque baixo: ${baixos.map(m => `${m.nome} (${qtd(m)})`).join(', ')}`);
+
+    const linhasMateriais = itens.length ? itens.map(m => {
+        const q = qtd(m);
+        const cor = q <= 0 ? '#e74c3c' : (q <= LIMITE_ESTOQUE_BAIXO ? '#e67e22' : '#27ae60');
+        const nSeriais = (m.seriais || []).length;
+        return `<div style="display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid #eee;">
+            <span>${m.nome}${nSeriais ? ` <small style="color:#607d8b;">🔢 ${nSeriais} serial(is)</small>` : ''}</span>
+            <strong style="color:${cor};">${q} ${m.unidade || 'un'}</strong>
+        </div>`;
+    }).join('') : '<p style="color:#607d8b; margin:0;">Nenhum material cadastrado. Adicione na aba 📦 Almoxarifado.</p>';
+
+    el.innerHTML = `
+        ${alertas.length ? `<div style="background:#fff8e1; border-left:4px solid #f39c12; padding:8px 12px; border-radius:6px; margin-bottom:10px; font-size:13px;">${alertas.join('<br>')}</div>` : ''}
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+            ${cartao('Hoje', `${otsDia.length} OT(s)`, `${eur(valorDia)} • ${pontosDia.toFixed(1)} pts${detalheLiquido}`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
+            ${cartao('Instalações hoje', String(instalacoesDia), `${otsDia.length - instalacoesDia} outros serviços`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
+            ${cartao('Mês', `${otsMes.length} OT(s)`, `${eur(valorMes)}${descPct > 0 ? ` • líquido ${eur(liquido(valorMes))}` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
+            ${cartao('Média por dia', eur(mediaDia), `${diasTrabalhados} dia(s) trabalhado(s)`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
+        </div>
+        <details open>
+            <summary style="cursor:pointer; font-weight:bold; margin-bottom:6px;">📦 Meu material (${itens.length} tipo(s), ${itens.reduce((s, m) => s + qtd(m), 0)} un. no total)</summary>
+            ${linhasMateriais}
+        </details>`;
 }
 
 function parseSeriais(texto) {
@@ -2601,6 +2669,7 @@ function aplicarDesconto(valor) {
 // (removed fallback submit hook which caused submission issues)
 
 function atualizarResumos() {
+    try { atualizarPainelInicial(); } catch (e) { console.warn('Painel inicial:', e); }
     const hoje = new Date().toDateString();
     const mesAtual = new Date().getMonth();
     const anoAtual = new Date().getFullYear();
