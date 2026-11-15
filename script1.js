@@ -84,10 +84,8 @@ function escanearMaterialOT() {
             alert(`Serial "${codigo}" não encontrado no almoxarifado.`);
             return;
         }
-        selecionarMaterialSugerido(material.id);
         const serial = material.seriais.find(s => s.toLowerCase() === lido);
-        const sel = document.getElementById('serialMaterialOT');
-        if (sel) sel.value = serial;
+        selecionarMaterialSugerido(material.id, serial);
     });
 }
 
@@ -244,9 +242,13 @@ function adicionarMaterialNaOT() {
 function filtrarMateriaisEstoque(termo) {
     const t = (termo || '').trim().toLowerCase();
     if (!t) return [];
-    return materiaisEstoque
-        .filter(m => (m.nome || '').toLowerCase().includes(t))
-        .sort((a, b) => a.nome.localeCompare(b.nome));
+    const resultados = [];
+    materiaisEstoque.forEach(m => {
+        if ((m.nome || '').toLowerCase().includes(t)) resultados.push({ material: m, serial: '' });
+        (m.seriais || []).filter(s => s.toLowerCase().includes(t))
+            .forEach(s => resultados.push({ material: m, serial: s }));
+    });
+    return resultados.sort((a, b) => a.material.nome.localeCompare(b.material.nome) || a.serial.localeCompare(b.serial));
 }
 
 function renderSugestoesMaterial(lista) {
@@ -254,14 +256,14 @@ function renderSugestoesMaterial(lista) {
     if (!box) return;
 
     if (!lista.length) {
-        box.innerHTML = '<div class="autocomplete-empty">Nenhum material encontrado</div>';
+        box.innerHTML = '<div class="autocomplete-empty">Nenhum material ou serial encontrado</div>';
         box.style.display = 'block';
         return;
     }
 
-    box.innerHTML = lista.map(m => `
-        <div class="autocomplete-item" data-id="${m.id}">
-            <span>🧰 ${m.nome}</span>
+    box.innerHTML = lista.map(({ material: m, serial }) => `
+        <div class="autocomplete-item" data-id="${m.id}" data-serial="${serial.replace(/"/g, '&quot;')}">
+            <span>${serial ? '🔢' : '🧰'} ${m.nome}${serial ? ` — S/N ${serial}` : ''}</span>
             <span class="ac-badge">${m.unidade || 'un'} • estoque: ${parseFloat(m.quantidade) || 0}</span>
         </div>
     `).join('');
@@ -271,7 +273,7 @@ function renderSugestoesMaterial(lista) {
         item.addEventListener('mousedown', function(e) {
             e.preventDefault(); // evita o blur fechar a lista antes do clique registrar
             const id = parseInt(this.getAttribute('data-id'), 10);
-            selecionarMaterialSugerido(id);
+            selecionarMaterialSugerido(id, this.getAttribute('data-serial') || '');
         });
     });
 }
@@ -288,10 +290,12 @@ function atualizarSelectSerialOT(materialId) {
     sel.style.display = disponiveis.length ? '' : 'none';
 }
 
-function selecionarMaterialSugerido(materialId) {
+function selecionarMaterialSugerido(materialId, serial = '') {
     const material = materiaisEstoque.find(m => m.id === materialId);
     if (!material) return;
     atualizarSelectSerialOT(materialId);
+    const serialSel = document.getElementById('serialMaterialOT');
+    if (serialSel && serial) serialSel.value = serial;
     const select = document.getElementById('materialSelecionado');
     const busca = document.getElementById('buscarMaterialOT');
     const box = document.getElementById('sugestoesMaterial');
@@ -313,6 +317,7 @@ function inicializarBuscaMaterial() {
         // Ao digitar manualmente, invalida a seleção anterior até o usuário escolher de novo
         if (select) select.value = '';
         atualizarSelectSerialOT(null);
+        const termo = this.value;
         if (!termo.trim()) {
             box.style.display = 'none';
             box.innerHTML = '';
