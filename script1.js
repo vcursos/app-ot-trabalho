@@ -30,6 +30,7 @@ function atualizarPainelInicial() {
     const valorMes = otsMes.reduce((s, ot) => s + valor(ot), 0);
     const pontosDia = otsDia.reduce((s, ot) => s + pontos(ot), 0);
     const diasTrabalhados = new Set(otsMes.map(ot => getDataISO(ot.data))).size;
+    const pontosMes = otsMes.reduce((s, ot) => s + pontos(ot), 0);
     const mediaDia = diasTrabalhados ? valorMes / diasTrabalhados : 0;
     const liquido = typeof aplicarDesconto === 'function' ? aplicarDesconto : (v => v);
     const descPct = typeof obterDescontoPercentual === 'function' ? obterDescontoPercentual() : 0;
@@ -69,7 +70,7 @@ function atualizarPainelInicial() {
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
             ${cartao('Hoje', `${otsDia.length} OT(s)`, `${eur(valorDia)} • ${pontosDia.toFixed(1)} pts${detalheLiquido}`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
             ${cartao('Instalações hoje', String(instalacoesDia), `${otsDia.length - instalacoesDia} outros serviços`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
-            ${cartao('Mês', `${otsMes.length} OT(s)`, `${eur(valorMes)}${descPct > 0 ? ` • líquido ${eur(liquido(valorMes))}` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
+            ${cartao('Mês', `${otsMes.length} OT(s)`, `${eur(valorMes)} • ${pontosMes.toFixed(1)} pts${descPct > 0 ? ` • líquido ${eur(liquido(valorMes))}` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
             ${cartao('Média por dia', eur(mediaDia), `${diasTrabalhados} dia(s) trabalhado(s)`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
         </div>
         <details open>
@@ -2670,51 +2671,6 @@ function aplicarDesconto(valor) {
 
 function atualizarResumos() {
     try { atualizarPainelInicial(); } catch (e) { console.warn('Painel inicial:', e); }
-    const hoje = new Date().toDateString();
-    const mesAtual = new Date().getMonth();
-    const anoAtual = new Date().getFullYear();
-    
-    const otsDia = ordensTrabalho.filter(ot => new Date(ot.data).toDateString() === hoje);
-    const otsMes = ordensTrabalho.filter(ot => {
-        const data = new Date(ot.data);
-        return data.getMonth() === mesAtual && data.getFullYear() === anoAtual;
-    });
-    
-    const valorDia = otsDia.reduce((sum, ot) => sum + ot.valorServico, 0);
-    const valorMes = otsMes.reduce((sum, ot) => sum + ot.valorServico, 0);
-
-    const pontosDia = otsDia.reduce((sum, ot) => {
-        const pServ = parseFloat(ot.pontosServico) || 0;
-        const pAdd = parseFloat(ot.pontosAdicional) || 0;
-        return sum + pServ + pAdd;
-    }, 0);
-
-    const pontosMes = otsMes.reduce((sum, ot) => {
-        const pServ = parseFloat(ot.pontosServico) || 0;
-        const pAdd = parseFloat(ot.pontosAdicional) || 0;
-        return sum + pServ + pAdd;
-    }, 0);
-
-    const descPct = obterDescontoPercentual();
-    const valorDiaLiquido = aplicarDesconto(valorDia);
-    const valorMesLiquido = aplicarDesconto(valorMes);
-    
-    document.getElementById('qtdDia').textContent = otsDia.length;
-    if (descPct > 0) {
-        document.getElementById('valorDia').innerHTML =
-            `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts` +
-            `<br><small style="color:rgba(255,255,255,0.85);font-size:11px;">Líquido (-${descPct}%): € ${valorDiaLiquido.toFixed(2)}</small>`;
-    } else {
-        document.getElementById('valorDia').textContent = `€ ${valorDia.toFixed(2)} | ${pontosDia.toFixed(1)} pts`;
-    }
-    document.getElementById('qtdMes').textContent = otsMes.length;
-    if (descPct > 0) {
-        document.getElementById('valorMes').innerHTML =
-            `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts` +
-            `<br><small style="color:rgba(255,255,255,0.85);font-size:11px;">Líquido (-${descPct}%): € ${valorMesLiquido.toFixed(2)}</small>`;
-    } else {
-        document.getElementById('valorMes').textContent = `€ ${valorMes.toFixed(2)} | ${pontosMes.toFixed(1)} pts`;
-    }
 }
 
 function filtrarPorMes() {
