@@ -271,7 +271,7 @@
             <div class="table-header">
                 <h2>Ordens de Trabalho Registradas</h2>
                 <div class="filter-group">
-                    <input type="text" id="pesquisaMAC" placeholder="🔍 Código de barras..." onkeyup="pesquisarPorMAC()" style="min-width: 200px;">
+                    <input type="text" id="pesquisaMAC" placeholder="🔍 Buscar OT, serial, MAC, obs..." onkeyup="pesquisarPorMAC()" style="min-width: 200px;">
                     <input type="month" id="filtroMes" onchange="aplicarFiltros()" style="max-width:160px;">
                     <select id="filtroCategoria" onchange="aplicarFiltros()">
                         <option value="">Todas Categorias</option>
@@ -336,6 +336,10 @@
                         <input type="number" id="almox-novo-quantidade" placeholder="0" min="0" step="0.01">
                     </div>
                     <div class="form-group">
+                        <label>Estoque mínimo (opcional)</label>
+                        <input type="number" id="almox-novo-minimo" placeholder="Padrão: 2" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
                         <label>Seriais (opcional)</label>
                         <textarea id="almox-novo-seriais" rows="2" placeholder="Um por linha ou separados por vírgula. Pode deixar em branco."></textarea>
                         <button type="button" class="btn-scan" onclick="escanearSerialAlmoxarifado()" style="margin-top:6px;">📷 Ler código de barras</button>
@@ -355,6 +359,7 @@
                         <thead>
                             <tr>
                                 <th>Material</th>
+                                <th>Unidade</th>
                                 <th>Quantidade</th>
                                 <th>Ações</th>
                             </tr>
