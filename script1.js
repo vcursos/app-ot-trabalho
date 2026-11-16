@@ -28,10 +28,7 @@ function atualizarPainelInicial() {
     const otsMes = ordensTrabalho.filter(ot => getDataISO(ot.data).slice(0, 7) === mesISO);
     const valorDia = otsDia.reduce((s, ot) => s + valor(ot), 0);
     const valorMes = otsMes.reduce((s, ot) => s + valor(ot), 0);
-    const pontosDia = otsDia.reduce((s, ot) => s + pontos(ot), 0);
     const diasTrabalhados = new Set(otsMes.map(ot => getDataISO(ot.data))).size;
-    const pontosMes = otsMes.reduce((s, ot) => s + pontos(ot), 0);
-    const mediaDia = diasTrabalhados ? valorMes / diasTrabalhados : 0;
     const liquido = typeof aplicarDesconto === 'function' ? aplicarDesconto : (v => v);
     const descPct = typeof obterDescontoPercentual === 'function' ? obterDescontoPercentual() : 0;
 
@@ -70,7 +67,7 @@ function atualizarPainelInicial() {
             ${cartao('OTs hoje', String(otsDia.length), `${instalacoesDia} instalação(ões) • ${otsDia.length - instalacoesDia} outro(s)`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
             ${cartao('OTs no mês', String(otsMes.length), `${eur(liquido(valorMes))} líquido • bruto ${eur(valorMes)}`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
             ${cartao('Valor hoje', eur(liquido(valorDia)), `Bruto: ${eur(valorDia)}${descPct > 0 ? ` (−${descPct}% chefe)` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
-            ${cartao('Média por dia', eur(liquido(mediaDia)), `${diasTrabalhados} dia(s) de trabalho • bruto ${eur(mediaDia)}`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
+            ${cartao('Valor no mês', eur(liquido(valorMes)), `Bruto: ${eur(valorMes)} • ${diasTrabalhados} dia(s) de trabalho`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
         </div>
         <details open>
             <summary style="cursor:pointer; font-weight:bold; margin-bottom:6px;">📦 Meu material (${itens.length} tipo(s), ${itens.reduce((s, m) => s + qtd(m), 0)} un. no total)</summary>
