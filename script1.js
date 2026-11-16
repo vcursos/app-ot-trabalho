@@ -39,7 +39,9 @@ function atualizarPainelInicial() {
             <div style="font-size:12px; opacity:.9;">${detalhe}</div>
         </div>`;
 
-    const instalacoesDia = otsDia.filter(ot => /instal/i.test(`${ot.categoria || ''} ${ot.tipoTrabalho || ''}`)).length;
+    const ehInstalacao = ot => /instal/i.test(`${ot.categoria || ''} ${ot.tipoTrabalho || ''}`);
+    const instalacoesDia = otsDia.filter(ehInstalacao).length;
+    const instalacoesMes = otsMes.filter(ehInstalacao).length;
 
     const itens = materiaisEstoque.slice().sort((a, b) => a.nome.localeCompare(b.nome));
     const qtd = m => parseFloat(m.quantidade) || 0;
@@ -65,7 +67,7 @@ function atualizarPainelInicial() {
         ${alertas.length ? `<div style="background:#fff8e1; border-left:4px solid #f39c12; padding:8px 12px; border-radius:6px; margin-bottom:10px; font-size:13px;">${alertas.join('<br>')}</div>` : ''}
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
             ${cartao('OTs hoje', String(otsDia.length), `${instalacoesDia} instalação(ões) • ${otsDia.length - instalacoesDia} outro(s)`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
-            ${cartao('OTs no mês', String(otsMes.length), `${eur(liquido(valorMes))} líquido • bruto ${eur(valorMes)}`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
+            ${cartao('OTs no mês', String(otsMes.length), `${instalacoesMes} instalação(ões) • ${otsMes.length - instalacoesMes} outro(s)`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
             ${cartao('Valor hoje', eur(liquido(valorDia)), `Bruto: ${eur(valorDia)}${descPct > 0 ? ` (−${descPct}% chefe)` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
             ${cartao('Valor no mês', eur(liquido(valorMes)), `Bruto: ${eur(valorMes)} • ${diasTrabalhados} dia(s) de trabalho`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
         </div>
