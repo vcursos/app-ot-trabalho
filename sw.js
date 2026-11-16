@@ -1,5 +1,5 @@
 // Aumente a versão quando publicar alterações para garantir atualização do PWA instalado
-const CACHE_NAME = 'ot-app-cache-v14';
+const CACHE_NAME = 'ot-app-cache-v15';
 const ASSETS = [
   './',
   './index.html',
@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   // Scripts críticos: network-first (sempre pega versão nova, fallback pro cache se offline)
-  if (isNetworkFirst(req.url)) {
+  if (isNetworkFirst(req.url) || req.mode === 'navigate') {
     event.respondWith(
       fetch(req, { cache: 'no-store' })
         .then((res) => {
