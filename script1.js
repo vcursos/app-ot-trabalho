@@ -6359,6 +6359,7 @@ let videoStream = null;
 let scannerAtivo = false;
 let camerasDisponiveis = [];
 let cameraAtualIndex = 0;
+let usarCameraTraseiraPadrao = true;
 
 let scannerCallback = null;
 
@@ -6451,7 +6452,10 @@ function iniciarScanner() {
     
     // Iniciar decodificação contínua com a câmera selecionada
     try {
-        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+        const alvo = usarCameraTraseiraPadrao
+            ? { video: { facingMode: { ideal: 'environment' } } }
+            : { video: { deviceId: { exact: selectedDeviceId } } };
+        codeReader.decodeFromConstraints(alvo, 'video', (result, err) => {
         if (result && scannerAtivo) {
             // Código detectado!
             const codigoDetectado = result.text;
@@ -6503,7 +6507,8 @@ function trocarCamera() {
         codeReader.reset();
     }
     
-    // Trocar para próxima câmera
+    // Trocar para próxima câmera (passa a usar seleção manual por deviceId)
+    usarCameraTraseiraPadrao = false;
     cameraAtualIndex = (cameraAtualIndex + 1) % camerasDisponiveis.length;
     
     const resultado = document.getElementById('resultado');
@@ -6520,6 +6525,7 @@ function trocarCamera() {
 function fecharScanner() {
     const modal = document.getElementById('scannerModal');
     scannerAtivo = false;
+    usarCameraTraseiraPadrao = true;
     
     // Resetar para câmera traseira na próxima vez
     // Procurar índice da câmera traseira
