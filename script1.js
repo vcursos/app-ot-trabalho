@@ -14,6 +14,11 @@ function salvarMateriaisEstoque() {
 // ==================== PAINEL INICIAL (resumo/lembrete antes de registrar a OT) ====================
 const LIMITE_ESTOQUE_BAIXO = 2;
 
+function limiteMinimoMaterial(m) {
+    const n = parseFloat(m && m.minimo);
+    return Number.isFinite(n) && n >= 0 ? n : LIMITE_ESTOQUE_BAIXO;
+}
+
 function atualizarPainelInicial() {
     const el = document.getElementById('painelInicialConteudo');
     if (!el) return;
@@ -44,7 +49,7 @@ function atualizarPainelInicial() {
     const itens = materiaisEstoque.slice().sort((a, b) => a.nome.localeCompare(b.nome));
     const qtd = m => parseFloat(m.quantidade) || 0;
     const zerados = itens.filter(m => qtd(m) <= 0);
-    const baixos = itens.filter(m => qtd(m) > 0 && qtd(m) <= LIMITE_ESTOQUE_BAIXO);
+    const baixos = itens.filter(m => qtd(m) > 0 && qtd(m) <= limiteMinimoMaterial(m));
 
     const alertas = [];
     if (!otsDia.length) alertas.push('📝 Nenhuma OT registada hoje ainda.');
@@ -53,7 +58,7 @@ function atualizarPainelInicial() {
 
     const linhasMateriais = itens.length ? itens.map(m => {
         const q = qtd(m);
-        const cor = q <= 0 ? '#e74c3c' : (q <= LIMITE_ESTOQUE_BAIXO ? '#e67e22' : '#27ae60');
+        const cor = q <= 0 ? '#e74c3c' : (q <= limiteMinimoMaterial(m) ? '#e67e22' : '#27ae60');
         const nSeriais = (m.seriais || []).length;
         return `<div style="display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid #eee;">
             <span>${m.nome}${nSeriais ? ` <small style="color:#607d8b;">🔢 ${nSeriais} serial(is)</small>` : ''}</span>
@@ -99,18 +104,23 @@ function adicionarMaterialEstoque() {
     // Seriais são opcionais; sem quantidade informada, cada serial conta como 1 unidade
     if (!quantidade && seriais.length) quantidade = seriais.length;
 
+    const minimoEl = document.getElementById('almox-novo-minimo');
+    const minimoInformado = minimoEl && minimoEl.value !== '' ? parseFloat(minimoEl.value) : null;
+
     // Se já existe material com mesmo nome (case-insensitive), soma ao estoque existente
     const existente = materiaisEstoque.find(m => m.nome.toLowerCase() === nome.toLowerCase());
     if (existente) {
         existente.quantidade = (parseFloat(existente.quantidade) || 0) + quantidade;
         existente.seriais = [...new Set([...(existente.seriais || []), ...seriais])];
+        if (minimoInformado !== null && minimoInformado >= 0) existente.minimo = minimoInformado;
     } else {
         materiaisEstoque.push({
             id: Date.now(),
             nome: nome,
             unidade: unidade,
             quantidade: quantidade,
-            seriais: seriais
+            seriais: seriais,
+            ...(minimoInformado !== null && minimoInformado >= 0 ? { minimo: minimoInformado } : {})
         });
     }
 
@@ -122,6 +132,7 @@ function adicionarMaterialEstoque() {
     if (unidadeEl) unidadeEl.value = '';
     if (qtdEl) qtdEl.value = '';
     if (seriaisEl) seriaisEl.value = '';
+    if (minimoEl) minimoEl.value = '';
 }
 
 // Leitor de código de barras: adiciona o serial lido ao campo de seriais do almoxarifado
@@ -204,6 +215,68 @@ function editarQuantidadeMaterialEstoque(id) {
     popularSelectMateriaisOT();
 }
 
+function editarMinimoMaterialEstoque(id) {
+    const item = materiaisEstoque.find(m => m.id === id);
+    if (!item) return;
+    const texto = prompt(`Estoque mínimo de "${item.nome}" (avisa na tela inicial quando chegar a este valor). Deixe em branco para usar o padrão (${LIMITE_ESTOQUE_BAIXO}):`, item.minimo ?? '');
+    if (texto === null) return;
+    if (texto.trim() === '') {
+        delete item.minimo;
+    } else {
+        const n = parseFloat(texto.replace(',', '.'));
+        if (isNaN(n) || n < 0) {
+            alert('Valor inválido!');
+            return;
+        }
+        item.minimo = n;
+    }
+    salvarMateriaisEstoque();
+    atualizarTabelaAlmoxarifado();
+}
+
+// Histórico: lista as OTs em que o material (ou algum serial dele) foi usado
+function obterHistoricoMaterial(material) {
+    const historico = [];
+    ordensTrabalho.forEach(ot => {
+        (ot.materiaisUsados || []).forEach(mu => {
+            const mesmo = mu.materialId === material.id || (mu.nome || '').toLowerCase() === (material.nome || '').toLowerCase();
+            if (mesmo) historico.push({ ot, uso: mu });
+        });
+    });
+    return historico.sort((a, b) => new Date(b.ot.data) - new Date(a.ot.data));
+}
+
+function abrirHistoricoMaterial(id) {
+    const material = materiaisEstoque.find(m => m.id === id);
+    if (!material) return;
+    document.getElementById('popupHistoricoMaterial')?.remove();
+
+    const historico = obterHistoricoMaterial(material);
+    const total = historico.reduce((s, h) => s + (parseFloat(h.uso.quantidade) || 0), 0);
+    const linhas = historico.length ? historico.map(({ ot, uso }) => `
+        <div style="padding:7px 0; border-bottom:1px solid #eee; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+                <strong>${new Date(ot.data).toLocaleDateString('pt-BR')} • OT ${ot.numeroOT || '-'}</strong>
+                <span>${parseFloat(uso.quantidade) || 0} ${material.unidade || 'un'}</span>
+            </div>
+            <div style="color:#607d8b;">${ot.tipologia || formatarTipoTrabalho(ot.tipoTrabalho) || ''}${(uso.seriais && uso.seriais.length) ? `<br>🔢 ${uso.seriais.join(', ')}` : ''}</div>
+        </div>`).join('') : '<p style="color:#607d8b;">Este material ainda não foi usado em nenhuma OT.</p>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'popupHistoricoMaterial';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; display:flex; align-items:center; justify-content:center; padding:12px;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:10px; padding:18px; max-width:440px; width:100%; max-height:80vh; display:flex; flex-direction:column;">
+            <h3 style="margin:0 0 4px;">📜 Histórico — ${material.nome}</h3>
+            <p style="margin:0 0 8px; color:#607d8b; font-size:13px;">${historico.length} uso(s) • ${total} ${material.unidade || 'un'} no total • estoque atual: ${parseFloat(material.quantidade) || 0}</p>
+            <div style="overflow-y:auto; flex:1;">${linhas}</div>
+            <button type="button" class="btn-secondary" style="margin-top:10px;" id="fecharHistoricoMaterial">Fechar</button>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#fecharHistoricoMaterial').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
 function atualizarTabelaAlmoxarifado() {
     const corpo = document.getElementById('corpoTabelaAlmoxarifado');
     if (!corpo) return;
@@ -217,13 +290,17 @@ function atualizarTabelaAlmoxarifado() {
 
     corpo.innerHTML = listaOrdenada.map(m => {
         const qtd = parseFloat(m.quantidade) || 0;
-        const baixo = qtd <= 0;
+        const minimo = limiteMinimoMaterial(m);
+        const cor = qtd <= 0 ? '#e74c3c' : (qtd <= minimo ? '#e67e22' : '#27ae60');
+        const aviso = qtd <= 0 ? ' ⛔' : (qtd <= minimo ? ' ⚠️' : '');
         return `
         <tr>
-            <td>${m.nome}${(m.seriais && m.seriais.length) ? `<br><small style="color:#607d8b;">🔢 ${m.seriais.length} serial(is): ${m.seriais.join(', ')}</small>` : ''}</td>
+            <td>${m.nome}${(m.seriais && m.seriais.length) ? `<br><small style="color:#607d8b;">🔢 ${m.seriais.length} serial(is): ${m.seriais.join(', ')}</small>` : ''}<br><small style="color:#90a4ae;">mínimo: ${minimo}${m.minimo === undefined ? ' (padrão)' : ''}</small></td>
             <td>${m.unidade || 'un'}</td>
-            <td style="font-weight:bold; color:${baixo ? '#e74c3c' : '#27ae60'};">${qtd}</td>
+            <td style="font-weight:bold; color:${cor};">${qtd}${aviso}</td>
             <td>
+                <button type="button" class="btn-small" onclick="abrirHistoricoMaterial(${m.id})" title="Histórico de uso">📜</button>
+                <button type="button" class="btn-small" onclick="editarMinimoMaterialEstoque(${m.id})" title="Estoque mínimo">🔔</button>
                 <button type="button" class="btn-small" onclick="editarSeriaisMaterialEstoque(${m.id})" title="Seriais">🔢</button>
                 <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, 1)" title="Adicionar 1">➕</button>
                 <button type="button" class="btn-small" onclick="ajustarEstoqueMaterial(${m.id}, -1)" title="Retirar 1">➖</button>
@@ -2793,23 +2870,17 @@ function pesquisarPorMAC() {
         return;
     }
     
-    const resultados = ordensTrabalho.filter(ot => {
-        // Buscar em equipamentos novos
-        if (ot.equipamentos && ot.equipamentos.length > 0) {
-            return ot.equipamentos.some(eq => {
-                const codigo = typeof eq === 'string' ? eq : eq.mac;
-                return codigo.toLowerCase().includes(termo);
-            });
-        }
-        // Compatibilidade com registros antigos
-        if (ot.macEquipamento) {
-            return ot.macEquipamento.toLowerCase().includes(termo);
-        }
-        return false;
-    });
+    const textoOT = ot => {
+        const eqs = (ot.equipamentos || []).map(eq => typeof eq === 'string' ? eq : (eq && eq.mac) || '');
+        const mats = (ot.materiaisUsados || []).flatMap(mu => [mu.nome, ...(mu.seriais || [])]);
+        return [ot.numeroOT, ot.macEquipamento, ot.observacoes, ot.tipologia, ot.categoria, ot.adicional,
+            formatarTipoTrabalho(ot.tipoTrabalho), ot.data, new Date(ot.data).toLocaleDateString('pt-BR'),
+            ...eqs, ...mats].filter(Boolean).join(' | ').toLowerCase();
+    };
+    const resultados = ordensTrabalho.filter(ot => textoOT(ot).includes(termo));
     
     if (resultados.length === 0) {
-        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhum equipamento encontrado com este MAC</td></tr>';
+        tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhuma OT encontrada</td></tr>';
         return;
     }
     
@@ -2817,22 +2888,20 @@ function pesquisarPorMAC() {
         const tr = document.createElement('tr');
         const data = new Date(ot.data);
         
-        const equipamentosTexto = ot.equipamentos && ot.equipamentos.length > 0
-            ? ot.equipamentos.map(eq => {
-                const codigo = typeof eq === 'string' ? eq : eq.mac;
-                // Destacar código encontrado
-                const codigoDestacado = codigo.toLowerCase().includes(termo) 
-                    ? `<mark style="background: yellow;">${codigo}</mark>` 
-                    : codigo;
-                return codigoDestacado;
-            }).join(', ')
+        const eqTexto = ot.equipamentos && ot.equipamentos.length > 0
+            ? ot.equipamentos.map(eq => typeof eq === 'string' ? eq : eq.mac).join(', ') : '';
+        const matchSerial = (ot.materiaisUsados || []).flatMap(mu => mu.seriais || []).filter(s => s.toLowerCase().includes(termo));
+        const matchExtra = matchSerial.length ? `<br><small>🔢 ${matchSerial.join(', ')}</small>` : '';
+        const equipamentosTexto = eqTexto
+            ? eqTexto.split(', ').map(codigo => codigo.toLowerCase().includes(termo)
+                ? `<mark style="background: yellow;">${codigo}</mark>` : codigo).join(', ')
             : (ot.macEquipamento || '-');
 
         const tipoLabel = formatarTipoTrabalho(ot.tipoTrabalho);
         const tipoCell = tipoLabel || '-';
 
         const tipologiaTexto = ot.tipologia || '-';
-        const servicoCell = `<small>${tipologiaTexto}</small>`;
+        const servicoCell = `<small>${tipologiaTexto}</small>${eqTexto ? `<br><small>📟 ${equipamentosTexto}</small>` : ''}${matchExtra}`;
 
         const diaSemana = data.getDay();
         const isFestivo = ot.otFestivo === true;
