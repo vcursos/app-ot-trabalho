@@ -56,6 +56,9 @@ const STORAGE_KEYS = [
   'tiposTrabalhoCustom'
 ];
 
+// Opções que o utilizador pode alterar sem ter conta
+const CONFIG_KEYS = ['tabelasCustomizadas', 'multiplicadores', 'tiposTrabalhoCustom'];
+
 function safeParse(json, fallback) {
   try {
     const v = JSON.parse(json);
@@ -478,6 +481,32 @@ export class FirebaseSync {
   }
 
   async _pullRemoteOnLogin() {
+    const pendente = localStorage.getItem('__configPendente') === '1';
+    const configLocal = {};
+    if (pendente) {
+      for (const k of CONFIG_KEYS) {
+        const raw = localStorage.getItem(k);
+        if (raw !== null) configLocal[k] = raw;
+      }
+    }
+
+    await this._pullRemoteOnLoginBase();
+
+    // Opções alteradas sem conta têm prioridade sobre as da nuvem e são enviadas agora
+    if (pendente && this._uid) {
+      try {
+        for (const [k, raw] of Object.entries(configLocal)) localStorage.setItem(k, raw);
+        this.onRemoteApplied(getLocalSnapshot());
+        this._lastPushedHash = '';
+        await this.pushLocal('config-offline');
+        localStorage.removeItem('__configPendente');
+      } catch (e) {
+        console.warn('Falha ao enviar opções guardadas offline:', e);
+      }
+    }
+  }
+
+  async _pullRemoteOnLoginBase() {
     try {
       if (!this._initialized || !this._uid) return;
       this.onStatus({ state: 'syncing', phase: 'pull' });
