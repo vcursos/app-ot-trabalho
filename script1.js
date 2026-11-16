@@ -146,6 +146,102 @@ function escanearSerialAlmoxarifado() {
     });
 }
 
+// Escanear e adicionar direto ao almoxarifado, confirmando o material de cada serial lido
+let ultimoMaterialScanId = null;
+
+function iniciarScanAdicionarEstoque() {
+    abrirScanner(codigo => {
+        const lidoEm = Date.now();
+        confirmarSerialLido(String(codigo).trim(), lidoEm);
+    });
+}
+
+function sugerirMaterialPorSerial(serial) {
+    const s = serial.toLowerCase();
+    let melhor = null, melhorLen = 0;
+    materiaisEstoque.forEach(m => (m.seriais || []).forEach(x => {
+        const t = x.toLowerCase();
+        let i = 0;
+        while (i < s.length && i < t.length && s[i] === t[i]) i++;
+        if (i > melhorLen) { melhorLen = i; melhor = m; }
+    }));
+    if (melhor && melhorLen >= 4) return melhor;
+    return materiaisEstoque.find(m => m.id === ultimoMaterialScanId) || null;
+}
+
+function confirmarSerialLido(serial, lidoEm) {
+    document.getElementById('popupSerialLido')?.remove();
+    const reabrir = () => setTimeout(iniciarScanAdicionarEstoque, Math.max(300, 1700 - (Date.now() - lidoEm)));
+
+    const duplicado = materiaisEstoque.find(m => (m.seriais || []).some(x => x.toLowerCase() === serial.toLowerCase()));
+    if (duplicado) {
+        alert(`O serial ${serial} já está no almoxarifado em "${duplicado.nome}".`);
+        reabrir();
+        return;
+    }
+
+    const sugerido = sugerirMaterialPorSerial(serial);
+    const opcoes = materiaisEstoque.map(m => `<option value="${m.id}" ${sugerido && sugerido.id === m.id ? 'selected' : ''}>${m.nome}</option>`).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'popupSerialLido';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:100000; display:flex; align-items:center; justify-content:center; padding:12px;';
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:10px; padding:18px; max-width:380px; width:100%;">
+            <h3 style="margin:0 0 4px;">📷 Serial lido</h3>
+            <p style="margin:0 0 10px; font-size:16px; font-weight:bold; word-break:break-all;">${serial}</p>
+            <label style="font-size:13px;">Que material é este?${sugerido ? ' (sugerido pelo padrão)' : ''}</label>
+            <select id="scanMaterialSel" style="width:100%; margin-bottom:8px;">
+                ${opcoes}
+                <option value="__novo__" ${sugerido ? '' : 'selected'}>➕ Novo material…</option>
+            </select>
+            <input type="text" id="scanMaterialNovo" placeholder="Nome (Ex: Deco, Router...)" style="width:100%; margin-bottom:10px; display:none;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <button type="button" class="btn-primary" id="scanConfirmaProximo">✅ Confirmar e ler próximo</button>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" class="btn-secondary" id="scanConfirmaFim" style="flex:1;">Confirmar e terminar</button>
+                    <button type="button" class="btn-secondary" id="scanCancela">Cancelar</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const sel = overlay.querySelector('#scanMaterialSel');
+    const novo = overlay.querySelector('#scanMaterialNovo');
+    const mostrarNovo = () => {
+        novo.style.display = sel.value === '__novo__' ? 'block' : 'none';
+        if (sel.value === '__novo__') novo.focus();
+    };
+    sel.addEventListener('change', mostrarNovo);
+    mostrarNovo();
+
+    const confirmar = proximo => {
+        let material;
+        if (sel.value === '__novo__') {
+            const nome = novo.value.trim();
+            if (!nome) { alert('Informe o nome do material!'); return; }
+            material = materiaisEstoque.find(m => m.nome.toLowerCase() === nome.toLowerCase());
+            if (!material) {
+                material = { id: Date.now(), nome, unidade: 'un', quantidade: 0, seriais: [] };
+                materiaisEstoque.push(material);
+            }
+        } else {
+            material = materiaisEstoque.find(m => String(m.id) === sel.value);
+        }
+        if (!material) return;
+        material.seriais = [...(material.seriais || []), serial];
+        material.quantidade = (parseFloat(material.quantidade) || 0) + 1;
+        ultimoMaterialScanId = material.id;
+        salvarMateriaisEstoque();
+        atualizarTabelaAlmoxarifado();
+        popularSelectMateriaisOT();
+        overlay.remove();
+        if (proximo) reabrir();
+    };
+    overlay.querySelector('#scanConfirmaProximo').addEventListener('click', () => confirmar(true));
+    overlay.querySelector('#scanConfirmaFim').addEventListener('click', () => confirmar(false));
+    overlay.querySelector('#scanCancela').addEventListener('click', () => overlay.remove());
+}
+
 // Leitor de código de barras na OT: encontra o material pelo serial lido e preenche automaticamente
 function escanearMaterialOT() {
     abrirScanner(codigo => {

@@ -1,5 +1,5 @@
 // Aumente a versão quando publicar alterações para garantir atualização do PWA instalado
-const CACHE_NAME = 'ot-app-cache-v16';
+const CACHE_NAME = 'ot-app-cache-v17';
 const ASSETS = [
   './',
   './index.html',
