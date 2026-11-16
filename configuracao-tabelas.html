@@ -675,6 +675,7 @@
     import { FirebaseSync } from './js/syncFirebase.js';
 
     let _sync = null;
+    const MSG_SEM_CONTA = '💾 Guardado neste dispositivo — será enviado para a sua conta quando iniciar sessão';
 
     function setStatus(msg) {
         const el = document.getElementById('syncStatusTabelas');
@@ -736,7 +737,9 @@
                 if (st.state === 'logged-out') {
                     const hasCached = !!localStorage.getItem('__syncSessionUid');
                     if (!hasCached) {
-                        setStatus('⚠️ Sem sessão — faça login na página principal');
+                        setStatus(localStorage.getItem('__configPendente') === '1'
+                            ? MSG_SEM_CONTA
+                            : '💾 Sem conta — pode alterar os valores; ficam guardados neste dispositivo e vão para a conta quando entrar');
                         setBotoes(false);
                     }
                     return;
@@ -793,7 +796,8 @@
         const btn = document.getElementById('btnSalvarTabelas');
         try {
             if (!_sync || !_sync.getUserInfo?.()?.uid) {
-                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                localStorage.setItem('__configPendente', '1');
+                alert('Sem conta: valores guardados neste dispositivo. Serão enviados para a conta quando iniciar sessão.');
                 return;
             }
             if (btn) {
@@ -854,6 +858,9 @@
                 setTimeout(() => {
                     setStatus('✅ Alterações guardadas na nuvem');
                 }, 1500);
+            } else {
+                localStorage.setItem('__configPendente', '1');
+                setStatus(MSG_SEM_CONTA);
             }
         } catch {}
     };

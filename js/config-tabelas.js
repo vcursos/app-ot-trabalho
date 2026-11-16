@@ -555,7 +555,13 @@ function salvarTabela(categoria) {
     const resumo = salvarTabelasNoStorage(tabelas, { motivoBackup: `Salvar tabela: ${categoria}` });
 
     const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
-    alert(`Tabela salva com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
+    alert(`Tabela salva com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}${textoDestinoSalvamento()}`);
+}
+
+function textoDestinoSalvamento() {
+    return localStorage.getItem('__syncSessionUid')
+        ? '\n☁️ Guardado também na nuvem.'
+        : '\n💾 Guardado neste dispositivo. Será enviado para a conta quando iniciar sessão.';
 }
 
 // Salvar multiplicadores
@@ -577,7 +583,7 @@ function salvarMultiplicadores() {
     
     const resumo = salvarMultiplicadoresNoStorage(mult, { motivoBackup: 'Salvar multiplicadores' });
     const meses = resumo?.meses?.length ? resumo.meses.join(', ') : 'nenhum mês';
-    alert(`Configurações salvas com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}`);
+    alert(`Configurações salvas com sucesso! ✅\nOTs atualizadas: ${resumo?.alteradas || 0}\nMeses afetados: ${meses}${textoDestinoSalvamento()}`);
 }
 
 // Exportar tabela para JSON
