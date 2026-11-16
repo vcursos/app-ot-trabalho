@@ -67,7 +67,8 @@ function atualizarPainelInicial() {
     el.innerHTML = `
         ${alertas.length ? `<div style="background:#fff8e1; border-left:4px solid #f39c12; padding:8px 12px; border-radius:6px; margin-bottom:10px; font-size:13px;">${alertas.join('<br>')}</div>` : ''}
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-            ${cartao('OTs hoje', String(otsDia.length), `${otsMes.length} no mês • ${instalacoesDia} instalação(ões) hoje`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
+            ${cartao('OTs hoje', String(otsDia.length), `${instalacoesDia} instalação(ões) • ${otsDia.length - instalacoesDia} outro(s)`, 'linear-gradient(135deg,#3b82f6,#1d4ed8)')}
+            ${cartao('OTs no mês', String(otsMes.length), `${eur(liquido(valorMes))} líquido • bruto ${eur(valorMes)}`, 'linear-gradient(135deg,#8e44ad,#6c3483)')}
             ${cartao('Valor hoje', eur(liquido(valorDia)), `Bruto: ${eur(valorDia)}${descPct > 0 ? ` (−${descPct}% chefe)` : ''}`, 'linear-gradient(135deg,#16a085,#0e7a63)')}
             ${cartao('Média por dia', eur(liquido(mediaDia)), `${diasTrabalhados} dia(s) de trabalho • bruto ${eur(mediaDia)}`, 'linear-gradient(135deg,#e67e22,#ca6f1e)')}
         </div>
