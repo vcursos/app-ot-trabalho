@@ -796,7 +796,8 @@
         const btn = document.getElementById('btnSalvarTabelas');
         try {
             if (!_sync || !_sync.getUserInfo?.()?.uid) {
-                alert('Precisa de estar com sessão iniciada (Google) na página principal primeiro.');
+                localStorage.setItem('__configPendente', '1');
+                alert('Sem conta: valores guardados neste dispositivo. Serão enviados para a conta quando iniciar sessão.');
                 return;
             }
             if (btn) {
